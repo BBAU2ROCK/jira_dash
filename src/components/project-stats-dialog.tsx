@@ -5,7 +5,7 @@ import { type JiraIssue, jiraApi } from '@/api/jiraClient';
 import { filterLeafIssues } from '@/lib/jira-helpers';
 import {
     BarChart3, CheckCircle2, Clock, AlertTriangle,
-    Layers, X, ChevronRight, User, Trophy, HelpCircle
+    Layers, X, ChevronRight, User, Trophy, HelpCircle, Pause, CircleSlash
 } from 'lucide-react';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { calculateKPI } from '@/services/kpiService';
@@ -53,13 +53,25 @@ export function ProjectStatsDialog({ open, onClose, issues, epics, selectedEpicI
     // 건수 규칙: 할 일만 있으면 카운트, 하위 작업 있으면 부모 제외·하위만 반영 (통계/KPI 동일)
     const leafIssues = React.useMemo(() => filterLeafIssues(issues), [issues]);
 
+    // 보류·취소 식별 (status.name 기준, jiraConfig.STATUS_NAMES)
+    const isOnHold = (i: JiraIssue) => (i.fields.status?.name?.trim() ?? '') === (JIRA_CONFIG.STATUS_NAMES?.ON_HOLD ?? '보류');
+    const isCancelled = (i: JiraIssue) => (i.fields.status?.name?.trim() ?? '') === (JIRA_CONFIG.STATUS_NAMES?.CANCELLED ?? '취소');
+
     // ── KPI 계산 ─────────────────────────────────────────────────────────────
     const kpiMetrics = calculateKPI(leafIssues);
 
-    // ── 전체 통계 ─────────────────────────────────────────────────────────────
-    const done = leafIssues.filter(i => i.fields.status.statusCategory.key === 'done');
+    // ── 전체 통계 (5분할: 보류·취소·완료·진행·대기, 상호 배타) ─────────────────
+    const onHold = leafIssues.filter(i => isOnHold(i));
+    const cancelled = leafIssues.filter(i => isCancelled(i));
+    const done = leafIssues.filter(i =>
+        i.fields.status.statusCategory.key === 'done' && !isOnHold(i) && !isCancelled(i)
+    );
     const inProg = leafIssues.filter(i => i.fields.status.statusCategory.key === 'indeterminate');
-    const todo = leafIssues.filter(i => i.fields.status.statusCategory.key === 'new');
+    const todo = leafIssues.filter(i =>
+        !isOnHold(i) && !isCancelled(i) &&
+        i.fields.status.statusCategory.key !== 'done' &&
+        i.fields.status.statusCategory.key !== 'indeterminate'
+    );
     const delayed = leafIssues.filter(i =>
         i.fields.duedate && new Date(i.fields.duedate) < today &&
         i.fields.status.statusCategory.key !== 'done'
@@ -78,7 +90,10 @@ export function ProjectStatsDialog({ open, onClose, issues, epics, selectedEpicI
     // ── 담당자별 통계 ─────────────────────────────────────────────────────────
     const assigneeMap = new Map<string, AssigneeStats>();
 
-    // 리프만 담당자별 건수·업무로그 집계
+    // 리프만 담당자별 건수·업무로그 집계 (보류·취소는 완료로 포함, earlyDone/compliant는 실제 done만)
+    const isDoneForAssignee = (issue: JiraIssue) =>
+        issue.fields.status.statusCategory.key === 'done' || isOnHold(issue) || isCancelled(issue);
+
     leafIssues.forEach(issue => {
         const name = issue.fields.assignee?.displayName ?? '미할당';
         if (!assigneeMap.has(name)) {
@@ -90,30 +105,31 @@ export function ProjectStatsDialog({ open, onClose, issues, epics, selectedEpicI
         const s = assigneeMap.get(name)!;
         s.total.push(issue);
         const cat = issue.fields.status.statusCategory.key;
-        if (cat === 'done') {
+        if (isDoneForAssignee(issue)) {
             s.done.push(issue);
-            if (issue.fields.duedate && issue.fields.resolutiondate &&
-                new Date(issue.fields.resolutiondate) < new Date(issue.fields.duedate)) {
-                s.earlyDone.push(issue);
-            }
-            // 준수 여부 체크 (검증 지연 예외 처리 포함)
-            const isVerificationDelay = issue.fields.labels?.includes(JIRA_CONFIG.LABELS.VERIFICATION_DELAY);
-            if (issue.fields.duedate && issue.fields.resolutiondate) {
-                const due = new Date(issue.fields.duedate); due.setHours(23, 59, 59, 999);
-                const resolved = new Date(issue.fields.resolutiondate);
-                if (resolved <= due || isVerificationDelay) {
+            // 조기완료·준수는 실제 완료(statusCategory done)인 경우만
+            if (cat === 'done') {
+                if (issue.fields.duedate && issue.fields.resolutiondate &&
+                    new Date(issue.fields.resolutiondate) < new Date(issue.fields.duedate)) {
+                    s.earlyDone.push(issue);
+                }
+                const isVerificationDelay = issue.fields.labels?.includes(JIRA_CONFIG.LABELS.VERIFICATION_DELAY);
+                if (issue.fields.duedate && issue.fields.resolutiondate) {
+                    const due = new Date(issue.fields.duedate); due.setHours(23, 59, 59, 999);
+                    const resolved = new Date(issue.fields.resolutiondate);
+                    if (resolved <= due || isVerificationDelay) {
+                        s.compliant.push(issue);
+                    }
+                } else {
                     s.compliant.push(issue);
                 }
-            } else {
-                // 완료일/예정일 주어지지 않으면 준수로 처리
-                s.compliant.push(issue);
             }
         } else if (cat === 'indeterminate') {
             s.inProgress.push(issue);
         } else {
             s.todo.push(issue);
         }
-        if (issue.fields.duedate && new Date(issue.fields.duedate) < today && cat !== 'done') {
+        if (issue.fields.duedate && new Date(issue.fields.duedate) < today && !isDoneForAssignee(issue)) {
             s.delayed.push(issue);
         }
 
@@ -219,11 +235,13 @@ export function ProjectStatsDialog({ open, onClose, issues, epics, selectedEpicI
         return `${hours}h ${minutes}m`;
     };
 
-    // ── 파이차트 세그먼트 ─────────────────────────────────────────────────────
+    // ── 파이차트 세그먼트 (5분할: 완료·진행·대기·보류·취소) ─────────────────────
     const overallSegments = [
         { value: done.length, color: '#22c55e', label: '완료' },
         { value: inProg.length, color: '#3b82f6', label: '진행' },
         { value: todo.length, color: '#cbd5e1', label: '대기' },
+        { value: onHold.length, color: '#94a3b8', label: '보류' },
+        { value: cancelled.length, color: '#64748b', label: '취소' },
     ];
 
     return (
@@ -279,8 +297,8 @@ export function ProjectStatsDialog({ open, onClose, issues, epics, selectedEpicI
                             <section className="space-y-4">
                                 <SectionTitle>전체 현황</SectionTitle>
 
-                                {/* 4 핵심 카드 */}
-                                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                {/* 6개 카드: 전체·완료·진행·지연·보류·취소 */}
+                                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                                     <StatCard icon={<Layers className="w-4 h-4 text-blue-500" />}
                                         label="전체 이슈" value={total} sub="개" color="blue"
                                         onClick={() => openGroup('전체 이슈', leafIssues, '#3b82f6')} />
@@ -293,6 +311,12 @@ export function ProjectStatsDialog({ open, onClose, issues, epics, selectedEpicI
                                     <StatCard icon={<AlertTriangle className="w-4 h-4 text-red-500" />}
                                         label="지연" value={delayed.length} sub="개" color="red"
                                         onClick={() => openGroup('지연 이슈', delayed, '#ef4444')} />
+                                    <StatCard icon={<Pause className="w-4 h-4 text-slate-500" />}
+                                        label="보류" value={onHold.length} sub="개" color="slate"
+                                        onClick={() => openGroup('보류 이슈', onHold, '#94a3b8')} />
+                                    <StatCard icon={<CircleSlash className="w-4 h-4 text-slate-600" />}
+                                        label="취소" value={cancelled.length} sub="개" color="slate"
+                                        onClick={() => openGroup('취소 이슈', cancelled, '#64748b')} />
                                 </div>
 
                                 {/* 파이차트 + 범례 + 바 */}
@@ -304,7 +328,7 @@ export function ProjectStatsDialog({ open, onClose, issues, epics, selectedEpicI
                                         <div className="flex flex-wrap justify-center gap-2 mt-3">
                                             {overallSegments.map(seg => (
                                                 <button key={seg.label}
-                                                    onClick={() => openGroup(seg.label, seg.label === '완료' ? done : seg.label === '진행' ? inProg : todo, seg.color)}
+                                                    onClick={() => openGroup(seg.label, seg.label === '완료' ? done : seg.label === '진행' ? inProg : seg.label === '대기' ? todo : seg.label === '보류' ? onHold : cancelled, seg.color)}
                                                     style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 9999, padding: '2px 8px', cursor: 'pointer' }}
                                                     className="flex items-center gap-1.5 text-[11px] hover:opacity-80 transition-opacity"
                                                 >
@@ -334,6 +358,14 @@ export function ProjectStatsDialog({ open, onClose, issues, epics, selectedEpicI
                                             pct={done.length > 0 ? Math.round((earlyDone.length / done.length) * 100) : 0}
                                             color="#06b6d4"
                                             sub={`${earlyDone.length} / ${done.length}개 (완료 대비)`} />
+                                        <BarStat label="보류율"
+                                            pct={total > 0 ? Math.round((onHold.length / total) * 100) : 0}
+                                            color="#94a3b8"
+                                            sub={`${onHold.length} / ${total}개`} />
+                                        <BarStat label="취소율"
+                                            pct={total > 0 ? Math.round((cancelled.length / total) * 100) : 0}
+                                            color="#64748b"
+                                            sub={`${cancelled.length} / ${total}개`} />
                                     </div>
                                 </div>
                             </section>
@@ -793,13 +825,14 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 function StatCard({ icon, label, value, sub, color, onClick }: {
     icon: React.ReactNode; label: string; value: number | string; sub: string;
-    color: 'blue' | 'green' | 'amber' | 'red'; onClick?: () => void;
+    color: 'blue' | 'green' | 'amber' | 'red' | 'slate'; onClick?: () => void;
 }) {
     const cfg = {
         blue: { bg: '#eff6ff', hover: '#dbeafe', val: '#1d4ed8', border: '#bfdbfe' },
         green: { bg: '#f0fdf4', hover: '#dcfce7', val: '#15803d', border: '#bbf7d0' },
         amber: { bg: '#fffbeb', hover: '#fef3c7', val: '#b45309', border: '#fde68a' },
         red: { bg: '#fef2f2', hover: '#fee2e2', val: '#b91c1c', border: '#fecaca' },
+        slate: { bg: '#f8fafc', hover: '#f1f5f9', val: '#475569', border: '#e2e8f0' },
     }[color];
     return (
         <button onClick={onClick}

@@ -10,5 +10,10 @@ export const JIRA_CONFIG = {
     LABELS: {
         AGREED_DELAY: 'agreed-delay', // Label to mark issues as agreed delay
         VERIFICATION_DELAY: 'verification-delay',
-    }
+    },
+    /** 프로젝트 통계에서 보류·취소로 분류할 상태 이름 (Jira status.name과 일치) */
+    STATUS_NAMES: {
+        ON_HOLD: '보류',
+        CANCELLED: '취소',
+    },
 };
