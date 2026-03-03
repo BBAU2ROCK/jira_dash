@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { cn } from "@/lib/utils";
 import { type JiraIssue } from "@/api/jiraClient";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -15,6 +15,7 @@ interface SidebarProps {
     error?: Error | null;
     isCollapsed?: boolean;
     onToggleCollapse?: () => void;
+    onOpenSettings?: () => void;
 }
 
 function EpicList({
@@ -23,7 +24,8 @@ function EpicList({
     onSelectEpic,
     isLoading,
     error,
-}: Pick<SidebarProps, "epics" | "selectedEpicIds" | "onSelectEpic" | "isLoading" | "error">) {
+    onOpenSettings,
+}: Pick<SidebarProps, "epics" | "selectedEpicIds" | "onSelectEpic" | "isLoading" | "error" | "onOpenSettings">) {
     return (
         <ScrollArea className="h-[calc(100vh-120px)]">
             <div className="space-y-1 p-2">
@@ -34,15 +36,31 @@ function EpicList({
                 )}
 
                 {error && (
-                    <div className="text-sm text-center text-red-500 py-4 px-2">
+                    <div className="text-sm text-center text-red-500 py-4 px-2 space-y-2">
                         <p className="font-medium">에러 발생</p>
-                        <p className="text-xs mt-1">{error.message}</p>
+                        <p className="text-xs mt-1">
+                            {String(error.message).includes('401')
+                                ? 'Jira 인증이 필요합니다. 상단 설정에서 이메일과 API 토큰을 입력한 뒤 연결 테스트 후 저장하세요.'
+                                : String(error.message).includes('403')
+                                    ? 'Jira 접근 권한이 없습니다. API 토큰 권한을 확인하세요.'
+                                    : error.message}
+                        </p>
+                        {onOpenSettings && (
+                            <Button variant="outline" size="sm" className="mt-2" onClick={onOpenSettings}>
+                                Jira 연결 설정
+                            </Button>
+                        )}
                     </div>
                 )}
 
                 {!isLoading && !error && epics.length === 0 && (
-                    <div className="text-sm text-center text-muted-foreground py-4">
-                        에픽을 찾을 수 없습니다.
+                    <div className="text-sm text-center text-muted-foreground py-4 space-y-2">
+                        <p>에픽을 찾을 수 없습니다.</p>
+                        {onOpenSettings && (
+                            <Button variant="outline" size="sm" className="mt-2" onClick={onOpenSettings}>
+                                Jira 연결 설정
+                            </Button>
+                        )}
                     </div>
                 )}
 
@@ -107,6 +125,7 @@ export function Sidebar({
     error,
     isCollapsed = false,
     onToggleCollapse,
+    onOpenSettings,
 }: SidebarProps) {
     const [isHovering, setIsHovering] = React.useState(false);
 
@@ -182,6 +201,7 @@ export function Sidebar({
                             onSelectEpic={onSelectEpic}
                             isLoading={isLoading}
                             error={error}
+                            onOpenSettings={onOpenSettings}
                         />
                     </div>
                 )}
@@ -219,6 +239,7 @@ export function Sidebar({
                         onSelectEpic={onSelectEpic}
                         isLoading={isLoading}
                         error={error}
+                        onOpenSettings={onOpenSettings}
                     />
                 </div>
             </div>

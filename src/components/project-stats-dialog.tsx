@@ -78,6 +78,7 @@ export function ProjectStatsDialog({ open, onClose, issues, epics, selectedEpicI
     // ── 담당자별 통계 ─────────────────────────────────────────────────────────
     const assigneeMap = new Map<string, AssigneeStats>();
 
+    // 리프만 담당자별 건수·업무로그 집계
     leafIssues.forEach(issue => {
         const name = issue.fields.assignee?.displayName ?? '미할당';
         if (!assigneeMap.has(name)) {
@@ -116,7 +117,7 @@ export function ProjectStatsDialog({ open, onClose, issues, epics, selectedEpicI
             s.delayed.push(issue);
         }
 
-        // 업무로그 통계
+        // 업무로그 통계 (리프 이슈 기준)
         const timeSpent = issue.fields.timespent || 0;
         if (timeSpent > 0) {
             s.withWorklog.push(issue);
@@ -124,6 +125,27 @@ export function ProjectStatsDialog({ open, onClose, issues, epics, selectedEpicI
         } else {
             s.withoutWorklog.push(issue);
         }
+    });
+
+    // 할 일(부모)에만 업무로그가 있고 하위 작업에는 없는 경우: 담당자별 기록 시간에만 반영
+    // (filterLeafIssues와 동일한 규칙으로 "리프에서 제외되는 부모" 집합 사용)
+    const parentsWithChildren = new Set<string>();
+    issues.forEach(i => {
+        if (i.fields.parent?.key) parentsWithChildren.add(i.fields.parent.key);
+        if ((i.fields.subtasks?.length ?? 0) > 0) parentsWithChildren.add(i.key);
+    });
+    issues.forEach(issue => {
+        if (!parentsWithChildren.has(issue.key)) return;
+        const timeSpent = issue.fields.timespent || 0;
+        if (timeSpent <= 0) return;
+        const name = issue.fields.assignee?.displayName ?? '미할당';
+        if (!assigneeMap.has(name)) {
+            assigneeMap.set(name, {
+                name, total: [], done: [], inProgress: [], todo: [], delayed: [],
+                earlyDone: [], compliant: [], withWorklog: [], withoutWorklog: [], totalTimeSpent: 0
+            });
+        }
+        assigneeMap.get(name)!.totalTimeSpent += timeSpent;
     });
 
     const assignees = Array.from(assigneeMap.values())

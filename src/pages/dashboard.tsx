@@ -6,8 +6,11 @@ import { Sidebar } from '@/components/layout/sidebar';
 import { IssueList } from '@/components/issue-list';
 import { IssueDetailDrawer } from '@/components/issue-detail-drawer';
 import { ProjectStatsDialog } from '@/components/project-stats-dialog';
+import { JiraSettingsDialog, type JiraConfig } from '@/components/jira-settings-dialog';
 import { Button } from '@/components/ui/button';
-import { BarChart3, RefreshCw, AlertCircle } from 'lucide-react';
+import { BarChart3, RefreshCw, AlertCircle, Settings } from 'lucide-react';
+
+const isElectron = typeof window !== 'undefined' && !!window.ipcRenderer;
 
 export function Dashboard() {
     const [selectedEpicIds, setSelectedEpicIds] = React.useState<string[]>([]);
@@ -15,8 +18,32 @@ export function Dashboard() {
     const [drawerOpen, setDrawerOpen] = React.useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
     const [statsOpen, setStatsOpen] = React.useState(false);
+    const [settingsOpen, setSettingsOpen] = React.useState(false);
     /** 프로젝트 통계 담당자별 현황에서 난이도/이슈 클릭 시 이슈 목록에 표시할 키만 제한 */
     const [focusIssueKeys, setFocusIssueKeys] = React.useState<string[] | null>(null);
+
+    const { data: jiraConfig } = useQuery({
+        queryKey: ['jira-config'],
+        queryFn: async (): Promise<JiraConfig> => {
+            const res = await window.ipcRenderer!.invoke('jira-config:get');
+            return res as JiraConfig;
+        },
+        enabled: isElectron,
+        staleTime: 60 * 1000,
+    });
+
+    React.useEffect(() => {
+        if (!isElectron || settingsOpen) return;
+        const email = jiraConfig?.jiraEmail?.trim();
+        const token = jiraConfig?.jiraApiToken?.trim();
+        if (jiraConfig !== undefined && !email && !token) {
+            const opened = sessionStorage.getItem('jira-settings-opened-once');
+            if (!opened) {
+                sessionStorage.setItem('jira-settings-opened-once', '1');
+                setSettingsOpen(true);
+            }
+        }
+    }, [isElectron, jiraConfig, settingsOpen]);
 
     // Fetch all epics
     const { data: epics, isLoading: epicsLoading, error: epicsError } = useQuery({
@@ -99,6 +126,7 @@ export function Dashboard() {
                     error={epicsError as Error | null}
                     isCollapsed={sidebarCollapsed}
                     onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
+                    onOpenSettings={isElectron ? () => setSettingsOpen(true) : undefined}
                 />
             </div>
 
@@ -121,6 +149,17 @@ export function Dashboard() {
                         )}
                     </div>
                     <div className="flex items-center gap-3">
+                        {isElectron && (
+                            <Button
+                                variant="outline"
+                                size="default"
+                                onClick={() => setSettingsOpen(true)}
+                                title="Jira 연결 설정"
+                            >
+                                <Settings className="h-4 w-4 mr-2" />
+                                설정
+                            </Button>
+                        )}
                         <Button
                             variant="default"
                             size="default"
@@ -194,6 +233,12 @@ export function Dashboard() {
                     setDrawerOpen(false);
                     setSelectedIssue(null);
                 }}
+            />
+
+            <JiraSettingsDialog
+                open={settingsOpen}
+                onClose={() => setSettingsOpen(false)}
+                initialConfig={jiraConfig ?? null}
             />
 
             {/* Project Stats Dialog */}
