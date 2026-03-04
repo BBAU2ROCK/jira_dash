@@ -789,7 +789,26 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                                                         }}
                                                                     />
                                                                 </div>
-                                                                <div className="flex justify-end items-center px-2 pb-2 pt-1">
+                                                                <div className="flex justify-end items-center gap-1 px-2 pb-2 pt-1">
+                                                                    {editingCommentId && (
+                                                                        <Button
+                                                                            type="button"
+                                                                            size="sm"
+                                                                            variant="ghost"
+                                                                            className="h-7 w-7 p-0 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                                                                            onClick={() => {
+                                                                                setEditingCommentId(null);
+                                                                                setCommentSegments([]);
+                                                                                setCommentInputValue('');
+                                                                                setMentionPopoverOpen(false);
+                                                                                setEditingMentionIndex(null);
+                                                                            }}
+                                                                            aria-label="수정 취소"
+                                                                            title="수정 취소"
+                                                                        >
+                                                                            <X className="h-4 w-4" />
+                                                                        </Button>
+                                                                    )}
                                                                     <Button
                                                                         size="sm"
                                                                         variant="ghost"

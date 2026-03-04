@@ -56,4 +56,4 @@
 - [x] 입력 박스 우측 하단에 체크 버튼 (등록/수정 공통).
 - [x] 댓글 클릭 시 `editingCommentId` 설정, `adfToSegments(comment.body)` 로 입력란 채움.
 - [x] 체크 클릭 시: `editingCommentId` 있으면 `updateComment`, 없으면 `addComment`; 성공 시 무효화 및 초기화.
-- [ ] 수정 모드 취소 (선택): 취소 버튼 또는 빈 영역 클릭 시 `editingCommentId` 초기화.
+- [x] 수정 모드 취소: 수정 모드일 때만 노출되는 "취소" 버튼 클릭 시 `editingCommentId`·입력 초기화.
