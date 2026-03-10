@@ -4,6 +4,48 @@
 
 ---
 
+## [1.0.5] 보류·취소 통계, 댓글 에디터 개선, 빌드 구조 정리
+
+### 적용 버전
+- 앱 버전: **1.0.5** (package.json 기준)
+- 패치 반영일: 2026년 3월
+
+### 변경 사항
+
+#### 프로젝트 통계 – 보류·취소 반영
+- **전체 현황**: 6개 카드로 확장 (전체 이슈 / 완료 / 진행 중 / 지연 / **보류** / **취소**).
+- **이슈 분포 파이**: 5세그먼트(완료·진행·대기·보류·취소). 상호 배타적으로 분류.
+- **담당자별 현황**: 완료 집계에 보류·취소 포함 (`isDoneForAssignee`). 조기완료·준수는 실제 완료만 유지.
+- **막대 그래프**: 보류율·취소율 BarStat 추가.
+- **설정**: `jiraConfig.ts`에 `STATUS_NAMES: { ON_HOLD: '보류', CANCELLED: '취소' }` 추가.
+
+#### 댓글 에디터 개선
+- **contentEditable 인라인 에디터** 도입: 텍스트와 멘션 칩이 자유롭게 혼재하는 Jira 스타일 에디터.
+- `@` 입력 시 커서 위치에 멘션 칩 삽입. 칩 앞뒤 어디서든 텍스트 입력 가능.
+- **수정 취소 버튼(X)**: 수정 모드일 때만 노출. 클릭 시 에디터 초기화 및 새 댓글 모드 복귀.
+- 멘션 팝오버: 흰색 배경, 컴팩트 크기(`max-w-[220px]`), `onMouseDown`으로 포커스 유지.
+
+#### 빌드·보안 구조 정리
+- **보안**: `electron/main.ts`에서 Jira 이메일·토큰을 환경 변수(`JIRA_EMAIL`, `JIRA_API_TOKEN`)로 분리.
+- **린트**: `eslint.config.js` globalIgnores에 `dist-electron` 추가.
+- **clean 스크립트**: `dist_electron` 전체가 아닌 `win-unpacked` 등 언팩 폴더만 삭제하도록 변경 → 기존 exe 파일 보존.
+- **미사용 파일 정리**: `statistics-panel.tsx`, `issue-drawer.tsx`, `use-jira.ts`, `overlay.tsx`, `avatar.tsx`, `react.svg` 삭제.
+
+### 빌드 명령
+
+```bash
+npm run build          # 전체 빌드 (clean 없이)
+npm run build:install  # clean(언팩만) 후 빌드
+```
+
+### 설치 파일 (Windows)
+- **Jira Dashboard 1.0.5.exe** — portable (설치 없이 실행)
+- **Jira Dashboard Setup 1.0.5.exe** — NSIS 설치 파일 (바탕화면·시작 메뉴 바로가기, 앱 아이콘)
+
+> **환경 변수 설정 필요**: 실행 전 `JIRA_EMAIL`, `JIRA_API_TOKEN`을 설정해야 Jira API가 동작합니다.
+
+---
+
 ## [1.0.4] 에픽 이슈 조회 400 수정 및 건수 규칙 반영
 
 ### 적용 버전

@@ -1,4 +1,37 @@
-# 프로젝트 통계 – 보류·취소 반영 요구사항 분석 보고서
+# 프로젝트 통계 – 보류·취소 기초 분석 및 구현 보고서
+
+## 0. 기초 분석: 완료 판단 기준 및 보류·취소 처리 방식
+
+> *통합 전 별도 문서(`stats-onhold-as-done-analysis.md`)의 내용을 흡수함.*
+
+### 0.1 현재 "완료" 판단 기준
+
+| 구분 | 기준 | 코드 위치 |
+|------|------|-----------|
+| **완료(done)** | `status.statusCategory.key === 'done'` | `project-stats-dialog.tsx` |
+| **진행(inProg)** | `statusCategory.key === 'indeterminate'` | 동일 |
+| **대기(todo)** | `statusCategory.key === 'new'` (그 외 포함) | 동일 |
+
+- 완료율·파이/막대·담당자별 완료 건수·KPI 완료율은 모두 `done` 집합을 사용합니다.
+- **상태 이름(`status.name`)을 직접 보지 않고**, **카테고리 키(`done` / `new` / `indeterminate`)만** 사용합니다.
+- `kpiService.ts`도 동일하게 `statusCategory.key === 'done'`만 사용하며, 보류·취소를 완료로 보는 별도 분기가 없습니다.
+
+### 0.2 "보류"가 통계에서 어떻게 보이는가
+
+- **Jira에서 "보류" 상태가 Done 카테고리에 매핑된 경우**: API가 `statusCategory.key === 'done'`을 주므로, 별도 코드 없이도 완료 건수·완료율·KPI에 포함됩니다.
+- **"보류"가 To Do(`new`) 또는 In Progress(`indeterminate`) 카테고리인 경우**: 완료로 집계되지 않고, 대기 또는 진행으로만 집계됩니다.
+
+즉, "보류 건을 완료로 처리하여 표시"하는 앱 내 전용 로직은 없고, 전적으로 **Jira의 status category 설정**에 따라 결정됩니다.
+
+### 0.3 결론
+
+| 항목 | 내용 |
+|------|------|
+| 보류 → 완료 전용 로직 | **없음** (구현 전 기준) |
+| 완료 판단 기준 | `status.statusCategory.key === 'done'` 만 사용 |
+| 보류·취소를 별도로 보고 싶을 때 | 앱에서 `status.name` 기반으로 식별하는 확장 필요 → §3 설계 참조 |
+
+---
 
 ## 1. 요구사항 정리
 

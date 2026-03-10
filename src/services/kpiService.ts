@@ -50,9 +50,6 @@ export function calculateKPI(issues: JiraIssue[]): KPIMetrics {
     let delayedIssues = 0;   // Completed late
     let agreedDelayIssues = 0; // Marked as agreed delay
 
-    // Calculate effective total for Completion Rate (exclude agreed delays)
-    let effectiveTotalForCompletion = 0;
-
     issues.forEach(issue => {
         const isDone = issue.fields.status.statusCategory.key === 'done';
         const isAgreedDelay = issue.fields.labels?.includes(JIRA_CONFIG.LABELS.AGREED_DELAY);
@@ -60,8 +57,6 @@ export function calculateKPI(issues: JiraIssue[]): KPIMetrics {
 
         if (isAgreedDelay) {
             agreedDelayIssues++;
-        } else {
-            effectiveTotalForCompletion++;
         }
 
         if (isDone) {

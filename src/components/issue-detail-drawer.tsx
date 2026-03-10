@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -11,6 +11,50 @@ import { type JiraIssue, type CommentSegment, jiraApi, buildCommentAdf, adfToSeg
 import { cn } from '@/lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { JIRA_CONFIG } from '@/config/jiraConfig';
+
+/** CommentSegment[] → contentEditable innerHTML 변환 */
+function segmentsToHtml(segments: CommentSegment[]): string {
+    return segments.map(seg => {
+        if (seg.type === 'text') {
+            return seg.text
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/\n/g, '<br>');
+        }
+        const name = seg.displayName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return `<span contenteditable="false" data-mention-id="${seg.accountId}" data-mention-name="${name}" class="mention-chip">@${name}</span>`;
+    }).join('');
+}
+
+/** contentEditable div → CommentSegment[] 추출 */
+function extractSegmentsFromEditor(el: HTMLDivElement): CommentSegment[] {
+    const segments: CommentSegment[] = [];
+    const pushText = (text: string) => {
+        if (!text) return;
+        const last = segments[segments.length - 1];
+        if (last?.type === 'text') last.text += text;
+        else segments.push({ type: 'text', text });
+    };
+    const walk = (node: Node, isFirstBlock: boolean) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+            pushText((node.textContent ?? '').replace(/\u200B/g, ''));
+        } else if (node instanceof HTMLElement) {
+            if (node.dataset.mentionId) {
+                segments.push({ type: 'mention', accountId: node.dataset.mentionId, displayName: node.dataset.mentionName ?? '' });
+            } else if (node.tagName === 'BR') {
+                pushText('\n');
+            } else {
+                const isBlock = ['DIV', 'P'].includes(node.tagName);
+                if (isBlock && !isFirstBlock) pushText('\n');
+                node.childNodes.forEach((c, i) => walk(c, isBlock && i === 0));
+            }
+        }
+    };
+    el.childNodes.forEach((c, i) => walk(c, i === 0));
+    // 끝에 붙은 공백/개행 제거
+    const last = segments[segments.length - 1];
+    if (last?.type === 'text') last.text = last.text.replace(/[\n\u00A0\s]+$/, '');
+    return segments.filter(s => s.type !== 'text' || s.text.length > 0);
+}
 
 function IssueTypeIcon({ type, className }: { type: string; className?: string }) {
     switch (type.toLowerCase()) {
@@ -246,14 +290,20 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
         },
     });
 
+    const clearEditor = () => {
+        if (editorRef.current) editorRef.current.innerHTML = '';
+        setEditorHasContent(false);
+        setMentionPopoverOpen(false);
+        savedMentionRange.current = null;
+    };
+
     const addCommentMutation = useMutation({
         mutationFn: ({ key, body }: { key: string; body: ReturnType<typeof buildCommentAdf> }) =>
             jiraApi.addComment(key, body),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['issueDetails', issue?.key] });
             queryClient.invalidateQueries({ queryKey: ['issues'] });
-            setCommentSegments([]);
-            setCommentInputValue('');
+            clearEditor();
         },
     });
 
@@ -264,19 +314,20 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
             queryClient.invalidateQueries({ queryKey: ['issueDetails', issue?.key] });
             queryClient.invalidateQueries({ queryKey: ['issues'] });
             setEditingCommentId(null);
-            setCommentSegments([]);
-            setCommentInputValue('');
+            clearEditor();
         },
     });
 
-    const [commentSegments, setCommentSegments] = useState<CommentSegment[]>([]);
-    const [commentInputValue, setCommentInputValue] = useState('');
+    /** contentEditable 에디터 ref */
+    const editorRef = useRef<HTMLDivElement>(null);
+    /** 멘션 삽입 위치를 저장하는 Range ref */
+    const savedMentionRange = useRef<Range | null>(null);
+    /** 에디터에 내용이 있는지 여부 (submit 버튼 활성화) */
+    const [editorHasContent, setEditorHasContent] = useState(false);
     const [mentionPopoverOpen, setMentionPopoverOpen] = useState(false);
     const [mentionSearchQuery, setMentionSearchQuery] = useState('');
     const [mentionSearchResults, setMentionSearchResults] = useState<Array<{ accountId: string; displayName: string; avatarUrls?: { '16x16': string } }>>([]);
     const [mentionSearching, setMentionSearching] = useState(false);
-    /** When set, popover is in "replace mention" mode for segment at this index. */
-    const [editingMentionIndex, setEditingMentionIndex] = useState<number | null>(null);
     /** When set, we are editing this comment (load body into composer, check = update). */
     const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
 
@@ -350,7 +401,7 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
             if (isNaN(timeA)) return 1;
             if (isNaN(timeB)) return -1;
             return timeB - timeA;
-        } catch (e) {
+        } catch {
             return 0;
         }
     });
@@ -734,61 +785,63 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                                 )}
                                             </TabsContent>
                                             <TabsContent value="comments" className="mt-4 space-y-4">
-                                                {/* 댓글 입력: 여러 줄 textarea + 입력 박스 우측 하단 체크로 등록/수정 반영 */}
+                                                {/* 댓글 입력: contentEditable 기반 인라인 멘션 에디터 */}
                                                 <div className="space-y-2">
                                                     <Popover
-                                                        open={mentionPopoverOpen || editingMentionIndex !== null}
+                                                        open={mentionPopoverOpen}
                                                         onOpenChange={(open) => {
-                                                            if (!open) { setMentionPopoverOpen(false); setEditingMentionIndex(null); setMentionSearchResults([]); }
+                                                            if (!open) { setMentionPopoverOpen(false); setMentionSearchResults([]); }
                                                         }}
                                                     >
                                                         <PopoverAnchor asChild>
                                                             <div className="min-w-0 rounded-md border border-slate-300 bg-white focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
-                                                                <div className="flex flex-wrap items-start gap-1 px-2 pt-2">
-                                                                    {commentSegments.map((seg, i) =>
-                                                                        seg.type === 'text' ? (
-                                                                            <span key={i} className="text-xs text-slate-700 whitespace-pre-wrap">{seg.text}</span>
-                                                                        ) : (
-                                                                            <span
-                                                                                key={i}
-                                                                                className="inline-flex items-center gap-0.5 pl-1 pr-0.5 py-0.5 rounded bg-blue-100 text-blue-800 text-[11px] font-medium"
-                                                                            >
-                                                                                <button
-                                                                                    type="button"
-                                                                                    className="hover:underline focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
-                                                                                    onClick={() => { setEditingMentionIndex(i); setMentionSearchQuery(''); setMentionPopoverOpen(true); }}
-                                                                                    aria-label={`멘션 ${seg.displayName} 수정`}
-                                                                                >
-                                                                                    @{seg.displayName}
-                                                                                </button>
-                                                                                <button
-                                                                                    type="button"
-                                                                                    className="p-0.5 rounded hover:bg-blue-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                                                                    onClick={() => setCommentSegments(commentSegments.filter((_, idx) => idx !== i))}
-                                                                                    aria-label={`멘션 ${seg.displayName} 제거`}
-                                                                                >
-                                                                                    <X className="h-2.5 w-2.5" />
-                                                                                </button>
-                                                                            </span>
-                                                                        )
-                                                                    )}
-                                                                    <textarea
-                                                                        className="flex-1 min-w-[120px] min-h-[60px] max-h-[200px] resize-y border-0 p-0 text-xs focus:outline-none focus:ring-0 bg-transparent placeholder:text-slate-400"
-                                                                        placeholder={editingCommentId ? '댓글 수정 중... (우측 하단 ✓ 클릭 시 반영)' : '댓글 입력... (@ 멘션, 여러 줄 가능)'}
-                                                                        rows={3}
-                                                                        value={commentInputValue}
-                                                                        onChange={(e) => {
-                                                                            const v = e.target.value;
-                                                                            setCommentInputValue(v);
-                                                                            const atIdx = v.lastIndexOf('@');
-                                                                            if (atIdx !== -1) {
-                                                                                setMentionSearchQuery(v.slice(atIdx + 1).trim());
+                                                                {/* contentEditable 에디터: 텍스트와 멘션 칩이 자유롭게 혼재 */}
+                                                                <div
+                                                                    ref={editorRef}
+                                                                    contentEditable
+                                                                    suppressContentEditableWarning
+                                                                    data-placeholder={editingCommentId ? '댓글 수정 중... (우측 하단 ✓ 클릭 시 반영)' : '댓글 입력... (@ 멘션, 여러 줄 가능)'}
+                                                                    className="min-h-[80px] max-h-[200px] overflow-y-auto px-2 pt-2 pb-1 text-xs text-slate-800 leading-5 focus:outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 empty:before:pointer-events-none [&_.mention-chip]:inline-flex [&_.mention-chip]:items-center [&_.mention-chip]:px-1 [&_.mention-chip]:py-px [&_.mention-chip]:rounded [&_.mention-chip]:bg-blue-100 [&_.mention-chip]:text-blue-800 [&_.mention-chip]:text-[10px] [&_.mention-chip]:font-medium [&_.mention-chip]:mx-0.5 [&_.mention-chip]:select-none [&_.mention-chip]:cursor-default"
+                                                                    onInput={() => {
+                                                                        const editor = editorRef.current;
+                                                                        if (!editor) return;
+                                                                        const hasContent = (editor.textContent?.replace(/\u200B/g, '').trim() ?? '').length > 0
+                                                                            || !!editor.querySelector('[data-mention-id]');
+                                                                        setEditorHasContent(hasContent);
+
+                                                                        // @ 감지: 커서 앞 텍스트에서 @ 찾기
+                                                                        const sel = window.getSelection();
+                                                                        if (!sel || sel.rangeCount === 0) return;
+                                                                        const range = sel.getRangeAt(0);
+                                                                        const node = range.startContainer;
+                                                                        if (node.nodeType !== Node.TEXT_NODE) return;
+                                                                        const textBefore = (node.textContent ?? '').slice(0, range.startOffset);
+                                                                        const atIdx = textBefore.lastIndexOf('@');
+                                                                        if (atIdx !== -1) {
+                                                                            const query = textBefore.slice(atIdx + 1);
+                                                                            if (!query.includes(' ') && !query.includes('\n')) {
+                                                                                setMentionSearchQuery(query);
                                                                                 setMentionPopoverOpen(true);
-                                                                                setEditingMentionIndex(null);
+                                                                                // @~커서 범위 저장
+                                                                                const mr = range.cloneRange();
+                                                                                mr.setStart(node, atIdx);
+                                                                                mr.setEnd(node, range.startOffset);
+                                                                                savedMentionRange.current = mr;
+                                                                                return;
                                                                             }
-                                                                        }}
-                                                                    />
-                                                                </div>
+                                                                        }
+                                                                        setMentionPopoverOpen(false);
+                                                                    }}
+                                                                    onKeyDown={(e) => {
+                                                                        if (e.key === 'Escape') { setMentionPopoverOpen(false); }
+                                                                    }}
+                                                                    onPaste={(e) => {
+                                                                        // 순수 텍스트만 붙여넣기
+                                                                        e.preventDefault();
+                                                                        const text = e.clipboardData.getData('text/plain');
+                                                                        document.execCommand('insertText', false, text);
+                                                                    }}
+                                                                />
                                                                 <div className="flex justify-end items-center gap-1 px-2 pb-2 pt-1">
                                                                     {editingCommentId && (
                                                                         <Button
@@ -798,10 +851,7 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                                                             className="h-7 w-7 p-0 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
                                                                             onClick={() => {
                                                                                 setEditingCommentId(null);
-                                                                                setCommentSegments([]);
-                                                                                setCommentInputValue('');
-                                                                                setMentionPopoverOpen(false);
-                                                                                setEditingMentionIndex(null);
+                                                                                clearEditor();
                                                                             }}
                                                                             aria-label="수정 취소"
                                                                             title="수정 취소"
@@ -814,106 +864,110 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                                                         variant="ghost"
                                                                         className="h-7 w-7 p-0 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
                                                                         disabled={
-                                                                                            (addCommentMutation.isPending || updateCommentMutation.isPending) ||
-                                                                                            (commentSegments.length === 0 && !commentInputValue.trim())
-                                                                                        }
+                                                                            (addCommentMutation.isPending || updateCommentMutation.isPending) ||
+                                                                            !editorHasContent
+                                                                        }
                                                                         onClick={() => {
-                                                                                            if (!issue) return;
-                                                                                            const all: CommentSegment[] = [
-                                                                                                ...commentSegments,
-                                                                                                ...(commentInputValue.trim() ? [{ type: 'text' as const, text: commentInputValue }] : []),
-                                                                                            ];
-                                                                                            if (all.length === 0) return;
-                                                                                            const adf = buildCommentAdf(all);
-                                                                                            if (editingCommentId) {
-                                                                                                updateCommentMutation.mutate({ key: issue.key, commentId: editingCommentId, body: adf });
-                                                                                            } else {
-                                                                                                addCommentMutation.mutate({ key: issue.key, body: adf });
-                                                                                            }
-                                                                                        }}
+                                                                            if (!issue || !editorRef.current) return;
+                                                                            const segments = extractSegmentsFromEditor(editorRef.current);
+                                                                            if (segments.length === 0) return;
+                                                                            const adf = buildCommentAdf(segments);
+                                                                            if (editingCommentId) {
+                                                                                updateCommentMutation.mutate({ key: issue.key, commentId: editingCommentId, body: adf });
+                                                                            } else {
+                                                                                addCommentMutation.mutate({ key: issue.key, body: adf });
+                                                                            }
+                                                                        }}
                                                                         aria-label={editingCommentId ? '수정 반영' : '등록'}
                                                                         title={editingCommentId ? '수정 반영' : '등록'}
                                                                     >
-                                                                                        {(addCommentMutation.isPending || updateCommentMutation.isPending) ? (
-                                                                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                                                                        ) : (
-                                                                                            <Check className="h-4 w-4" />
-                                                                                        )}
+                                                                        {(addCommentMutation.isPending || updateCommentMutation.isPending) ? (
+                                                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                                                        ) : (
+                                                                            <Check className="h-4 w-4" />
+                                                                        )}
                                                                     </Button>
                                                                 </div>
                                                             </div>
                                                         </PopoverAnchor>
-                                                            <PopoverContent className="w-72 p-0" align="start">
-                                                                <div className="p-2 border-b border-slate-200">
-                                                                    <Input
-                                                                        placeholder="이름 검색..."
-                                                                        className="h-8 text-sm"
-                                                                        value={mentionSearchQuery}
-                                                                        onChange={(e) => {
-                                                                            const q = e.target.value;
-                                                                            setMentionSearchQuery(q);
-                                                                            if (q.length >= 1) {
-                                                                                setMentionSearching(true);
-                                                                                jiraApi.searchUsers(q).then((users: any[]) => setMentionSearchResults(users ?? [])).finally(() => setMentionSearching(false));
-                                                                            } else setMentionSearchResults([]);
-                                                                        }}
-                                                                        autoFocus
-                                                                    />
-                                                                </div>
-                                                                <div className="max-h-48 overflow-y-auto">
-                                                                    {mentionSearching ? (
-                                                                        <div className="p-3 text-center text-slate-500 text-xs">검색 중...</div>
-                                                                    ) : mentionSearchResults.length === 0 ? (
-                                                                        <div className="p-3 text-center text-slate-500 text-xs">검색어를 입력하세요</div>
-                                                                    ) : (
-                                                                        mentionSearchResults.map((u) => (
-                                                                            <button
-                                                                                key={u.accountId}
-                                                                                type="button"
-                                                                                className="w-full px-3 py-2 text-left text-sm hover:bg-slate-100 flex items-center gap-2 text-slate-800"
-                                                                                onClick={() => {
-                                                                                    if (editingMentionIndex !== null) {
-                                                                                        const next = [...commentSegments];
-                                                                                        next[editingMentionIndex] = { type: 'mention' as const, accountId: u.accountId, displayName: u.displayName };
-                                                                                        setCommentSegments(next);
-                                                                                        setEditingMentionIndex(null);
-                                                                                        setMentionPopoverOpen(false);
-                                                                                    } else {
-                                                                                        const val = commentInputValue;
-                                                                                        const atIdx = val.lastIndexOf('@');
-                                                                                        let newSegments: CommentSegment[];
-                                                                                        let newInputValue: string;
-                                                                                        if (atIdx !== -1) {
-                                                                                            const beforeAt = val.slice(0, atIdx);
-                                                                                            newSegments = [
-                                                                                                ...commentSegments,
-                                                                                                ...(beforeAt ? [{ type: 'text' as const, text: beforeAt }] : []),
-                                                                                                { type: 'mention' as const, accountId: u.accountId, displayName: u.displayName },
-                                                                                            ];
-                                                                                            newInputValue = val.slice(atIdx + 1 + mentionSearchQuery.length).trimStart();
-                                                                                        } else {
-                                                                                            newSegments = [
-                                                                                                ...commentSegments,
-                                                                                                ...(val ? [{ type: 'text' as const, text: val }] : []),
-                                                                                                { type: 'mention' as const, accountId: u.accountId, displayName: u.displayName },
-                                                                                            ];
-                                                                                            newInputValue = '';
-                                                                                        }
-                                                                                        setCommentSegments(newSegments);
-                                                                                        setCommentInputValue(newInputValue);
-                                                                                        setMentionPopoverOpen(false);
-                                                                                    }
-                                                                                    setMentionSearchQuery('');
-                                                                                    setMentionSearchResults([]);
-                                                                                }}
-                                                                            >
-                                                                                {u.avatarUrls?.['16x16'] && <img src={u.avatarUrls['16x16']} alt="" className="w-5 h-5 rounded-full" />}
-                                                                                <span>{u.displayName}</span>
-                                                                            </button>
-                                                                        ))
-                                                                    )}
-                                                                </div>
-                                                            </PopoverContent>
+                                                        <PopoverContent className="w-auto min-w-[160px] max-w-[220px] p-0 bg-white border border-slate-200 shadow-lg" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+                                                            <div className="p-1.5 border-b border-slate-200">
+                                                                <Input
+                                                                    placeholder="이름 검색..."
+                                                                    className="h-7 text-xs"
+                                                                    value={mentionSearchQuery}
+                                                                    onChange={(e) => {
+                                                                        const q = e.target.value;
+                                                                        setMentionSearchQuery(q);
+                                                                        if (q.length >= 1) {
+                                                                            setMentionSearching(true);
+                                                                            jiraApi.searchUsers(q).then((users: any[]) => setMentionSearchResults(users ?? [])).finally(() => setMentionSearching(false));
+                                                                        } else setMentionSearchResults([]);
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                            <div className="max-h-36 overflow-y-auto bg-white">
+                                                                {mentionSearching ? (
+                                                                    <div className="p-2 text-center text-slate-500 text-xs">검색 중...</div>
+                                                                ) : mentionSearchResults.length === 0 ? (
+                                                                    <div className="p-2 text-center text-slate-500 text-xs">검색어를 입력하세요</div>
+                                                                ) : (
+                                                                    mentionSearchResults.map((u) => (
+                                                                        <button
+                                                                            key={u.accountId}
+                                                                            type="button"
+                                                                            className="w-full px-2 py-1.5 text-left text-xs hover:bg-slate-100 flex items-center gap-1.5 text-slate-800 bg-white"
+                                                                            onMouseDown={(e) => {
+                                                                                // mousedown에서 처리해 에디터 포커스 유지
+                                                                                e.preventDefault();
+                                                                                const editor = editorRef.current;
+                                                                                if (!editor) return;
+                                                                                editor.focus();
+
+                                                                                const mr = savedMentionRange.current;
+                                                                                const sel = window.getSelection();
+                                                                                if (sel && mr) {
+                                                                                    sel.removeAllRanges();
+                                                                                    sel.addRange(mr);
+                                                                                    mr.deleteContents(); // @검색어 삭제
+                                                                                }
+
+                                                                                // 멘션 칩 생성
+                                                                                const chip = document.createElement('span');
+                                                                                chip.contentEditable = 'false';
+                                                                                chip.dataset.mentionId = u.accountId;
+                                                                                chip.dataset.mentionName = u.displayName;
+                                                                                chip.className = 'mention-chip';
+                                                                                chip.textContent = `@${u.displayName}`;
+
+                                                                                const currentSel = window.getSelection();
+                                                                                if (currentSel && currentSel.rangeCount > 0) {
+                                                                                    const r = currentSel.getRangeAt(0);
+                                                                                    r.insertNode(chip);
+                                                                                    // 칩 뒤에 빈 텍스트 노드 추가 후 커서 이동
+                                                                                    const space = document.createTextNode('\u00A0');
+                                                                                    chip.after(space);
+                                                                                    const newRange = document.createRange();
+                                                                                    newRange.setStartAfter(space);
+                                                                                    newRange.collapse(true);
+                                                                                    currentSel.removeAllRanges();
+                                                                                    currentSel.addRange(newRange);
+                                                                                }
+
+                                                                                savedMentionRange.current = null;
+                                                                                setMentionPopoverOpen(false);
+                                                                                setMentionSearchQuery('');
+                                                                                setMentionSearchResults([]);
+                                                                                setEditorHasContent(true);
+                                                                            }}
+                                                                        >
+                                                                            {u.avatarUrls?.['16x16'] && <img src={u.avatarUrls['16x16']} alt="" className="w-4 h-4 rounded-full shrink-0" />}
+                                                                            <span>{u.displayName}</span>
+                                                                        </button>
+                                                                    ))
+                                                                )}
+                                                            </div>
+                                                        </PopoverContent>
                                                     </Popover>
                                                     {(addCommentMutation.isError || updateCommentMutation.isError) && (
                                                         <p className="text-xs text-red-600 flex items-center gap-1">
@@ -931,8 +985,20 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                                             item={{ id: c.id, type: 'comment', author: c.author?.displayName, time: c.created, body: c.body }}
                                                             onEditClick={() => {
                                                                 setEditingCommentId(c.id);
-                                                                setCommentSegments(adfToSegments(c.body));
-                                                                setCommentInputValue('');
+                                                                // adfToSegments → HTML 변환 후 contentEditable에 로드
+                                                                const segs = adfToSegments(c.body);
+                                                                if (editorRef.current) {
+                                                                    editorRef.current.innerHTML = segmentsToHtml(segs);
+                                                                    setEditorHasContent(segs.length > 0);
+                                                                    // 커서를 맨 끝으로
+                                                                    const range = document.createRange();
+                                                                    range.selectNodeContents(editorRef.current);
+                                                                    range.collapse(false);
+                                                                    const sel = window.getSelection();
+                                                                    sel?.removeAllRanges();
+                                                                    sel?.addRange(range);
+                                                                    editorRef.current.focus();
+                                                                }
                                                             }}
                                                         />
                                                     ))
@@ -997,10 +1063,10 @@ function ActivityItem({ item, onEditClick }: { item: any; onEditClick?: (comment
                     )}
                 </div>
                 <span className="text-[11px] text-slate-500 ml-auto whitespace-nowrap">
-                    {(() => {
+                        {(() => {
                         try {
                             return format(new Date(item.time), 'yyyy.MM.dd HH:mm');
-                        } catch (e) {
+                        } catch {
                             return '날짜 오류';
                         }
                     })()}
