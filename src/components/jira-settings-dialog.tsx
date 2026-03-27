@@ -102,6 +102,7 @@ export function JiraSettingsDialog({ open, onClose, initialConfig }: JiraSetting
             });
             await queryClient.invalidateQueries({ queryKey: ['jira-config'] });
             await queryClient.invalidateQueries({ queryKey: ['epics'] });
+            await queryClient.refetchQueries({ queryKey: ['epics'] });
             onClose();
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : '설정 저장에 실패했습니다.');

@@ -127,8 +127,18 @@ proxyApp.use('/api', async (req: any, res: any) => {
 });
 
 function startProxyServer() {
-    proxyApp.listen(PROXY_PORT, () => {
-        console.log(`🚀 Internal Jira Proxy Server running on port ${PROXY_PORT}`);
+    const server = proxyApp.listen(PROXY_PORT, '127.0.0.1', () => {
+        console.log(`🚀 Internal Jira Proxy Server running on http://127.0.0.1:${PROXY_PORT}`);
+    });
+    server.on('error', (err: NodeJS.ErrnoException) => {
+        if (err.code === 'EADDRINUSE') {
+            console.warn(
+                `[ELECTRON PROXY] 포트 ${PROXY_PORT}이(가) 이미 사용 중입니다. ` +
+                    '`npm start`로 뜬 proxy-server.cjs가 있다면 그쪽으로 요청됩니다(동일 Jira 인증 필요).'
+            );
+        } else {
+            console.error('[ELECTRON PROXY] listen 오류:', err);
+        }
     });
 }
 

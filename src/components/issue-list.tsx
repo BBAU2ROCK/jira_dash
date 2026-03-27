@@ -5,7 +5,7 @@ import { AlertCircle, CheckCircle, ChevronRight, ChevronDown, ChevronsDown, Chev
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { type JiraIssue } from '@/api/jiraClient';
-import { filterLeafIssues } from '@/lib/jira-helpers';
+import { filterLeafIssues, getStatusCategoryKey } from '@/lib/jira-helpers';
 import { Button } from '@/components/ui/button';
 import { IssueFilterBar, type FilterState } from './issue-filter-bar';
 
@@ -68,14 +68,14 @@ export function IssueList({ issues, isLoading, focusIssueKeys, onClearFocusIssue
             if (filter.assignees.length > 0 && (!issue.fields.assignee || !filter.assignees.includes(issue.fields.assignee.displayName))) return false;
 
             // 3. Status (Multi-select)
-            if (filter.statuses.length > 0 && !filter.statuses.includes(issue.fields.status.name)) return false;
+            if (filter.statuses.length > 0 && !filter.statuses.includes(issue.fields.status?.name ?? '')) return false;
 
             // 4. Delay (In-progress)
-            const isDelayed = issue.fields.duedate && new Date(issue.fields.duedate) < new Date() && issue.fields.status.statusCategory.key !== 'done';
+            const isDelayed = issue.fields.duedate && new Date(issue.fields.duedate) < new Date() && getStatusCategoryKey(issue) !== 'done';
             if (filter.onlyDelayed && !isDelayed) return false;
 
             // 5. Delayed Done (Completed but late)
-            const isDelayedDone = issue.fields.status.statusCategory.key === 'done' &&
+            const isDelayedDone = getStatusCategoryKey(issue) === 'done' &&
                 issue.fields.duedate &&
                 issue.fields.resolutiondate &&
                 new Date(issue.fields.resolutiondate) > new Date(new Date(issue.fields.duedate).setHours(23, 59, 59, 999));
@@ -189,8 +189,8 @@ export function IssueList({ issues, isLoading, focusIssueKeys, onClearFocusIssue
     }
 
     const renderIssue = (issue: JiraIssue, isSubtask: boolean = false, level: number = 0) => {
-        const isDelayed = issue.fields.duedate && new Date(issue.fields.duedate) < new Date() && issue.fields.status.statusCategory.key !== 'done';
-        const isDone = issue.fields.status.statusCategory.key === 'done';
+        const isDelayed = issue.fields.duedate && new Date(issue.fields.duedate) < new Date() && getStatusCategoryKey(issue) !== 'done';
+        const isDone = getStatusCategoryKey(issue) === 'done';
         const hasSubtasks = issue.fields.subtasks && issue.fields.subtasks.length > 0;
         const isExpanded = expandedParents.has(issue.key);
         const children = subtaskMap.get(issue.key) || [];
@@ -302,11 +302,11 @@ export function IssueList({ issues, isLoading, focusIssueKeys, onClearFocusIssue
                             className={cn(
                                 "whitespace-nowrap font-normal text-xs",
                                 isDone ? "bg-green-50 text-green-700 border-green-200" :
-                                    issue.fields.status.statusCategory.key === 'indeterminate' ? "bg-blue-50 text-blue-700 border-blue-200" :
+                                    getStatusCategoryKey(issue) === 'indeterminate' ? "bg-blue-50 text-blue-700 border-blue-200" :
                                         "bg-slate-50 text-slate-700 border-slate-200"
                             )}
                         >
-                            {issue.fields.status.name}
+                            {issue.fields.status?.name ?? '—'}
                         </Badge>
                     </TableCell>
                 </TableRow>

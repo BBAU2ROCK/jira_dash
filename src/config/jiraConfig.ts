@@ -1,4 +1,8 @@
 export const JIRA_CONFIG = {
+    /** 대시보드 사이드바 에픽 JQL (프로젝트·유형은 인스턴스에 맞게 수정) */
+    DASHBOARD: {
+        PROJECT_KEY: 'IGMU',
+    },
     FIELDS: {
         STORY_POINT: 'customfield_10016',
         PLANNED_START: 'customfield_11481',

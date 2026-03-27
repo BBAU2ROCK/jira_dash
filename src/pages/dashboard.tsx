@@ -7,8 +7,12 @@ import { IssueList } from '@/components/issue-list';
 import { IssueDetailDrawer } from '@/components/issue-detail-drawer';
 import { ProjectStatsDialog } from '@/components/project-stats-dialog';
 import { JiraSettingsDialog, type JiraConfig } from '@/components/jira-settings-dialog';
+import { JIRA_CONFIG } from '@/config/jiraConfig';
 import { Button } from '@/components/ui/button';
-import { BarChart3, RefreshCw, AlertCircle, Settings } from 'lucide-react';
+import { BarChart3, RefreshCw, AlertCircle, Settings, Bug } from 'lucide-react';
+import { useEpicMappingStore } from '@/stores/epicMappingStore';
+import { DefectKpiDashboard } from '@/components/defect-kpi-dashboard';
+import { useDefectKpiAggregation } from '@/hooks/useDefectKpiAggregation';
 
 const isElectron = typeof window !== 'undefined' && !!window.ipcRenderer;
 
@@ -21,6 +25,11 @@ export function Dashboard() {
     const [settingsOpen, setSettingsOpen] = React.useState(false);
     /** 프로젝트 통계 담당자별 현황에서 난이도/이슈 클릭 시 이슈 목록에 표시할 키만 제한 */
     const [focusIssueKeys, setFocusIssueKeys] = React.useState<string[] | null>(null);
+    const [defectKpiOpen, setDefectKpiOpen] = React.useState(false);
+
+    const epicMappings = useEpicMappingStore((s) => s.mappings);
+    const mappingCount = epicMappings.length;
+    const defectKpi = useDefectKpiAggregation();
 
     const { data: jiraConfig } = useQuery({
         queryKey: ['jira-config'],
@@ -47,16 +56,17 @@ export function Dashboard() {
 
     // Fetch all epics
     const { data: epics, isLoading: epicsLoading, error: epicsError } = useQuery({
-        queryKey: ['epics'],
+        queryKey: ['epics', JIRA_CONFIG.DASHBOARD?.PROJECT_KEY ?? 'IGMU'],
         queryFn: jiraApi.getEpics,
         refetchOnWindowFocus: false,
+        retry: 2,
     });
 
     // 필드 목록(필드명 '난이도' → id 매핑, 에픽 이슈 조회 시 난이도 필드 포함용)
     const { data: allFields = [] } = useQuery({
         queryKey: ['jiraFields'],
         queryFn: () => jiraApi.getFields(),
-        enabled: selectedEpicIds.length > 0,
+        enabled: selectedEpicIds.length > 0 || mappingCount > 0,
         staleTime: 15 * 60 * 1000,
     });
     const difficultyFieldId = React.useMemo(() => {
@@ -133,13 +143,13 @@ export function Dashboard() {
             {/* Main Content */}
             <div className="flex-1 flex flex-col overflow-hidden">
                 {/* Header */}
-                <header className="h-16 border-b flex items-center justify-between px-6 bg-card">
-                    <div className="flex items-center gap-4">
-                        <h1 className="text-lg font-semibold tracking-tight">
+                <header className="min-h-16 border-b grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-center px-6 py-2 bg-card">
+                    <div className="flex items-center gap-4 min-w-0">
+                        <h1 className="text-lg font-semibold tracking-tight truncate min-w-0">
                             {selectedEpicIds.length > 0 ? selectedEpicTitles || '선택된 Epic' : '에픽을 선택하세요'}
                         </h1>
                         {selectedEpicIds.length > 0 && (
-                            <div className="flex gap-4 text-sm text-muted-foreground border-l pl-4">
+                            <div className="hidden md:flex gap-4 text-sm text-muted-foreground border-l pl-4 shrink-0">
                                 <span className="font-medium text-foreground">{issueCount} 이슈</span>
                                 <span>{totalSP} SP</span>
                                 {selectedEpicIds.length > 1 && (
@@ -148,7 +158,7 @@ export function Dashboard() {
                             </div>
                         )}
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 sm:gap-3 shrink-0 justify-self-end">
                         {isElectron && (
                             <Button
                                 variant="outline"
@@ -160,6 +170,15 @@ export function Dashboard() {
                                 설정
                             </Button>
                         )}
+                        <Button
+                            variant="outline"
+                            size="default"
+                            onClick={() => setDefectKpiOpen(true)}
+                            title="개발자별 중요 결함 KPI"
+                        >
+                            <Bug className="h-4 w-4 mr-2" />
+                            결함 KPI
+                        </Button>
                         <Button
                             variant="default"
                             size="default"
@@ -241,13 +260,29 @@ export function Dashboard() {
                 initialConfig={jiraConfig ?? null}
             />
 
-            {/* Project Stats Dialog */}
+            <DefectKpiDashboard
+                open={defectKpiOpen}
+                onClose={() => setDefectKpiOpen(false)}
+                rows={defectKpi.rows}
+                isLoading={defectKpi.isLoading}
+                error={defectKpi.error as Error | null}
+                workerFieldResolved={defectKpi.workerFieldResolved}
+                defectSeverityFieldResolved={defectKpi.defectSeverityFieldResolved}
+                mappingCount={defectKpi.mappingCount}
+                onRefresh={() => void defectKpi.refetch()}
+            />
+
             <ProjectStatsDialog
                 open={statsOpen}
                 onClose={() => setStatsOpen(false)}
                 issues={issues}
                 epics={epics || []}
                 selectedEpicIds={selectedEpicIds}
+                defectKpiRows={defectKpi.rows}
+                defectKpiLoading={defectKpi.isLoading}
+                defectKpiWorkerOk={defectKpi.workerFieldResolved}
+                defectKpiSeverityFieldOk={defectKpi.defectSeverityFieldResolved}
+                defectKpiMappingCount={defectKpi.mappingCount}
                 onShowIssuesInList={(keys) => {
                     setStatsOpen(false);
                     setFocusIssueKeys(keys.length > 0 ? keys : null);

@@ -14,6 +14,7 @@ dist-electron
 dist_electron
 *.local
 proxy.log
+jira-proxy-config.json
 
 # Editor directories and files
 .vscode/*
@@ -26,5 +27,6 @@ proxy.log
 *.sln
 *.sw?
 
-# GitHub 저장소 URL (개인 설정, 커밋 제외)
+# 원격 저장소 URL (개인 설정, 커밋 제외)
 .github-repo
+.gitlab-repo

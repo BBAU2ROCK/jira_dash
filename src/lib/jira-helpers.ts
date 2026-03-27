@@ -1,5 +1,10 @@
 import { type JiraIssue } from '../api/jiraClient';
 
+/** 일부 이슈/필드 조합에서 statusCategory가 없을 수 있음 — 옵셔널 체이닝으로 크래시 방지 */
+export function getStatusCategoryKey(issue: JiraIssue): string | undefined {
+    return issue.fields.status?.statusCategory?.key;
+}
+
 /**
  * 이슈/검색 건수·통계·KPI 공통 규칙에 따라 "건수에 반영할 이슈"만 반환합니다.
  *

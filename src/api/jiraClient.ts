@@ -13,6 +13,89 @@ export const jiraClient = axios.create({
 export const getAttachmentContentUrl = (id: string | number) =>
     `${jiraClient.defaults.baseURL}/attachment/content/${id}`;
 
+function quoteJqlStringLiteral(value: string): string {
+    const s = value.trim();
+    return `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+function throwIfJiraSearchJqlPayloadErrors(data: unknown): void {
+    if (!data || typeof data !== 'object') return;
+    const msgs = (data as { errorMessages?: unknown }).errorMessages;
+    if (Array.isArray(msgs) && msgs.length > 0) {
+        throw new Error(msgs.filter((m): m is string => typeof m === 'string').join(' / ') || 'Jira 검색 오류');
+    }
+}
+
+/** 프로젝트 키 기준 에픽 이슈 검색 (에픽/Epic/「에픽」 타입 변형 시도) */
+async function fetchEpicsForProjectKey(projectKey: string): Promise<JiraIssue[]> {
+    const pk = projectKey.trim();
+    const pkQ = quoteJqlStringLiteral(pk);
+    const jqlVariants = [
+        `project = ${pkQ} AND issuetype = ${quoteJqlStringLiteral('에픽')} ORDER BY created DESC`,
+        `project = ${pk} AND issuetype = ${quoteJqlStringLiteral('에픽')} ORDER BY created DESC`,
+        `project = ${pkQ} AND issuetype = Epic ORDER BY created DESC`,
+        `project = ${pk} AND issuetype = Epic ORDER BY created DESC`,
+        `project = ${pkQ} AND issuetype = "Epic" ORDER BY created DESC`,
+    ];
+    const fields = [
+        'summary',
+        'description',
+        'status',
+        'assignee',
+        'reporter',
+        'priority',
+        'issuetype',
+        'created',
+        'timespent',
+        'worklog',
+        'comment',
+        'attachment',
+    ];
+    const maxResults = 100;
+    const byKey = new Map<string, JiraIssue>();
+
+    for (const jql of jqlVariants) {
+        let nextPageToken: string | undefined;
+        let guard = 0;
+        try {
+            do {
+                const payload: Record<string, unknown> = { jql, fields, maxResults };
+                if (nextPageToken) payload.nextPageToken = nextPageToken;
+                const response = await jiraClient.post('/search/jql', payload);
+                throwIfJiraSearchJqlPayloadErrors(response.data);
+                const data = response.data as {
+                    issues?: JiraIssue[];
+                    nextPageToken?: string;
+                    isLast?: boolean;
+                };
+                const issues = data.issues ?? [];
+                for (const issue of issues) {
+                    if (issue?.key) byKey.set(issue.key, issue);
+                }
+                nextPageToken = data.nextPageToken;
+                const done = data.isLast === true || issues.length < maxResults || !nextPageToken;
+                if (done) break;
+                if (++guard > 50) break;
+            } while (true);
+        } catch (e) {
+            console.warn('[jira] getEpicsForProject JQL 변형 실패(다음 변형 시도):', jql.slice(0, 72), e);
+        }
+    }
+
+    const list = Array.from(byKey.values()).sort((a, b) => {
+        const ta = a.fields?.created ? Date.parse(a.fields.created) : 0;
+        const tb = b.fields?.created ? Date.parse(b.fields.created) : 0;
+        return tb - ta;
+    });
+
+    if (list.length === 0) {
+        console.warn(
+            `[jira] getEpicsForProject(${pk}): 결과 0건. 프로젝트 키·issuetype(에픽/Epic)·프록시 인증을 확인하세요.`
+        );
+    }
+    return list;
+}
+
 // Add request interceptor for debugging
 jiraClient.interceptors.request.use(
     (config) => {
@@ -154,17 +237,43 @@ export const jiraApi = {
         });
         return response.data.issues as JiraIssue[];
     },
-    // Fetch all Epics from IGMU project
-    getEpics: async (): Promise<JiraIssue[]> => {
-        const response = await jiraClient.post('/search/jql', {
-            jql: 'project = IGMU AND issuetype = "에픽" ORDER BY created DESC',
-            fields: ['summary', 'description', 'status', 'assignee', 'reporter', 'priority', 'issuetype', 'created', 'timespent', 'worklog', 'comment', 'attachment'],
-            maxResults: 100,
-        });
-        return response.data.issues || [];
+    getEpicsForProject: async (projectKey: string): Promise<JiraIssue[]> => {
+        return fetchEpicsForProjectKey(projectKey);
     },
-    getIssuesForEpic: async (epicKey: string, difficultyFieldId?: string) => {
+
+    getEpics: async (): Promise<JiraIssue[]> => {
+        const pk = (JIRA_CONFIG.DASHBOARD?.PROJECT_KEY ?? 'IGMU').trim();
+        return fetchEpicsForProjectKey(pk);
+    },
+    getIssuesForEpic: async (epicKey: string, difficultyFieldId?: string, extraFieldIds?: string[]) => {
         const diffField = difficultyFieldId ?? JIRA_CONFIG.FIELDS.DIFFICULTY;
+        const extras = [...new Set((extraFieldIds ?? []).filter(Boolean))];
+        const searchFields = [
+            ...new Set([
+                'summary',
+                'description',
+                'status',
+                'assignee',
+                'reporter',
+                'priority',
+                'issuetype',
+                'customfield_10016',
+                'customfield_11481',
+                'customfield_11484',
+                'customfield_11485',
+                diffField,
+                'duedate',
+                'created',
+                'resolutiondate',
+                'parent',
+                'subtasks',
+                'timespent',
+                'worklog',
+                'comment',
+                'attachment',
+                ...extras,
+            ]),
+        ];
         try {
             // Step 1: Fetch parent issues (할 일) with pagination
             let parents: JiraIssue[] = [];
@@ -179,13 +288,7 @@ export const jiraApi = {
             do {
                 const payload: any = {
                     jql: `"Epic Link" = "${epicKey}" OR parent = "${epicKey}"`,
-                    fields: [
-                        'summary', 'description', 'status', 'assignee', 'reporter', 'priority', 'issuetype',
-                        'customfield_10016',
-                        'customfield_11481', 'customfield_11484', 'customfield_11485',
-                        diffField,
-                        'duedate', 'created', 'resolutiondate', 'parent', 'subtasks', 'timespent', 'worklog', 'comment', 'attachment'
-                    ],
+                    fields: searchFields,
                     maxResults
                 };
 
@@ -238,13 +341,7 @@ export const jiraApi = {
                     const quotedKeys = batch.map(key => `"${key}"`).join(', ');
                     const subtasksResp = await jiraClient.post('/search/jql', {
                         jql: `key IN (${quotedKeys})`,
-                        fields: [
-                            'summary', 'description', 'status', 'assignee', 'reporter', 'priority', 'issuetype',
-                            'customfield_10016',
-                            'customfield_11481', 'customfield_11484', 'customfield_11485',
-                            diffField,
-                            'duedate', 'created', 'resolutiondate', 'parent', 'subtasks', 'timespent', 'worklog', 'comment', 'attachment'
-                        ],
+                        fields: searchFields,
                         maxResults: batchSize
                     });
 

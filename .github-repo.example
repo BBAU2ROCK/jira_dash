@@ -1,3 +1,4 @@
-# GitHub 저장소 URL을 한 줄에 입력한 뒤, 이 파일을 .github-repo 로 복사하세요.
-# 예: https://github.com/BBAU2ROCK/jira_dash.git
-https://github.com/BBAU2ROCK/jira_dash.git
+# GitHub 저장소 HTTPS URL을 한 줄에 입력한 뒤, 이 파일을 .github-repo 로 복사하세요.
+# GitLab을 쓰는 경우 .gitlab-repo.example → .gitlab-repo 를 사용하면 URL이 우선합니다.
+# 예: https://github.com/your-org/01_jira_dash.git
+https://github.com/your-org/01_jira_dash.git

@@ -20,9 +20,18 @@ Electron 기반의 Jira 이슈 관리 및 시각화 대시보드 애플리케이
 
 ## 🛠 시작하기
 
-### 환경 설정
-프로젝트 실행을 위해서는 Jira API 토큰 설정이 필요합니다.
-- `proxy-server.cjs` 또는 `electron/main.ts` 내의 `JIRA_EMAIL` 및 `JIRA_API_TOKEN`을 본인의 정보로 업데이트하십시오.
+### 설치
+
+```bash
+npm install
+```
+
+- **Jira 인증 (웹/프록시)**: 저장소 루트에 `jira-proxy-config.json`을 두거나, `jira-proxy-config.example.json`을 복사해 이메일·API 토큰을 채운 뒤 파일명을 `jira-proxy-config.json`으로 저장합니다. (이 파일은 `.gitignore`에 포함하는 것을 권장합니다.)
+- **Electron**: `JIRA_EMAIL`, `JIRA_API_TOKEN` 환경 변수 또는 앱 userData의 `jira-config.json`을 사용합니다. 자세한 내용은 `proxy-server.cjs` / `electron/main.ts` 주석을 참고하세요.
+
+### Git 원격 (GitLab / GitHub)
+
+첫 연결·푸시 절차는 [docs/git-remote-setup.md](./docs/git-remote-setup.md)를 참고하세요.
 
 ### 개발 서버 실행
 

@@ -1,0 +1,4 @@
+{
+  "jiraEmail": "your-atlassian-account@example.com",
+  "jiraApiToken": "paste-api-token-here"
+}

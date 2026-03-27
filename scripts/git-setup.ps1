@@ -1,27 +1,30 @@
-# GitHub 첫 연결: 저장소 생성 후 한 번만 실행
-# 1) .github-repo.example 을 .github-repo 로 복사 후 URL 수정
+# 원격 저장소 첫 연결: 저장소 생성 후 한 번만 실행
+# 1) .gitlab-repo.example 또는 .github-repo.example 을 복사해 URL 수정
+#    - GitLab: .gitlab-repo.example → .gitlab-repo
+#    - GitHub: .github-repo.example → .github-repo
 # 2) Git 설치: https://git-scm.com/download/win
 # 3) 이 스크립트 실행: npm run git:setup
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'git-remote-repo.ps1')
 
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
     Write-Host "Git이 설치되어 있지 않습니다. https://git-scm.com/download/win" -ForegroundColor Red
     exit 1
 }
 
-$repoFile = Join-Path $root ".github-repo"
-if (-not (Test-Path $repoFile)) {
-    Write-Host ".github-repo 파일이 없습니다." -ForegroundColor Yellow
-    Write-Host "1. .github-repo.example 을 .github-repo 로 복사하세요."
-    Write-Host "2. .github-repo 안에 GitHub 저장소 URL을 한 줄에 넣으세요. (예: https://github.com/사용자명/01_jira_dash.git)"
+$repoFile = Get-RemoteRepoFile -Root $root
+if (-not $repoFile) {
+    Write-Host "원격 URL 파일이 없습니다." -ForegroundColor Yellow
+    Write-Host "1. GitLab: .gitlab-repo.example 을 .gitlab-repo 로 복사 후 URL 입력"
+    Write-Host "2. GitHub: .github-repo.example 을 .github-repo 로 복사 후 URL 입력"
     exit 1
 }
 
-$repoUrl = (Get-Content $repoFile -Raw).Trim()
-if ([string]::IsNullOrWhiteSpace($repoUrl) -or $repoUrl.StartsWith("#")) {
-    Write-Host ".github-repo 에 URL이 없습니다. 주석(#)이 아닌 한 줄에 URL을 입력하세요." -ForegroundColor Yellow
+$repoUrl = Read-RemoteRepoUrl -Root $root
+if (-not $repoUrl) {
+    Write-Host "$(Split-Path $repoFile -Leaf) 에 유효한 URL이 없습니다. 주석(#)이 아닌 한 줄에 HTTPS URL을 입력하세요." -ForegroundColor Yellow
     exit 1
 }
 

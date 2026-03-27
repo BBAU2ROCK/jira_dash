@@ -1,5 +1,6 @@
 import { type JiraIssue } from "../api/jiraClient";
 import { JIRA_CONFIG } from "../config/jiraConfig";
+import { getStatusCategoryKey } from "../lib/jira-helpers";
 
 export interface KPIMetrics {
     totalIssues: number;
@@ -51,7 +52,7 @@ export function calculateKPI(issues: JiraIssue[]): KPIMetrics {
     let agreedDelayIssues = 0; // Marked as agreed delay
 
     issues.forEach(issue => {
-        const isDone = issue.fields.status.statusCategory.key === 'done';
+        const isDone = getStatusCategoryKey(issue) === 'done';
         const isAgreedDelay = issue.fields.labels?.includes(JIRA_CONFIG.LABELS.AGREED_DELAY);
         const isVerificationDelay = issue.fields.labels?.includes(JIRA_CONFIG.LABELS.VERIFICATION_DELAY);
 
@@ -109,7 +110,7 @@ export function calculateKPI(issues: JiraIssue[]): KPIMetrics {
     // If I agree to delay, it's removed from target. So if I finish it, it doesn't count for KPI A?
     // Let's assume we count it as done if it's done.
     // Wait, if I exclude from denominator, I must exclude from numerator too to avoid > 100%.
-    const kpiCompleted = Math.max(completedIssues - (issues.filter(i => i.fields.status.statusCategory.key === 'done' && i.fields.labels?.includes(JIRA_CONFIG.LABELS.AGREED_DELAY)).length), 0);
+    const kpiCompleted = Math.max(completedIssues - (issues.filter(i => getStatusCategoryKey(i) === 'done' && i.fields.labels?.includes(JIRA_CONFIG.LABELS.AGREED_DELAY)).length), 0);
 
     const completionRate = Math.min((kpiCompleted / kpiTotal) * 100, 100);
 
@@ -119,7 +120,7 @@ export function calculateKPI(issues: JiraIssue[]): KPIMetrics {
     // Should we exclude agreed delay from here too?
     // Usually yes.
     const kpiCompliant = Math.max(compliantIssues - (issues.filter(i => {
-        const isDone = i.fields.status.statusCategory.key === 'done';
+        const isDone = getStatusCategoryKey(i) === 'done';
         const isAgreed = i.fields.labels?.includes(JIRA_CONFIG.LABELS.AGREED_DELAY);
         const dueDateStr = i.fields.duedate;
         const actualEndStr = i.fields[JIRA_CONFIG.FIELDS.ACTUAL_DONE] || i.fields.resolutiondate;

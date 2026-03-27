@@ -1,0 +1,4 @@
+# GitLab 프로젝트의 HTTPS clone URL을 한 줄에 넣은 뒤, 이 파일을 .gitlab-repo 로 복사하세요.
+# 같은 폴더에 .gitlab-repo 가 있으면 .github-repo 보다 우선합니다.
+# 예: https://gitlab.com/your-group/01_jira_dash.git
+https://gitlab.com/your-group/01_jira_dash.git
