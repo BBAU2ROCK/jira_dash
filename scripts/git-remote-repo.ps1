@@ -12,7 +12,11 @@ function Read-RemoteRepoUrl {
     param([Parameter(Mandatory)][string]$Root)
     $f = Get-RemoteRepoFile -Root $Root
     if (-not $f) { return $null }
-    $url = (Get-Content $f -Raw).Trim()
-    if ([string]::IsNullOrWhiteSpace($url) -or $url.StartsWith('#')) { return $null }
-    return $url
+    foreach ($line in Get-Content $f -Encoding UTF8) {
+        $t = $line.Trim()
+        if ($t.Length -eq 0) { continue }
+        if ($t.StartsWith('#')) { continue }
+        return $t
+    }
+    return $null
 }

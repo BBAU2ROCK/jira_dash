@@ -136,7 +136,7 @@ export function Dashboard() {
                     error={epicsError as Error | null}
                     isCollapsed={sidebarCollapsed}
                     onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
-                    onOpenSettings={isElectron ? () => setSettingsOpen(true) : undefined}
+                    onOpenSettings={() => setSettingsOpen(true)}
                 />
             </div>
 
@@ -159,17 +159,15 @@ export function Dashboard() {
                         )}
                     </div>
                     <div className="flex items-center gap-2 sm:gap-3 shrink-0 justify-self-end">
-                        {isElectron && (
-                            <Button
-                                variant="outline"
-                                size="default"
-                                onClick={() => setSettingsOpen(true)}
-                                title="Jira 연결 설정"
-                            >
-                                <Settings className="h-4 w-4 mr-2" />
-                                설정
-                            </Button>
-                        )}
+                        <Button
+                            variant="outline"
+                            size="default"
+                            onClick={() => setSettingsOpen(true)}
+                            title="Jira 연결 설정"
+                        >
+                            <Settings className="h-4 w-4 mr-2" />
+                            설정
+                        </Button>
                         <Button
                             variant="outline"
                             size="default"
@@ -184,14 +182,10 @@ export function Dashboard() {
                             size="default"
                             disabled={!issues || issues.length === 0}
                             onClick={() => setStatsOpen(true)}
-                            style={{
-                                backgroundColor: '#3b82f6',
-                                color: '#ffffff',
-                            }}
-                            className="shadow-sm hover:opacity-90"
+                            className="bg-blue-500 text-white shadow-sm hover:bg-blue-600"
                         >
-                            <BarChart3 className="h-4 w-4 mr-2" style={{ color: '#ffffff' }} />
-                            <span style={{ color: '#ffffff' }}>프로젝트 통계</span>
+                            <BarChart3 className="h-4 w-4 mr-2 text-white" />
+                            <span className="text-white">프로젝트 통계</span>
                         </Button>
                         <Button
                             variant="secondary"
@@ -199,15 +193,10 @@ export function Dashboard() {
                             onClick={() => refetch()}
                             disabled={selectedEpicIds.length === 0}
                             title="새로고침"
-                            style={{
-                                backgroundColor: '#6b7280',
-                                color: '#ffffff',
-                            }}
-                            className="shadow-sm hover:opacity-90"
+                            className="bg-gray-500 text-white shadow-sm hover:bg-gray-600"
                         >
                             <RefreshCw
-                                className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`}
-                                style={{ color: '#ffffff' }}
+                                className={`h-4 w-4 text-white ${isFetching ? 'animate-spin' : ''}`}
                             />
                         </Button>
                     </div>

@@ -248,7 +248,13 @@ export function aggregateDefectKpiForPair(
     return rows;
 }
 
-/** 여러 매핑 쌍 결과를 담당자 기준으로 합산 */
+/**
+ * 여러 매핑 쌍 결과를 담당자 기준으로 합산.
+ *
+ * **⚠️ 사전조건**: 동일 dev 에픽이 여러 매핑에 등장하면 dev 카운트가 이중 합산됩니다.
+ * 호출자(`useDefectKpiAggregation` → `useEpicMappingStore.addMapping`)에서 dev 에픽 중복을
+ * 막아야 하며, 현재 store는 'dev-already-mapped' 거부로 이를 보장합니다.
+ */
 export function mergeDefectKpiRows(pairRowsList: DefectKpiDeveloperRow[][]): DefectKpiDeveloperRow[] {
     const map = new Map<
         string,

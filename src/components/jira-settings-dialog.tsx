@@ -1,5 +1,6 @@
 import React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import {
     Dialog,
     DialogContent,
@@ -30,6 +31,42 @@ interface JiraSettingsDialogProps {
     initialConfig?: JiraConfig | null;
 }
 
+/** 웹 모드 — 프록시 admin 엔드포인트로 자격증명 변경. Electron 모드 — IPC. */
+const ipcRenderer = typeof window !== 'undefined' ? window.ipcRenderer : null;
+const isWebMode = !ipcRenderer;
+const PROXY_BASE = (() => {
+    try {
+        const meta = (import.meta as unknown as { env?: { VITE_PROXY_BASE?: string } });
+        return (meta?.env?.VITE_PROXY_BASE || 'http://localhost:3001/api').replace(/\/api\/?$/, '');
+    } catch {
+        return 'http://localhost:3001';
+    }
+})();
+
+async function fetchWebStatus(): Promise<{ configured: boolean; email: string; source: string }> {
+    const r = await fetch(`${PROXY_BASE}/admin/auth`);
+    if (!r.ok) throw new Error(`status ${r.status}`);
+    return r.json();
+}
+
+async function fetchWebTest(payload: JiraConfig): Promise<JiraTestResult> {
+    const r = await fetch(`${PROXY_BASE}/admin/auth/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    return r.json();
+}
+
+async function fetchWebSave(payload: JiraConfig): Promise<{ ok: boolean; message?: string; persisted?: boolean }> {
+    const r = await fetch(`${PROXY_BASE}/admin/auth`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    return r.json();
+}
+
 export function JiraSettingsDialog({ open, onClose, initialConfig }: JiraSettingsDialogProps) {
     const queryClient = useQueryClient();
     const [email, setEmail] = React.useState(initialConfig?.jiraEmail ?? '');
@@ -38,17 +75,26 @@ export function JiraSettingsDialog({ open, onClose, initialConfig }: JiraSetting
     const [testing, setTesting] = React.useState(false);
     const [error, setError] = React.useState<string | null>(null);
     const [testResult, setTestResult] = React.useState<JiraTestResult | null>(null);
+    const [webStatus, setWebStatus] = React.useState<{ configured: boolean; email: string; source: string } | null>(null);
 
     React.useEffect(() => {
-        if (open) {
+        if (!open) return;
+        setError(null);
+        setTestResult(null);
+        if (isWebMode) {
+            // 웹 모드: 프록시에서 현재 상태 조회 + 이메일 미리 채우기
+            fetchWebStatus()
+                .then((s) => {
+                    setWebStatus(s);
+                    if (s.email && !email) setEmail(s.email);
+                })
+                .catch(() => setWebStatus({ configured: false, email: '', source: '' }));
+        } else {
             setEmail(initialConfig?.jiraEmail ?? '');
             setApiToken(initialConfig?.jiraApiToken ?? '');
-            setError(null);
-            setTestResult(null);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, initialConfig?.jiraEmail, initialConfig?.jiraApiToken]);
-
-    const ipc = typeof window !== 'undefined' ? window.ipcRenderer : null;
 
     const handleTestConnection = async () => {
         const trimmedEmail = email.trim();
@@ -57,18 +103,16 @@ export function JiraSettingsDialog({ open, onClose, initialConfig }: JiraSetting
             setTestResult({ ok: false, message: '이메일과 API 토큰을 먼저 입력하세요.', status: 0 });
             return;
         }
-        if (!ipc) {
-            setTestResult({ ok: false, message: '연결 테스트는 Electron 앱에서만 가능합니다.', status: 0 });
-            return;
-        }
         setError(null);
         setTestResult(null);
         setTesting(true);
         try {
-            const result = await ipc.invoke('jira-config:test', {
-                jiraEmail: trimmedEmail,
-                jiraApiToken: trimmedToken,
-            }) as JiraTestResult;
+            const result: JiraTestResult = isWebMode
+                ? await fetchWebTest({ jiraEmail: trimmedEmail, jiraApiToken: trimmedToken })
+                : ((await ipcRenderer!.invoke('jira-config:test', {
+                      jiraEmail: trimmedEmail,
+                      jiraApiToken: trimmedToken,
+                  })) as JiraTestResult);
             setTestResult(result);
         } catch (e: unknown) {
             setTestResult({
@@ -91,21 +135,34 @@ export function JiraSettingsDialog({ open, onClose, initialConfig }: JiraSetting
         setError(null);
         setSaving(true);
         try {
-            if (!ipc) {
-                setError('이 설정은 Electron 앱에서만 사용할 수 있습니다.');
-                setSaving(false);
-                return;
+            if (isWebMode) {
+                const r = await fetchWebSave({ jiraEmail: trimmedEmail, jiraApiToken: trimmedToken });
+                if (!r.ok) {
+                    setError(r.message || '저장 실패');
+                    toast.error(r.message || '저장 실패');
+                    return;
+                }
+                if (r.persisted === false) {
+                    toast.warning(r.message || '메모리에만 적용됨');
+                } else {
+                    toast.success('Jira 설정이 저장되었습니다');
+                }
+            } else {
+                await ipcRenderer!.invoke('jira-config:set', {
+                    jiraEmail: trimmedEmail,
+                    jiraApiToken: trimmedToken,
+                });
+                toast.success('Jira 설정이 저장되었습니다');
             }
-            await ipc.invoke('jira-config:set', {
-                jiraEmail: trimmedEmail,
-                jiraApiToken: trimmedToken,
-            });
+            // 캐시 무효화 → 자격증명 재로딩 + 에픽 즉시 재조회
             await queryClient.invalidateQueries({ queryKey: ['jira-config'] });
             await queryClient.invalidateQueries({ queryKey: ['epics'] });
             await queryClient.refetchQueries({ queryKey: ['epics'] });
             onClose();
         } catch (e: unknown) {
-            setError(e instanceof Error ? e.message : '설정 저장에 실패했습니다.');
+            const msg = e instanceof Error ? e.message : '설정 저장에 실패했습니다.';
+            setError(msg);
+            toast.error(msg);
         } finally {
             setSaving(false);
         }
@@ -120,9 +177,28 @@ export function JiraSettingsDialog({ open, onClose, initialConfig }: JiraSetting
                         Jira 연결 설정
                     </DialogTitle>
                     <DialogDescription>
-                        exe 실행 시 및 PC 재시작 후에도 Jira 데이터를 가져오려면 아래 정보를 저장해 두세요.
+                        {isWebMode
+                            ? `웹 모드 — 입력 후 "연결 테스트" → 정상이면 "저장". 즉시 반영됩니다 (서버 재시작 불필요).`
+                            : 'exe 실행 시 및 PC 재시작 후에도 Jira 데이터를 가져오려면 아래 정보를 저장해 두세요.'}
                     </DialogDescription>
                 </DialogHeader>
+
+                {isWebMode && webStatus && (
+                    <div className="rounded-md border bg-slate-50 p-2 text-xs text-slate-700">
+                        현재 프록시 자격증명:{' '}
+                        {webStatus.configured ? (
+                            <>
+                                <span className="font-mono">{webStatus.email || '(미상)'}</span>
+                                {webStatus.source && (
+                                    <span className="text-slate-500"> · {webStatus.source}</span>
+                                )}
+                            </>
+                        ) : (
+                            <span className="text-amber-700">설정되지 않음</span>
+                        )}
+                    </div>
+                )}
+
                 <div className="grid gap-4 py-4">
                     <div className="grid gap-2">
                         <label htmlFor="jira-email" className="text-sm font-medium leading-none">Jira 이메일</label>
@@ -170,6 +246,7 @@ export function JiraSettingsDialog({ open, onClose, initialConfig }: JiraSetting
                         </div>
                     )}
                 </div>
+
                 <DialogFooter className="flex-wrap gap-2">
                     <Button
                         type="button"

@@ -5,20 +5,20 @@
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-. (Join-Path $PSScriptRoot 'git-remote-repo.ps1')
 
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
     Write-Host "Git이 설치되어 있지 않습니다. https://git-scm.com/download/win" -ForegroundColor Red
     exit 1
 }
 
-$repoFile = Get-RemoteRepoFile -Root $root
-if (-not $repoFile) {
-    Write-Host ".gitlab-repo 또는 .github-repo 가 없습니다. npm run git:setup 을 먼저 실행하세요." -ForegroundColor Yellow
+Set-Location $root
+
+$remoteNames = @(git remote 2>$null)
+if (-not ($remoteNames -contains 'origin')) {
+    Write-Host "origin 원격이 없습니다. git clone 으로 받은 경우 원격이 이미 있어야 합니다." -ForegroundColor Yellow
+    Write-Host "또는 npm run git:setup (.gitlab-repo / .github-repo URL 파일 필요) 을 실행하세요." -ForegroundColor Yellow
     exit 1
 }
-
-Set-Location $root
 
 $msg = $args -join " "
 if ([string]::IsNullOrWhiteSpace($msg)) {

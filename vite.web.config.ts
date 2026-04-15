@@ -1,23 +1,11 @@
 import { defineConfig, Plugin } from 'vite'
 import path from 'node:path'
 import { spawn, ChildProcess } from 'node:child_process'
-import net from 'node:net'
 import react from '@vitejs/plugin-react'
 
 // Vite Plugin: Auto-start proxy-server.cjs when Vite dev server starts
 function proxyServerPlugin(): Plugin {
     let proxyProcess: ChildProcess | null = null;
-
-    function checkPortInUse(port: number): Promise<boolean> {
-        return new Promise((resolve) => {
-            const server = net.createServer();
-            server.once('error', () => resolve(true));   // port in use
-            server.once('listening', () => {
-                server.close(() => resolve(false));       // port free
-            });
-            server.listen(port);
-        });
-    }
 
     return {
         name: 'proxy-server',

@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { jiraApi } from '@/api/jiraClient';
 import {
     aggregateDefectKpiForPair,
@@ -26,21 +28,34 @@ export function useDefectKpiAggregation() {
         queryKey: ['defect-kpi', mappings, workerFieldId, severityFieldId],
         enabled: mappings.length > 0 && !!workerFieldId,
         queryFn: async (): Promise<DefectKpiDeveloperRow[]> => {
-            const pairLists: ReturnType<typeof aggregateDefectKpiForPair>[] = [];
             const extra = [workerFieldId, severityFieldId].filter(Boolean) as string[];
-            for (const m of mappings) {
-                const [devIssues, defectIssues] = await Promise.all([
-                    jiraApi.getIssuesForEpic(m.devEpicKey, undefined, extra),
-                    jiraApi.getIssuesForEpic(m.defectEpicKey, undefined, extra),
-                ]);
-                pairLists.push(
-                    aggregateDefectKpiForPair(devIssues, defectIssues, workerFieldId!, severityFieldId)
-                );
-            }
+            // H1: 매핑별 fetch를 병렬 처리 (이전: 순차)
+            const pairLists = await Promise.all(
+                mappings.map(async (m) => {
+                    const [devIssues, defectIssues] = await Promise.all([
+                        jiraApi.getIssuesForEpic(m.devEpicKey, undefined, extra),
+                        jiraApi.getIssuesForEpic(m.defectEpicKey, undefined, extra),
+                    ]);
+                    return aggregateDefectKpiForPair(
+                        devIssues,
+                        defectIssues,
+                        workerFieldId!,
+                        severityFieldId
+                    );
+                })
+            );
             return mergeDefectKpiRows(pairLists);
         },
         staleTime: 2 * 60 * 1000,
     });
+
+    // 에러 발생 시 1회만 토스트
+    useEffect(() => {
+        if (query.error) {
+            const msg = query.error instanceof Error ? query.error.message : '결함 KPI 조회 실패';
+            toast.error(`결함 KPI 조회 실패: ${msg}`);
+        }
+    }, [query.error]);
 
     return {
         rows: query.data ?? [],

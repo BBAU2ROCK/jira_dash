@@ -1,5 +1,9 @@
 # Git 원격 저장소 연결 (GitLab / GitHub)
 
+저장소를 **이미 `git clone`으로 받은 경우**에는 `origin`이 설정되어 있으므로, 아래 3~4절(URL 파일·`git:setup`)은 건너뛰고 `npm run git:push`만 사용하면 된다.
+
+---
+
 ## 1. Git 설치
 
 - Windows: [Git for Windows](https://git-scm.com/download/win) 설치 후 터미널을 다시 연다.
@@ -24,7 +28,7 @@
 | GitLab | `.gitlab-repo.example` | `.gitlab-repo` |
 | GitHub | `.github-repo.example` | `.github-repo` |
 
-파일 안에는 **주석(`#`)이 아닌 한 줄**에 clone URL만 넣는다.
+파일 안에는 **주석(`#`)이 아닌 첫 번째 유효 줄**에 clone URL만 넣는다(주석 여러 줄 가능).
 
 ---
 
@@ -72,3 +76,15 @@ git remote add gitlab https://gitlab.com/your-group/01_jira_dash.git
 | 커밋 메시지 지정 | `npm run git:push -- "메시지"` |
 
 `.github-repo` / `.gitlab-repo` 는 `.gitignore`에 있어 저장소에 커밋되지 않는다.
+
+---
+
+## 7. Jira 프록시 설정(별도)
+
+웹 개발 시 루트에 `jira-proxy-config.json`이 필요합니다. 없으면:
+
+```bash
+npm run setup
+```
+
+`jira-proxy-config.example.json`을 복사한 뒤 이메일·API 토큰을 수정하세요.

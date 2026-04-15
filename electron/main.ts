@@ -1,12 +1,10 @@
-import { app, BrowserWindow, Menu, ipcMain } from 'electron'
+import { app, BrowserWindow, Menu, ipcMain, session } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import fs from 'node:fs/promises'
 import fsSync from 'node:fs'
-// @ts-ignore
 import express from 'express'
 import axios from 'axios'
-// @ts-ignore
 import cors from 'cors'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -71,60 +69,30 @@ function getAuthHeader(): string {
     return '';
 }
 
-// --- Jira Proxy ---
+// --- Jira Proxy --- (M4: 공통 핸들러 사용 — CommonJS 모듈을 ESM에서 require)
+import { createRequire } from 'node:module'
+const requireCjs = createRequire(import.meta.url)
+const { createJiraProxyMiddleware } = requireCjs('./jira-proxy-handler.cjs') as {
+    createJiraProxyMiddleware: (opts: {
+        getAuthHeader: () => string;
+        log?: (msg: string) => void;
+        baseUrl?: string;
+    }) => (req: unknown, res: unknown) => Promise<void>;
+};
+
 const proxyApp = express();
 const PROXY_PORT = 3001;
 
 proxyApp.use(cors());
 proxyApp.use(express.json());
 
-proxyApp.use('/api', async (req: any, res: any) => {
-    const jiraPath = req.path.replace(/^\//, '/rest/api/3/');
-    const jiraUrl = `https://okestro.atlassian.net${jiraPath}`;
-
-    const isBinary = jiraPath.includes('/attachment/content/') || jiraPath.includes('/avatar/');
-
-    console.log(`[ELECTRON PROXY] ${req.method} ${req.originalUrl} -> ${jiraUrl} (Binary: ${isBinary})`);
-
-    const authHeader = getAuthHeader();
-
-    const headers: Record<string, string> = {
-        'Authorization': authHeader,
-        'Accept': isBinary ? '*/*' : 'application/json',
-    };
-    if (req.body !== undefined && req.body !== null && req.method !== 'GET') {
-        headers['Content-Type'] = 'application/json';
-    }
-
-    try {
-        const response = await axios({
-            method: req.method,
-            url: jiraUrl,
-            headers,
-            data: req.body,
-            params: req.query,
-            responseType: isBinary ? 'arraybuffer' : 'json',
-        });
-
-        const contentType = response.headers['content-type'];
-        res.setHeader('Content-Type', contentType || (isBinary ? 'image/png' : 'application/json'));
-
-        console.log(`[ELECTRON PROXY] ✓ ${response.status} ${jiraUrl} (Content-Type: ${contentType})`);
-
-        if (isBinary) {
-            res.send(Buffer.from(response.data));
-        } else {
-            res.status(response.status).json(response.data);
-        }
-    } catch (error: any) {
-        console.error(`[ELECTRON PROXY] ✗ Error: ${error.message}`);
-        if (error.response) {
-            res.status(error.response.status).send(error.response.data);
-        } else {
-            res.status(500).json({ error: error.message });
-        }
-    }
-});
+proxyApp.use(
+    '/api',
+    createJiraProxyMiddleware({
+        getAuthHeader,
+        log: (msg: string) => console.log(`[ELECTRON PROXY] ${msg}`),
+    })
+);
 
 function startProxyServer() {
     const server = proxyApp.listen(PROXY_PORT, '127.0.0.1', () => {
@@ -154,7 +122,8 @@ function createWindow() {
         icon: path.join(process.env.VITE_PUBLIC || '', 'electron-vite.svg'),
         webPreferences: {
             preload: path.join(__dirname, preloadName),
-            webSecurity: false,
+            // C3: webSecurity 활성화. 외부 이미지 트래킹/XSS 표면 차단.
+            webSecurity: true,
             nodeIntegration: false,
             contextIsolation: true,
         },
@@ -186,8 +155,41 @@ app.on('activate', () => {
     }
 })
 
+/**
+ * C3: Content-Security-Policy 헤더 주입.
+ * - dev: Vite HMR(WebSocket·eval) 허용
+ * - prod: 자기 자신·로컬 프록시·Jira 첨부만 허용
+ */
+function installCspHeaders(): void {
+    const isDev = !!process.env['VITE_DEV_SERVER_URL'];
+    // Atlassian 아바타·아이콘 호스팅 도메인 (사이드바·멘션 검색 결과의 외부 이미지)
+    const atlassianImg = "https://okestro.atlassian.net https://*.atlassian.net https://*.atl-paas.net";
+    const csp = isDev
+        ? "default-src 'self' http://localhost:5173 http://localhost:3001; " +
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:5173; " +
+          "style-src 'self' 'unsafe-inline'; " +
+          `img-src 'self' http://localhost:3001 ${atlassianImg} data: blob:; ` +
+          "connect-src 'self' http://localhost:3001 http://localhost:5173 ws://localhost:5173;"
+        : "default-src 'self'; " +
+          "script-src 'self' 'unsafe-inline'; " +
+          "style-src 'self' 'unsafe-inline'; " +
+          `img-src 'self' http://localhost:3001 ${atlassianImg} data: blob:; ` +
+          "connect-src 'self' http://localhost:3001;";
+
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+        const headers = { ...details.responseHeaders } as Record<string, string[] | string>;
+        // 기존 CSP 제거 후 우리 정책 단일 적용
+        for (const key of Object.keys(headers)) {
+            if (key.toLowerCase() === 'content-security-policy') delete headers[key];
+        }
+        headers['Content-Security-Policy'] = [csp];
+        callback({ responseHeaders: headers as Record<string, string[]> });
+    });
+}
+
 app.whenReady().then(async () => {
     await loadJiraConfig();
+    installCspHeaders();
 
     ipcMain.handle('jira-config:get', () => Promise.resolve({ ...jiraConfig }));
 

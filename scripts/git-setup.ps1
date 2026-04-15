@@ -24,8 +24,17 @@ if (-not $repoFile) {
 
 $repoUrl = Read-RemoteRepoUrl -Root $root
 if (-not $repoUrl) {
-    Write-Host "$(Split-Path $repoFile -Leaf) 에 유효한 URL이 없습니다. 주석(#)이 아닌 한 줄에 HTTPS URL을 입력하세요." -ForegroundColor Yellow
+    Write-Host "$(Split-Path $repoFile -Leaf) 에 유효한 URL이 없습니다. 주석(#)이 아닌 줄에 HTTPS URL을 한 줄 이상 입력하세요." -ForegroundColor Yellow
     exit 1
+}
+
+$pkgPath = Join-Path $root 'package.json'
+$appVersion = '1.0.0'
+if (Test-Path $pkgPath) {
+    try {
+        $pkg = Get-Content $pkgPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($pkg.version) { $appVersion = [string]$pkg.version }
+    } catch { }
 }
 
 Set-Location $root
@@ -50,7 +59,7 @@ $count = (git status -s 2>$null | Measure-Object -Line).Lines
 if ($count -eq 0) {
     Write-Host "커밋할 변경이 없습니다. (이미 모두 커밋된 상태일 수 있음)" -ForegroundColor Gray
 } else {
-    git commit -m "chore: Jira Dashboard 소스 업로드 (v1.0.5)"
+    git commit -m "chore: Jira Dashboard 소스 업로드 (v$appVersion)"
     git branch -M main
     git push -u origin main
     Write-Host "푸시 완료." -ForegroundColor Green

@@ -1,12 +1,17 @@
 {
   "name": "01_jira_dash",
   "private": true,
-  "version": "1.0.5",
+  "version": "1.0.7",
   "description": "Jira Dashboard Application",
   "author": "Okestro",
   "type": "module",
   "main": "dist-electron/main.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
+    "setup": "node scripts/setup-jira-config.cjs",
+    "setup:all": "npm install && npm run setup",
     "dev": "vite",
     "dev:web": "vite --config vite.web.config.ts",
     "build": "npm run build:icons && tsc -b && vite build && electron-builder",
@@ -14,6 +19,8 @@
     "clean": "node scripts/clean-install-output.cjs",
     "build:install": "npm run clean && npm run build",
     "lint": "eslint .",
+    "test": "vitest",
+    "test:run": "vitest run",
     "preview": "vite preview",
     "start": "concurrently -n proxy,vite -c blue,green \"node proxy-server.cjs\" \"vite\"",
     "git:setup": "powershell -ExecutionPolicy Bypass -File scripts/git-setup.ps1",
@@ -38,6 +45,7 @@
     "react-day-picker": "^9.13.2",
     "react-dom": "^19.2.0",
     "recharts": "^3.7.0",
+    "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
     "zustand": "^5.0.12"
@@ -45,12 +53,15 @@
   "devDependencies": {
     "@eslint/js": "^9.39.1",
     "@tailwindcss/postcss": "^4.1.18",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
+    "@vitest/coverage-v8": "^4.1.4",
     "autoprefixer": "^10.4.24",
     "concurrently": "^9.1.2",
     "electron": "^40.4.0",
@@ -59,6 +70,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "jsdom": "^29.0.2",
     "png-to-ico": "^3.0.1",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18",
@@ -66,11 +78,13 @@
     "typescript-eslint": "^8.48.0",
     "vite": "^7.3.1",
     "vite-plugin-electron": "^0.29.0",
-    "vite-plugin-electron-renderer": "^0.14.6"
+    "vite-plugin-electron-renderer": "^0.14.6",
+    "vitest": "^4.1.4"
   },
   "build": {
     "appId": "com.okestro.jiradash",
     "productName": "Jira Dashboard",
+    "copyright": "Copyright © Okestro",
     "directories": {
       "output": "dist_electron",
       "buildResources": "build"
@@ -79,6 +93,19 @@
       "dist/**/*",
       "dist-electron/**/*"
     ],
+    "extraFiles": [
+      {
+        "from": "jira-proxy-config.example.json",
+        "to": "jira-proxy-config.example.json"
+      },
+      {
+        "from": "build/INSTALL-KO.txt",
+        "to": "INSTALL-KO.txt"
+      }
+    ],
+    "releaseInfo": {
+      "releaseNotes": "결함 KPI(개발·결함 에픽 매핑), 심각도 시각화, KPI 탭 UI·Git 원격 스크립트, npm run setup(Jira 예시 설정) 반영."
+    },
     "win": {
       "target": [
         {
@@ -99,12 +126,16 @@
     },
     "nsis": {
       "oneClick": false,
+      "perMachine": false,
       "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Jira Dashboard",
       "installerIcon": "build/icon.ico",
-      "uninstallerIcon": "build/icon.ico"
+      "uninstallerIcon": "build/icon.ico",
+      "uninstallDisplayName": "Jira Dashboard",
+      "include": "build/installer.nsh"
     },
     "mac": {
       "target": "zip",

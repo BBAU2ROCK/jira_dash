@@ -7,6 +7,7 @@ import { Calendar, User, Clock, AlertCircle, CheckCircle, Loader2, MessageSquare
 import { Popover, PopoverContent, PopoverTrigger, PopoverAnchor } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 import { type JiraIssue, type CommentSegment, jiraApi, buildCommentAdf, adfToSegments, getAttachmentContentUrl } from '@/api/jiraClient';
 import { cn } from '@/lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -61,8 +62,11 @@ function IssueTypeIcon({ type, className }: { type: string; className?: string }
         case 'bug': return <Bug className={cn("text-red-500", className)} />;
         case 'story': return <CheckCircle className={cn("text-emerald-500", className)} />;
         case 'task': return <CircleCheck className={cn("text-blue-500", className)} />;
-        case 'sub-task': return <CircleCheck className={cn("text-blue-400", className)} />;
+        case 'sub-task':
+        case 'subtask':
+        case '하위 작업': return <CircleCheck className={cn("text-blue-400", className)} />;
         case '할 일': return <CircleCheck className={cn("text-blue-500", className)} />;
+        case '결함': return <Bug className={cn("text-red-500", className)} />;
         default: return <Info className={cn("text-slate-400", className)} />;
     }
 }
@@ -242,12 +246,14 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
     });
 
     const updateMutation = useMutation({
-        mutationFn: ({ key, fields }: { key: string; fields: any }) =>
+        mutationFn: ({ key, fields }: { key: string; fields: Record<string, unknown> }) =>
             jiraApi.updateIssue(key, fields),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['issueDetails', issue?.key] });
             queryClient.invalidateQueries({ queryKey: ['issues'] });
+            toast.success('필드가 업데이트되었습니다');
         },
+        onError: (e: Error) => toast.error(`업데이트 실패: ${e.message}`),
     });
 
     // 가능한 워크플로우 전환(상태 변경) 목록
@@ -280,45 +286,7 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
         value: String(opt?.value ?? opt?.name ?? (opt?.id != null ? opt.id : '')),
     })).filter((o: { id: string; value: string }) => o.id || o.value), [difficultyOptionsRaw]);
 
-    const transitionMutation = useMutation({
-        mutationFn: ({ key, transitionId }: { key: string; transitionId: string }) =>
-            jiraApi.transitionIssue(key, transitionId),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['issueDetails', issue?.key] });
-            queryClient.invalidateQueries({ queryKey: ['transitions', issue?.key] });
-            queryClient.invalidateQueries({ queryKey: ['issues'] });
-        },
-    });
-
-    const clearEditor = () => {
-        if (editorRef.current) editorRef.current.innerHTML = '';
-        setEditorHasContent(false);
-        setMentionPopoverOpen(false);
-        savedMentionRange.current = null;
-    };
-
-    const addCommentMutation = useMutation({
-        mutationFn: ({ key, body }: { key: string; body: ReturnType<typeof buildCommentAdf> }) =>
-            jiraApi.addComment(key, body),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['issueDetails', issue?.key] });
-            queryClient.invalidateQueries({ queryKey: ['issues'] });
-            clearEditor();
-        },
-    });
-
-    const updateCommentMutation = useMutation({
-        mutationFn: ({ key, commentId, body }: { key: string; commentId: string; body: ReturnType<typeof buildCommentAdf> }) =>
-            jiraApi.updateComment(key, commentId, body),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['issueDetails', issue?.key] });
-            queryClient.invalidateQueries({ queryKey: ['issues'] });
-            setEditingCommentId(null);
-            clearEditor();
-        },
-    });
-
-    /** contentEditable 에디터 ref */
+    /** contentEditable 에디터 ref — H2: clearEditor보다 먼저 선언 */
     const editorRef = useRef<HTMLDivElement>(null);
     /** 멘션 삽입 위치를 저장하는 Range ref */
     const savedMentionRange = useRef<Range | null>(null);
@@ -330,14 +298,67 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
     const [mentionSearching, setMentionSearching] = useState(false);
     /** When set, we are editing this comment (load body into composer, check = update). */
     const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+    /** C2: 수정 중인 댓글에 미지원 ADF 노드(코드블록·리스트 등)가 있으면 true → 저장 차단 */
+    const [editorReadOnly, setEditorReadOnly] = useState(false);
 
+    const clearEditor = () => {
+        if (editorRef.current) editorRef.current.innerHTML = '';
+        setEditorHasContent(false);
+        setMentionPopoverOpen(false);
+        savedMentionRange.current = null;
+        setEditorReadOnly(false);
+    };
+
+    const transitionMutation = useMutation({
+        mutationFn: ({ key, transitionId }: { key: string; transitionId: string }) =>
+            jiraApi.transitionIssue(key, transitionId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['issueDetails', issue?.key] });
+            queryClient.invalidateQueries({ queryKey: ['transitions', issue?.key] });
+            queryClient.invalidateQueries({ queryKey: ['issues'] });
+            toast.success('상태가 변경되었습니다');
+        },
+        onError: (e: Error) => toast.error(`상태 변경 실패: ${e.message}`),
+    });
+
+    const addCommentMutation = useMutation({
+        mutationFn: ({ key, body }: { key: string; body: ReturnType<typeof buildCommentAdf> }) =>
+            jiraApi.addComment(key, body),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['issueDetails', issue?.key] });
+            queryClient.invalidateQueries({ queryKey: ['issues'] });
+            clearEditor();
+            toast.success('댓글이 등록되었습니다');
+        },
+        onError: (e: Error) => toast.error(`댓글 등록 실패: ${e.message}`),
+    });
+
+    const updateCommentMutation = useMutation({
+        mutationFn: ({ key, commentId, body }: { key: string; commentId: string; body: ReturnType<typeof buildCommentAdf> }) =>
+            jiraApi.updateComment(key, commentId, body),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['issueDetails', issue?.key] });
+            queryClient.invalidateQueries({ queryKey: ['issues'] });
+            setEditingCommentId(null);
+            clearEditor();
+            toast.success('댓글이 수정되었습니다');
+        },
+        onError: (e: Error) => toast.error(`댓글 수정 실패: ${e.message}`),
+    });
+
+    // M7: 멘션 검색 디바운스 (250ms) — 키 입력마다 호출되던 것 차단
     useEffect(() => {
         if (!mentionPopoverOpen || mentionSearchQuery.length < 1) return;
-        setMentionSearching(true);
-        jiraApi.searchUsers(mentionSearchQuery)
-            .then((users: any[]) => setMentionSearchResults(users ?? []))
-            .catch(() => setMentionSearchResults([]))
-            .finally(() => setMentionSearching(false));
+        const timer = setTimeout(() => {
+            setMentionSearching(true);
+            jiraApi.searchUsers(mentionSearchQuery)
+                .then((users: Array<{ accountId: string; displayName: string }>) =>
+                    setMentionSearchResults(users ?? [])
+                )
+                .catch(() => setMentionSearchResults([]))
+                .finally(() => setMentionSearching(false));
+        }, 250);
+        return () => clearTimeout(timer);
     }, [mentionPopoverOpen, mentionSearchQuery]);
 
     const handleStatusChange = (transitionId: string) => {
@@ -345,7 +366,7 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
         transitionMutation.mutate({ key: issue.key, transitionId });
     };
 
-    const handleUpdateField = (field: string, value: any) => {
+    const handleUpdateField = (field: string, value: unknown) => {
         if (!issue) return;
         updateMutation.mutate({
             key: issue.key,
@@ -794,11 +815,22 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                                         }}
                                                     >
                                                         <PopoverAnchor asChild>
-                                                            <div className="min-w-0 rounded-md border border-slate-300 bg-white focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
+                                                            <div className={cn(
+                                                                "min-w-0 rounded-md border bg-white focus-within:ring-2 focus-within:ring-blue-500",
+                                                                editorReadOnly
+                                                                    ? "border-amber-400 bg-amber-50/30"
+                                                                    : "border-slate-300 focus-within:border-blue-500"
+                                                            )}>
+                                                                {editorReadOnly && (
+                                                                    <div className="flex items-start gap-2 px-2 pt-2 text-[11px] text-amber-800 bg-amber-50 border-b border-amber-200">
+                                                                        <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                                                                        <span>코드블록·리스트·링크 등 풍부한 서식이 포함된 댓글입니다. 데이터 손실 방지를 위해 Jira 웹에서 편집해 주세요.</span>
+                                                                    </div>
+                                                                )}
                                                                 {/* contentEditable 에디터: 텍스트와 멘션 칩이 자유롭게 혼재 */}
                                                                 <div
                                                                     ref={editorRef}
-                                                                    contentEditable
+                                                                    contentEditable={!editorReadOnly}
                                                                     suppressContentEditableWarning
                                                                     data-placeholder={editingCommentId ? '댓글 수정 중... (우측 하단 ✓ 클릭 시 반영)' : '댓글 입력... (@ 멘션, 여러 줄 가능)'}
                                                                     className="min-h-[80px] max-h-[200px] overflow-y-auto px-2 pt-2 pb-1 text-xs text-slate-800 leading-5 focus:outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 empty:before:pointer-events-none [&_.mention-chip]:inline-flex [&_.mention-chip]:items-center [&_.mention-chip]:px-1 [&_.mention-chip]:py-px [&_.mention-chip]:rounded [&_.mention-chip]:bg-blue-100 [&_.mention-chip]:text-blue-800 [&_.mention-chip]:text-[10px] [&_.mention-chip]:font-medium [&_.mention-chip]:mx-0.5 [&_.mention-chip]:select-none [&_.mention-chip]:cursor-default"
@@ -864,11 +896,12 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                                                         variant="ghost"
                                                                         className="h-7 w-7 p-0 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
                                                                         disabled={
+                                                                            editorReadOnly ||
                                                                             (addCommentMutation.isPending || updateCommentMutation.isPending) ||
                                                                             !editorHasContent
                                                                         }
                                                                         onClick={() => {
-                                                                            if (!issue || !editorRef.current) return;
+                                                                            if (!issue || !editorRef.current || editorReadOnly) return;
                                                                             const segments = extractSegmentsFromEditor(editorRef.current);
                                                                             if (segments.length === 0) return;
                                                                             const adf = buildCommentAdf(segments);
@@ -897,12 +930,10 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                                                     className="h-7 text-xs"
                                                                     value={mentionSearchQuery}
                                                                     onChange={(e) => {
+                                                                        // M7: 디바운스된 useEffect가 검색 호출. 여기서는 query만 갱신.
                                                                         const q = e.target.value;
                                                                         setMentionSearchQuery(q);
-                                                                        if (q.length >= 1) {
-                                                                            setMentionSearching(true);
-                                                                            jiraApi.searchUsers(q).then((users: any[]) => setMentionSearchResults(users ?? [])).finally(() => setMentionSearching(false));
-                                                                        } else setMentionSearchResults([]);
+                                                                        if (q.length === 0) setMentionSearchResults([]);
                                                                     }}
                                                                 />
                                                             </div>
@@ -985,11 +1016,16 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                                             item={{ id: c.id, type: 'comment', author: c.author?.displayName, time: c.created, body: c.body }}
                                                             onEditClick={() => {
                                                                 setEditingCommentId(c.id);
-                                                                // adfToSegments → HTML 변환 후 contentEditable에 로드
-                                                                const segs = adfToSegments(c.body);
+                                                                // C2: ADF에 paragraph 외 노드(코드블록·리스트·링크 등)가 있으면
+                                                                // 데이터 손실을 막기 위해 편집 모드를 readOnly로 전환
+                                                                const { segments, hasUnsupportedNodes } = adfToSegments(c.body);
                                                                 if (editorRef.current) {
-                                                                    editorRef.current.innerHTML = segmentsToHtml(segs);
-                                                                    setEditorHasContent(segs.length > 0);
+                                                                    editorRef.current.innerHTML = segmentsToHtml(segments);
+                                                                    setEditorHasContent(segments.length > 0);
+                                                                    setEditorReadOnly(hasUnsupportedNodes);
+                                                                    if (hasUnsupportedNodes) {
+                                                                        toast.warning('이 댓글은 코드블록·리스트·링크 등 풍부한 서식을 포함하고 있어 Jira 웹에서만 편집할 수 있습니다.');
+                                                                    }
                                                                     // 커서를 맨 끝으로
                                                                     const range = document.createRange();
                                                                     range.selectNodeContents(editorRef.current);
@@ -1111,30 +1147,38 @@ interface EditableInfoRowProps {
     onSave: (val: string) => void;
 }
 
+interface JiraUserSearchResult {
+    accountId: string;
+    displayName: string;
+    avatarUrls?: { '16x16'?: string };
+}
+
 function EditableInfoRow({ icon, label, value, type, onSave }: EditableInfoRowProps) {
     const [isEditing, setIsEditing] = React.useState(false);
     const [localValue, setLocalValue] = React.useState(value || '');
     const [userQuery, setUserQuery] = React.useState('');
     const [isSearching, setIsSearching] = React.useState(false);
-    const [searchResults, setSearchResults] = React.useState<any[]>([]);
+    const [searchResults, setSearchResults] = React.useState<JiraUserSearchResult[]>([]);
 
     React.useEffect(() => { setLocalValue(value || ''); }, [value]);
 
     const handleSave = () => { if (localValue !== value) onSave(localValue); setIsEditing(false); };
 
-    const handleUserSearch = async (query: string) => {
-        setUserQuery(query);
-        if (query.length < 2) return;
-        setIsSearching(true);
-        try {
-            const users = await jiraApi.searchUsers(query);
-            setSearchResults(users);
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setIsSearching(false);
+    // M7: 사용자 검색 디바운스 (250ms)
+    React.useEffect(() => {
+        if (userQuery.length < 2) {
+            setSearchResults([]);
+            return;
         }
-    };
+        const timer = setTimeout(() => {
+            setIsSearching(true);
+            jiraApi.searchUsers(userQuery)
+                .then((users: JiraUserSearchResult[]) => setSearchResults(users ?? []))
+                .catch(() => setSearchResults([]))
+                .finally(() => setIsSearching(false));
+        }, 250);
+        return () => clearTimeout(timer);
+    }, [userQuery]);
 
     return (
         <div className="flex items-start gap-2 group cursor-pointer min-h-[40px] px-2 py-1 rounded hover:bg-slate-100"
@@ -1152,14 +1196,16 @@ function EditableInfoRow({ icon, label, value, type, onSave }: EditableInfoRowPr
                             <div className="relative">
                                 <input type="text" className="w-full text-sm border rounded px-1 h-7 bg-white border-slate-300 text-slate-900"
                                     placeholder="Search user..." value={userQuery}
-                                    onChange={e => handleUserSearch(e.target.value)} autoFocus />
+                                    onChange={e => setUserQuery(e.target.value)} autoFocus />
                                 {userQuery.length >= 2 && (
                                     <div className="absolute top-full left-0 w-full mt-1 bg-white border border-slate-200 rounded shadow-lg z-50 max-h-48 overflow-y-auto">
                                         {isSearching ? <div className="p-2 text-xs text-center text-slate-500">Searching...</div> :
                                             searchResults.map(user => (
                                                 <div key={user.accountId} className="px-2 py-1.5 text-xs hover:bg-slate-100 cursor-pointer flex items-center gap-2 text-slate-800"
                                                     onClick={() => { onSave(user.accountId); setIsEditing(false); setUserQuery(''); }}>
-                                                    <img src={user.avatarUrls['16x16']} className="w-4 h-4 rounded-full" />
+                                                    {user.avatarUrls?.['16x16'] && (
+                                                        <img src={user.avatarUrls['16x16']} className="w-4 h-4 rounded-full" alt="" />
+                                                    )}
                                                     {user.displayName}
                                                 </div>
                                             ))}
@@ -1186,18 +1232,6 @@ function EmptyState({ Icon, title, description }: { Icon: React.ElementType; tit
             </div>
             <h3 className="text-slate-700 font-medium mb-1">{title}</h3>
             <p className="text-slate-600 text-sm max-w-[200px] leading-relaxed">{description}</p>
-            {title === "기록이 없습니다" && (
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    className="mt-4 text-[11px] text-blue-600 hover:text-blue-700"
-                    onClick={() => {
-                        console.log("[EmptyState:IGMU-279] Manual check triggered");
-                    }}
-                >
-                    데이터 확인 필요?
-                </Button>
-            )}
         </div>
     );
 }

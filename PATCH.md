@@ -4,6 +4,70 @@
 
 ---
 
+## [1.0.7] 진행 추이/예측 신규 탭 — Monte Carlo ETA + 담당자별 처리량 + 백로그 공수
+
+### 적용 버전
+- 앱 버전: **1.0.7** (package.json 기준)
+- 패치 반영일: 2026년 4월
+
+### 변경 사항
+
+#### 신규 탭 "진행 추이/예측" (프로젝트 통계 다이얼로그)
+- **다중 프로젝트 선택**: `JIRA_CONFIG.PROJECT_KEYS` 드롭다운으로 프로젝트 자유 전환 (선택은 localStorage 저장)
+- **백로그 6 카드**: 잔여/활성/보류/미할당/90일 완료/마감일 미설정
+- **오늘·이번주 완료 카드** (한국식 월~일)
+- **지연 분류 3카드**: 미완료 지연 / 완료 지연 / 마감일 미설정 — 용어 혼선 해소
+- **일별 완료 추이 차트** (recharts BarChart, 최근 30일)
+
+#### 백로그 완료 시점 예측 (Monte Carlo)
+- **Monte Carlo 처리량 시뮬레이션** (10,000 trials) — 분포 자유 robust 모델
+- **3 시나리오 ETA**: 낙관 (자유 재할당) / 기준 ★ (현재 할당 유지) / 병목 (최대 ETA)
+- **확률 분포 시각화**: P50 / P85 (권장 약속) / P95 (위험 최소화)
+- **Scope creep 보정**: 신규 유입 모델링 → 발산 시 강한 경고
+- **신뢰도 등급** (high/medium/low/unreliable):
+  - low면 단일 ETA 숨김, 범위만 표시
+  - unreliable면 진단 정보만 표시 (정직성 원칙)
+
+#### 담당자별 처리량 + 워크로드
+- 담당자별 잔여·활동일·일평균·ETA·신뢰도 표 (정렬 가능, 가나다 default)
+- 활동 7일 미만 인원 회색 처리 (휴가/specialization 미반영 안내)
+- 미할당·보류 별도 카운트
+
+#### 백로그 공수 추정
+- **Hybrid 모델**: Worklog → SP → 난이도 → Cycle time fallback (자동 우선순위)
+- 데이터 출처별 분포 시각화
+- 인시 + 인일 환산 + 신뢰 구간 표시
+- **ETA-공수 상호 검증**: 30% 격차 시 경고 + 해석 ("프로세스 비효율" / "공수 누락")
+
+#### 인프라
+- **vitest 단위 테스트 152개** (기존 58 + 신규 94) — 산식 회귀 박제
+- **신규 서비스**: `src/services/prediction/` (7 파일)
+  - Monte Carlo + 신뢰도 + Scope 분석 + 담당자별 + 공수 + 상호 검증
+- **신규 hook**: `useProjectIssues`, `useBacklogForecast`
+- **신규 store**: `projectSelectionStore` (Zustand persist)
+- **date-utils 확장**: 영업일·한국 공휴일·KST timezone 안전 헬퍼
+
+#### 보호된 기존 기능 (변경 없음)
+- `kpiService.ts` (KPI 산식)
+- `jira-helpers.ts` (filterLeafIssues)
+- `jiraClient.ts` (API)
+- `electron/main.ts` (보안 설정)
+- 사이드바 + 이슈 목록 + 이슈 상세 드로어
+
+### 빌드
+```bash
+npm run build          # 1.0.7 .exe + portable 생성
+npm test               # vitest 152 케이스 통과
+```
+
+### 참조 문서
+- `docs/progress-prediction-analysis.md` — 정밀 분석 (38KB)
+- `docs/progress-prediction-workplan.md` — 작업계획서
+- `docs/progress-prediction-data-fitness.md` — Phase 0 데이터 적합도 측정
+- `docs/user-guide-prediction.md` — 사용자 가이드
+
+---
+
 ## [1.0.5] 보류·취소 통계, 댓글 에디터 개선, 빌드 구조 정리
 
 ### 적용 버전

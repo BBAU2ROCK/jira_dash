@@ -49,7 +49,20 @@ export function EpicMappingEditor({
             setErr('이슈 키 형식을 확인하세요 (예: IGMU-47, TQ-605).');
             return;
         }
-        addMapping(d, f);
+        const result = addMapping(d, f);
+        if (!result.ok) {
+            switch (result.reason) {
+                case 'duplicate-pair':
+                    setErr('이미 등록된 매핑입니다.');
+                    return;
+                case 'dev-already-mapped':
+                    setErr(`이 개발 에픽(${d})은 이미 다른 결함 에픽에 매핑되어 있습니다. 결함 KPI 이중 합산을 막기 위해 한 개발 에픽은 한 결함 에픽에만 매핑할 수 있습니다.`);
+                    return;
+                case 'empty':
+                    setErr('개발 에픽과 결함 에픽을 모두 입력하세요.');
+                    return;
+            }
+        }
         setDefectKey('');
     };
 

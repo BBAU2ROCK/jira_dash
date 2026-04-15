@@ -1,0 +1,37 @@
+Jira Dashboard — 설치 후 안내 (Windows)
+========================================
+
+버전은 앱 제목 표시줄·설정 또는 package.json 의 version 과 동일하게 올라갑니다.
+
+[1] Jira 인증 (필수)
+-------------------
+패키징된 앱은 내부 프록시(Jira REST API)를 사용합니다. 다음 중 하나로 설정하세요.
+
+  A) 환경 변수 (권장: 기업 배포)
+     - JIRA_EMAIL    : Atlassian 계정 이메일
+     - JIRA_API_TOKEN: Atlassian API 토큰
+
+  B) 설정 파일
+     - 경로: %APPDATA%\Jira Dashboard\jira-config.json
+     - 형식: 이 폴더의 jira-proxy-config.example.json 과 동일하게
+             { "jiraEmail": "...", "jiraApiToken": "..." }
+     - 최초 실행 전에 만들어 두거나, 앱 내 Jira 설정에서 저장할 수 있습니다.
+
+설치형(NSIS): 설치된 프로그램 폴더(실행 파일과 같은 디렉터리)에 INSTALL-KO.txt · jira-proxy-config.example.json 이 있습니다.
+포터블: exe 를 풀어 둔 폴더(실행 파일 옆)에 동일 파일이 있습니다.
+
+[2] 최근 기능 요약 (개발 반영)
+------------------------------
+- 프로젝트 통계: KPI 성과, 결함 KPI(개발·결함 에픽 매핑), 심각도 분포
+- 에픽 매핑 편집(localStorage), 결함 심각도 필드 연동
+- 통계·이슈 목록 안정화(상태 필드 누락 시에도 크래시 방지)
+
+[3] 재빌드
+----------
+개발 소스 반영 설치 파일은 저장소 루트에서:
+
+  npm run build:install
+
+생성물: dist_electron\ (NSIS 설치 프로그램, portable exe 등)
+
+문의: OKESTRO / 저장소 README.md 참고

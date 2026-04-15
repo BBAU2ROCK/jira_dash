@@ -2,10 +2,10 @@ import React from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, CheckCircle, ChevronRight, ChevronDown, ChevronsDown, ChevronsRight, Loader2 } from 'lucide-react';
-import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { type JiraIssue } from '@/api/jiraClient';
 import { filterLeafIssues, getStatusCategoryKey } from '@/lib/jira-helpers';
+import { formatDateSafe } from '@/lib/date-utils';
 import { Button } from '@/components/ui/button';
 import { IssueFilterBar, type FilterState } from './issue-filter-bar';
 
@@ -27,17 +27,6 @@ interface IssueListProps {
     onClearFocusIssueKeys?: () => void;
     onIssueClick?: (issue: JiraIssue) => void;
 }
-
-const formatDateSafe = (dateStr: string | undefined | null) => {
-    if (!dateStr) return '-';
-    try {
-        const date = new Date(dateStr);
-        if (isNaN(date.getTime())) return '-';
-        return format(date, 'yy.MM.dd');
-    } catch {
-        return '-';
-    }
-};
 
 export function IssueList({ issues, isLoading, focusIssueKeys, onClearFocusIssueKeys, onIssueClick }: IssueListProps) {
     const [expandedParents, setExpandedParents] = React.useState<Set<string>>(new Set());
@@ -333,18 +322,17 @@ export function IssueList({ issues, isLoading, focusIssueKeys, onClearFocusIssue
                         variant="ghost"
                         size="sm"
                         onClick={toggleExpandAll}
-                        style={{ color: '#3b82f6' }}
-                        className="hover:bg-blue-50"
+                        className="text-blue-600 hover:bg-blue-50 hover:text-blue-700"
                     >
                         {expandAll ? (
                             <>
-                                <ChevronsRight className="h-4 w-4 mr-2" style={{ color: '#3b82f6' }} />
-                                <span style={{ color: '#3b82f6' }}>모두 접기</span>
+                                <ChevronsRight className="h-4 w-4 mr-2" />
+                                <span>모두 접기</span>
                             </>
                         ) : (
                             <>
-                                <ChevronsDown className="h-4 w-4 mr-2" style={{ color: '#3b82f6' }} />
-                                <span style={{ color: '#3b82f6' }}>모두 펼치기</span>
+                                <ChevronsDown className="h-4 w-4 mr-2" />
+                                <span>모두 펼치기</span>
                             </>
                         )}
                     </Button>

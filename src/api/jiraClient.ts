@@ -1,8 +1,25 @@
 import axios from 'axios';
 import { JIRA_CONFIG } from '@/config/jiraConfig';
 
+/**
+ * Proxy base URL.
+ * - Vite (renderer): `import.meta.env.VITE_PROXY_BASE` 사용 가능 (없으면 기본).
+ * - Node/test 환경: `globalThis.process.env.VITE_PROXY_BASE` 또는 기본.
+ */
+function resolveProxyBase(): string {
+    const fallback = 'http://localhost:3001/api';
+    try {
+        const meta = (import.meta as unknown as { env?: Record<string, string | undefined> });
+        const fromVite = meta?.env?.VITE_PROXY_BASE;
+        if (typeof fromVite === 'string' && fromVite.trim()) return fromVite.trim();
+    } catch { /* ignore */ }
+    const proc = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process;
+    if (proc?.env?.VITE_PROXY_BASE) return proc.env.VITE_PROXY_BASE;
+    return fallback;
+}
+
 export const jiraClient = axios.create({
-    baseURL: 'http://localhost:3001/api',  // Local proxy server (auto-started by Vite plugin)
+    baseURL: resolveProxyBase(),
     headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -26,7 +43,35 @@ function throwIfJiraSearchJqlPayloadErrors(data: unknown): void {
     }
 }
 
-/** 프로젝트 키 기준 에픽 이슈 검색 (에픽/Epic/「에픽」 타입 변형 시도) */
+interface SearchJqlPayload {
+    jql: string;
+    fields: string[];
+    maxResults: number;
+    nextPageToken?: string;
+}
+
+interface SearchJqlResponse {
+    issues?: JiraIssue[];
+    nextPageToken?: string;
+    isLast?: boolean;
+    total?: number;
+}
+
+/** axios 에러에서 HTTP status를 안전 추출 */
+function getStatusFromAxiosError(e: unknown): number | undefined {
+    if (e && typeof e === 'object' && 'response' in e) {
+        const r = (e as { response?: { status?: number } }).response;
+        return r?.status;
+    }
+    return undefined;
+}
+
+/**
+ * 프로젝트 키 기준 에픽 이슈 검색.
+ * - 다국어/포맷 변형 5종을 순차 시도.
+ * - **C4**: 401/403은 즉시 throw (5회 중복 인증 호출 차단)
+ * - **H3**: 첫 변형에서 1건 이상 정상 수집되면 후속 변형 생략
+ */
 async function fetchEpicsForProjectKey(projectKey: string): Promise<JiraIssue[]> {
     const pk = projectKey.trim();
     const pkQ = quoteJqlStringLiteral(pk);
@@ -38,36 +83,22 @@ async function fetchEpicsForProjectKey(projectKey: string): Promise<JiraIssue[]>
         `project = ${pkQ} AND issuetype = "Epic" ORDER BY created DESC`,
     ];
     const fields = [
-        'summary',
-        'description',
-        'status',
-        'assignee',
-        'reporter',
-        'priority',
-        'issuetype',
-        'created',
-        'timespent',
-        'worklog',
-        'comment',
-        'attachment',
+        'summary', 'description', 'status', 'assignee', 'reporter', 'priority',
+        'issuetype', 'created', 'timespent', 'worklog', 'comment', 'attachment',
     ];
     const maxResults = 100;
     const byKey = new Map<string, JiraIssue>();
 
-    for (const jql of jqlVariants) {
+    variantLoop: for (const jql of jqlVariants) {
         let nextPageToken: string | undefined;
         let guard = 0;
         try {
             do {
-                const payload: Record<string, unknown> = { jql, fields, maxResults };
+                const payload: SearchJqlPayload = { jql, fields, maxResults };
                 if (nextPageToken) payload.nextPageToken = nextPageToken;
                 const response = await jiraClient.post('/search/jql', payload);
                 throwIfJiraSearchJqlPayloadErrors(response.data);
-                const data = response.data as {
-                    issues?: JiraIssue[];
-                    nextPageToken?: string;
-                    isLast?: boolean;
-                };
+                const data = response.data as SearchJqlResponse;
                 const issues = data.issues ?? [];
                 for (const issue of issues) {
                     if (issue?.key) byKey.set(issue.key, issue);
@@ -76,9 +107,18 @@ async function fetchEpicsForProjectKey(projectKey: string): Promise<JiraIssue[]>
                 const done = data.isLast === true || issues.length < maxResults || !nextPageToken;
                 if (done) break;
                 if (++guard > 50) break;
+                // eslint-disable-next-line no-constant-condition
             } while (true);
+
+            // H3: 이 변형에서 결과를 모았다면 다른 변형은 시도하지 않음
+            if (byKey.size > 0) break variantLoop;
         } catch (e) {
-            console.warn('[jira] getEpicsForProject JQL 변형 실패(다음 변형 시도):', jql.slice(0, 72), e);
+            const status = getStatusFromAxiosError(e);
+            // C4: 인증/권한 오류는 다른 변형으로도 동일하게 실패하므로 즉시 중단
+            if (status === 401 || status === 403) {
+                throw e;
+            }
+            console.warn('[jira] getEpicsForProject JQL 변형 실패(다음 변형 시도):', jql.slice(0, 72));
         }
     }
 
@@ -96,29 +136,42 @@ async function fetchEpicsForProjectKey(projectKey: string): Promise<JiraIssue[]>
     return list;
 }
 
-// Add request interceptor for debugging
-jiraClient.interceptors.request.use(
-    (config) => {
-        console.log('API Request:', config.method?.toUpperCase(), config.url);
-        return config;
-    },
-    (error) => {
-        console.error('Request Error:', error);
-        return Promise.reject(error);
+// Dev 모드 한정 디버그 인터셉터 — 프로덕션에서는 노이즈만 발생하므로 비활성화
+function isDevMode(): boolean {
+    try {
+        const meta = (import.meta as unknown as { env?: { DEV?: boolean } });
+        return meta?.env?.DEV === true;
+    } catch {
+        return false;
     }
-);
+}
 
-// Add response interceptor for debugging
+if (isDevMode()) {
+    jiraClient.interceptors.request.use(
+        (config) => {
+            console.log('[jira] req', config.method?.toUpperCase(), config.url);
+            return config;
+        },
+        (error) => Promise.reject(error)
+    );
+    jiraClient.interceptors.response.use(
+        (response) => {
+            console.log('[jira] res', response.status, response.config.url);
+            return response;
+        },
+        (error) => Promise.reject(error)
+    );
+}
+
+// 에러 로깅은 모드 무관하게 유지 (사용자 진단에 필요)
 jiraClient.interceptors.response.use(
-    (response) => {
-        console.log('API Response:', response.status, response.config.url);
-        return response;
-    },
+    (response) => response,
     (error) => {
-        console.error('API Error:', error.message);
-        if (error.response) {
-            console.error('Status:', error.response.status);
-            console.error('Data:', error.response.data);
+        const status = error?.response?.status;
+        if (status) {
+            console.warn(`[jira] HTTP ${status}: ${error.config?.url ?? '(unknown)'}`);
+        } else {
+            console.warn('[jira] network error:', error?.message ?? error);
         }
         return Promise.reject(error);
     }
@@ -250,112 +303,77 @@ export const jiraApi = {
         const extras = [...new Set((extraFieldIds ?? []).filter(Boolean))];
         const searchFields = [
             ...new Set([
-                'summary',
-                'description',
-                'status',
-                'assignee',
-                'reporter',
-                'priority',
-                'issuetype',
-                'customfield_10016',
-                'customfield_11481',
-                'customfield_11484',
-                'customfield_11485',
-                diffField,
-                'duedate',
-                'created',
-                'resolutiondate',
-                'parent',
-                'subtasks',
-                'timespent',
-                'worklog',
-                'comment',
-                'attachment',
+                'summary', 'description', 'status', 'assignee', 'reporter', 'priority',
+                'issuetype', 'customfield_10016', 'customfield_11481', 'customfield_11484',
+                'customfield_11485', diffField, 'duedate', 'created', 'resolutiondate',
+                'parent', 'subtasks', 'timespent', 'worklog', 'comment', 'attachment',
                 ...extras,
             ]),
         ];
-        try {
-            // Step 1: Fetch parent issues (할 일) with pagination
-            let parents: JiraIssue[] = [];
-            let nextPageToken: string | undefined = undefined;
-            let isLast = false;
-            let startAt = 0;
-            const maxResults = 100;
-            let safetyCounter = 0;
 
-            console.log(`[JiraAPI] Fetching issues for epic: ${epicKey}`);
+        // Step 1: Fetch parent issues (할 일) with pagination
+        let parents: JiraIssue[] = [];
+        let nextPageToken: string | undefined = undefined;
+        let isLast = false;
+        let startAt = 0;
+        const maxResults = 100;
+        let safetyCounter = 0;
 
-            do {
-                const payload: any = {
-                    jql: `"Epic Link" = "${epicKey}" OR parent = "${epicKey}"`,
-                    fields: searchFields,
-                    maxResults
-                };
+        do {
+            const payload: SearchJqlPayload = {
+                jql: `"Epic Link" = "${epicKey}" OR parent = "${epicKey}"`,
+                fields: searchFields,
+                maxResults,
+            };
+            // Jira Cloud POST /rest/api/3/search/jql는 본문 startAt 미지원. nextPageToken만 사용.
+            if (nextPageToken) payload.nextPageToken = nextPageToken;
 
-                // Jira Cloud POST /rest/api/3/search/jql supports only nextPageToken (not startAt in body). Sending startAt causes 400.
-                if (nextPageToken) {
-                    payload.nextPageToken = nextPageToken;
-                }
+            const response = await jiraClient.post('/search/jql', payload);
+            const data = response.data as SearchJqlResponse;
+            const issues = data.issues || [];
+            if (issues.length === 0) break;
+            parents = [...parents, ...issues];
 
-                const response = await jiraClient.post('/search/jql', payload);
-                const data = response.data;
-                const issues = data.issues || [];
+            nextPageToken = data.nextPageToken;
+            isLast = data.isLast ?? false;
 
-                if (issues.length === 0) break;
-
-                parents = [...parents, ...issues];
-
-                nextPageToken = data.nextPageToken;
-                isLast = data.isLast ?? false;
-
-                if (nextPageToken === undefined) {
-                    const total = data.total ?? 0;
-                    startAt += issues.length;
-                    isLast = startAt >= total || issues.length < maxResults;
-                }
-
-                console.log(`[JiraAPI] Fetched ${parents.length} parent issues so far...`);
-
-                if (safetyCounter++ > 20) break; // Hard limit 2000 issues
-            } while (!isLast);
-
-            // Step 2: Collect subtask keys from parent.subtasks field
-            const subtaskKeys = new Set<string>();
-            parents.forEach((parent: JiraIssue) => {
-                if (parent.fields.subtasks && parent.fields.subtasks.length > 0) {
-                    parent.fields.subtasks.forEach((subtask: any) => {
-                        subtaskKeys.add(subtask.key);
-                    });
-                }
-            });
-
-            // Step 3: Fetch subtasks by key list (if any exist)
-            let subtasks: any[] = [];
-            if (subtaskKeys.size > 0) {
-                console.log(`[JiraAPI] Fetching ${subtaskKeys.size} subtasks...`);
-                const keyArray = Array.from(subtaskKeys);
-                const batchSize = 100;
-
-                for (let i = 0; i < keyArray.length; i += batchSize) {
-                    const batch = keyArray.slice(i, i + batchSize);
-                    const quotedKeys = batch.map(key => `"${key}"`).join(', ');
-                    const subtasksResp = await jiraClient.post('/search/jql', {
-                        jql: `key IN (${quotedKeys})`,
-                        fields: searchFields,
-                        maxResults: batchSize
-                    });
-
-                    subtasks = [...subtasks, ...(subtasksResp.data.issues || [])];
-                }
-                console.log(`[JiraAPI] Fetched ${subtasks.length} total subtasks.`);
+            if (nextPageToken === undefined) {
+                const total = data.total ?? 0;
+                startAt += issues.length;
+                isLast = startAt >= total || issues.length < maxResults;
             }
 
-            // Step 4: Combine and return
-            return [...parents, ...subtasks] as JiraIssue[];
-        } catch (error: any) {
-            console.error('[JiraAPI] Critical error in getIssuesForEpic:', error);
-            throw error;
+            if (safetyCounter++ > 20) break; // Hard limit ~2000 issues
+        } while (!isLast);
+
+        // Step 2: Collect subtask keys from parent.subtasks
+        const subtaskKeys = new Set<string>();
+        parents.forEach((parent) => {
+            if (parent.fields.subtasks && parent.fields.subtasks.length > 0) {
+                parent.fields.subtasks.forEach((subtask) => {
+                    if (subtask.key) subtaskKeys.add(subtask.key);
+                });
+            }
+        });
+
+        // Step 3: Fetch subtasks by key list (if any)
+        let subtasks: JiraIssue[] = [];
+        if (subtaskKeys.size > 0) {
+            const keyArray = Array.from(subtaskKeys);
+            const batchSize = 100;
+            for (let i = 0; i < keyArray.length; i += batchSize) {
+                const batch = keyArray.slice(i, i + batchSize);
+                const quotedKeys = batch.map((k) => `"${k}"`).join(', ');
+                const subtasksResp = await jiraClient.post('/search/jql', {
+                    jql: `key IN (${quotedKeys})`,
+                    fields: searchFields,
+                    maxResults: batchSize,
+                });
+                subtasks = [...subtasks, ...((subtasksResp.data as SearchJqlResponse).issues ?? [])];
+            }
         }
+
+        return [...parents, ...subtasks];
     },
     getIssueDetails: async (issueKey: string, difficultyFieldId?: string) => {
         const diffField = difficultyFieldId ?? JIRA_CONFIG.FIELDS.DIFFICULTY;
@@ -369,14 +387,12 @@ export const jiraApi = {
 
         // Fetch all comments if truncated
         if (issue.fields.comment && issue.fields.comment.total > issue.fields.comment.maxResults) {
-            console.log(`[JiraAPI] Fetching all comments for ${issueKey}...`);
             const commentsResp = await jiraClient.get(`/issue/${issueKey}/comment`);
             issue.fields.comment.comments = commentsResp.data.comments;
         }
 
         // Fetch all worklogs if truncated
         if (issue.fields.worklog && issue.fields.worklog.total > issue.fields.worklog.maxResults) {
-            console.log(`[JiraAPI] Fetching all worklogs for ${issueKey}...`);
             const worklogResp = await jiraClient.get(`/issue/${issueKey}/worklog`);
             issue.fields.worklog.worklogs = worklogResp.data.worklogs;
         }
@@ -413,10 +429,10 @@ export const jiraApi = {
                 }
                 if (allHistories.length > 0) {
                     issue.changelog = { histories: allHistories };
-                    console.log(`[JiraAPI] Fetched ${allHistories.length} changelog entries for ${issueKey}`);
                 }
-            } catch (changelogError: any) {
-                console.warn(`[JiraAPI] Changelog fetch failed for ${issueKey}:`, changelogError?.message || changelogError);
+            } catch (changelogError: unknown) {
+                const msg = changelogError instanceof Error ? changelogError.message : String(changelogError);
+                console.warn(`[jira] changelog fetch failed for ${issueKey}: ${msg}`);
             }
         }
 
@@ -552,25 +568,58 @@ export function buildCommentAdf(segments: CommentSegment[]): AdfDoc {
     };
 }
 
-/** Parse ADF comment body to CommentSegment[] for editing. */
-export function adfToSegments(body: any): CommentSegment[] {
-    if (!body || body.type !== 'doc' || !Array.isArray(body.content)) return [];
+/**
+ * Parse ADF comment body to CommentSegment[] for editing.
+ *
+ * **C2 방어**: paragraph 외 블록(list/codeBlock/blockquote/heading 등) 또는
+ * 단락 내 text/mention/hardBreak 외 노드(emoji/link mark 등 일부)가 있으면
+ * `hasUnsupportedNodes = true`. 호출자(드로어 댓글 수정)는 이 경우 편집을
+ * 비활성화하여 데이터 손실을 막아야 합니다.
+ */
+export function adfToSegments(body: unknown): { segments: CommentSegment[]; hasUnsupportedNodes: boolean } {
+    const empty = { segments: [] as CommentSegment[], hasUnsupportedNodes: false };
+    if (!body || typeof body !== 'object') return empty;
+    const doc = body as { type?: string; content?: unknown[] };
+    if (doc.type !== 'doc' || !Array.isArray(doc.content)) return empty;
+
     const segments: CommentSegment[] = [];
-    for (const block of body.content) {
-        if (block.type !== 'paragraph' || !Array.isArray(block.content)) continue;
-        for (const node of block.content) {
-            if (node.type === 'text') {
-                segments.push({ type: 'text', text: node.text ?? '' });
-            } else if (node.type === 'mention' && node.attrs) {
+    let hasUnsupportedNodes = false;
+
+    for (const block of doc.content) {
+        const b = block as { type?: string; content?: unknown[] };
+        if (b.type !== 'paragraph') {
+            // codeBlock/bulletList/orderedList/blockquote/heading 등
+            hasUnsupportedNodes = true;
+            continue;
+        }
+        if (!Array.isArray(b.content)) continue;
+
+        for (const node of b.content) {
+            const n = node as {
+                type?: string;
+                text?: string;
+                attrs?: { id?: string; text?: string };
+                marks?: unknown[];
+            };
+            if (n.type === 'text') {
+                segments.push({ type: 'text', text: n.text ?? '' });
+                // text + link mark는 평문으로 보존되지만 마크는 손실됨 → 경고
+                if (Array.isArray(n.marks) && n.marks.length > 0) {
+                    hasUnsupportedNodes = true;
+                }
+            } else if (n.type === 'mention' && n.attrs) {
                 segments.push({
                     type: 'mention',
-                    accountId: node.attrs.id ?? '',
-                    displayName: (node.attrs.text ?? '').replace(/^@/, ''),
+                    accountId: n.attrs.id ?? '',
+                    displayName: (n.attrs.text ?? '').replace(/^@/, ''),
                 });
-            } else if (node.type === 'hardBreak') {
+            } else if (n.type === 'hardBreak') {
                 segments.push({ type: 'text', text: '\n' });
+            } else {
+                // emoji/inlineCard/date 등 미지원 인라인 노드
+                hasUnsupportedNodes = true;
             }
         }
     }
-    return segments;
+    return { segments, hasUnsupportedNodes };
 }

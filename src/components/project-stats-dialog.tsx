@@ -14,13 +14,14 @@ import { EpicMappingEditor } from '@/components/epic-mapping-editor';
 import { filterLeafIssues, getStatusCategoryKey } from '@/lib/jira-helpers';
 import {
     BarChart3, CheckCircle2, Clock, AlertTriangle,
-    Layers, X, ChevronRight, User, Trophy, HelpCircle, Pause, CircleSlash, Link2,
+    Layers, X, ChevronRight, User, Trophy, HelpCircle, Pause, CircleSlash, Link2, TrendingUp,
 } from 'lucide-react';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { calculateKPI } from '@/services/kpiService';
 import { JIRA_CONFIG } from '@/config/jiraConfig';
 import { defectRateToGrade, type DefectKpiDeveloperRow } from '@/lib/defect-kpi-utils';
 import { cn } from '@/lib/utils';
+import { ProgressTrends } from '@/components/progress-trends';
 
 interface ProjectStatsDialogProps {
     open: boolean;
@@ -394,6 +395,19 @@ export function ProjectStatsDialog({
                             >
                                 <Trophy className="w-4 h-4 mr-2" />
                                 KPI 성과
+                            </div>
+                            <div
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => setCurrentTab('trends')}
+                                onKeyDown={(e) => e.key === 'Enter' && setCurrentTab('trends')}
+                                className={`flex items-center justify-center rounded-t-lg border-x border-t px-5 py-2 text-sm font-bold transition-all cursor-pointer select-none ${currentTab === 'trends'
+                                    ? 'bg-white border-slate-200 border-b-transparent text-blue-600 shadow-[0_-1px_2px_rgba(0,0,0,0.05)] z-10'
+                                    : 'bg-transparent border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100/50 border-b-transparent'
+                                    }`}
+                            >
+                                <TrendingUp className="w-4 h-4 mr-2" />
+                                진행 추이/예측
                             </div>
                         </div>
                     </div>
@@ -1123,6 +1137,13 @@ export function ProjectStatsDialog({
                                     </table>
                                 </div>
                             </section>
+                        </div>
+                    </TabsContent>
+
+                    {/* 진행 추이/예측 — 신규 탭 (다중 프로젝트 선택 + Monte Carlo ETA + 공수 분석) */}
+                    <TabsContent value="trends" className="flex-1 overflow-y-auto p-0 m-0 border-0 focus-visible:ring-0 focus-visible:outline-none">
+                        <div className="px-6 py-5 pb-20">
+                            <ProgressTrends />
                         </div>
                     </TabsContent>
                 </Tabs>

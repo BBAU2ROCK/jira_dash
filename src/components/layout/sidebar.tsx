@@ -70,11 +70,12 @@ function EpicList({
                         <Button
                             key={epic.id}
                             variant="ghost"
-                            style={{
-                                backgroundColor: isSelected ? '#3b82f6' : 'transparent',
-                                color: isSelected ? '#ffffff' : '#1f2937',
-                            }}
-                            className="w-full justify-start text-left h-auto py-3 px-3 hover:bg-gray-100"
+                            className={cn(
+                                "w-full justify-start text-left h-auto py-3 px-3",
+                                isSelected
+                                    ? "bg-blue-500 text-white hover:bg-blue-600 hover:text-white"
+                                    : "bg-transparent text-gray-800 hover:bg-gray-100"
+                            )}
                             onClick={() => {
                                 if (isSelected) {
                                     onSelectEpic(null);
@@ -87,23 +88,27 @@ function EpicList({
                                 <div className="flex items-center gap-2">
                                     <Badge
                                         variant="outline"
-                                        className="font-mono text-xs border-gray-300"
-                                        style={{ color: '#1f2937' }}
+                                        className={cn(
+                                            "font-mono text-xs border-gray-300",
+                                            isSelected ? "text-white border-white/40" : "text-gray-800"
+                                        )}
                                     >
                                         {epic.key}
                                     </Badge>
                                     {epic.fields.assignee && (
-                                        <span className="text-xs" style={{
-                                            color: isSelected ? '#e0e7ff' : '#6b7280',
-                                            opacity: 0.8
-                                        }}>
+                                        <span className={cn(
+                                            "text-xs opacity-80",
+                                            isSelected ? "text-blue-100" : "text-gray-500"
+                                        )}>
                                             {epic.fields.assignee.displayName}
                                         </span>
                                     )}
                                 </div>
                                 <span
-                                    className="text-sm font-medium line-clamp-2"
-                                    style={{ color: isSelected ? '#ffffff' : '#111827' }}
+                                    className={cn(
+                                        "text-sm font-medium line-clamp-2",
+                                        isSelected ? "text-white" : "text-gray-900"
+                                    )}
                                 >
                                     {epic.fields.summary}
                                 </span>
