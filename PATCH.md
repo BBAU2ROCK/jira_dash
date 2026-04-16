@@ -4,6 +4,50 @@
 
 ---
 
+## [1.0.13] Hotfix — jiraApi.getEpics가 KPI Rules Store의 dashboardProjectKey를 반영하지 않던 버그 수정
+
+### 적용 버전
+- 앱 버전: **1.0.13** (package.json 기준)
+- 패치 반영일: 2026년 4월
+
+### 문제
+v1.0.10에서 KPI Rules Store에 `dashboardProjectKey` 필드를 추가하고 `dashboard.tsx`의 `useQuery` queryKey도 store 값을 구독하도록 변경했지만, **`queryFn: jiraApi.getEpics`** 는 그대로 두어 실제 API 호출은 여전히 `JIRA_CONFIG.DASHBOARD.PROJECT_KEY` (하드코딩 `IGMU`)로 이루어지는 상태였습니다.
+
+→ 사용자가 설정 다이얼로그에서 dashboardProjectKey를 변경해도:
+- queryKey는 새 값으로 invalidate됨 → 재요청 trigger
+- 그러나 실제 fetch는 여전히 `IGMU` → 같은 결과 → 의도한 동작 안 됨
+
+### 원인
+- `jiraClient.ts`의 `getEpics()` 시그니처가 인자 없음 (`async (): Promise<JiraIssue[]>`)
+- 내부에서 `JIRA_CONFIG.DASHBOARD?.PROJECT_KEY` 직접 참조
+
+### 수정
+1. **`getEpics`에 optional `projectKey` 파라미터 추가**:
+   ```ts
+   getEpics: async (projectKey?: string): Promise<JiraIssue[]> => {
+       const pk = (projectKey ?? JIRA_CONFIG.DASHBOARD?.PROJECT_KEY ?? 'IGMU').trim();
+       return fetchEpicsForProjectKey(pk);
+   },
+   ```
+   → 인자 생략 시 기존 동작 유지 (하위 호환)
+
+2. **`dashboard.tsx`의 queryFn에 store 값 명시 전달**:
+   ```ts
+   queryFn: () => jiraApi.getEpics(dashboardProjectKey),
+   ```
+
+### 검증
+- TypeScript strict 통과
+- vitest 279/279 통과
+- 설정 → KPI 규칙 → `dashboardProjectKey: 'FO'` 변경 시 dashboard가 FO 프로젝트의 에픽 fetch (실측)
+
+### 빌드
+```bash
+npm run build          # 1.0.13 .exe + portable 생성
+```
+
+---
+
 ## [1.0.12] 회고·예측 인사이트 강화 — 용어 글로서리 + 결함 심도 분석 + 담당자 프로파일
 
 ### 적용 버전

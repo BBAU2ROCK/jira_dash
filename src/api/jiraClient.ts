@@ -294,8 +294,13 @@ export const jiraApi = {
         return fetchEpicsForProjectKey(projectKey);
     },
 
-    getEpics: async (): Promise<JiraIssue[]> => {
-        const pk = (JIRA_CONFIG.DASHBOARD?.PROJECT_KEY ?? 'IGMU').trim();
+    /**
+     * 현재 활성 대시보드 프로젝트의 에픽 목록.
+     * v1.0.10 S2: 호출자가 projectKey를 명시적으로 전달 권장.
+     * 인자 생략 시 `JIRA_CONFIG.DASHBOARD?.PROJECT_KEY` fallback (하위 호환).
+     */
+    getEpics: async (projectKey?: string): Promise<JiraIssue[]> => {
+        const pk = (projectKey ?? JIRA_CONFIG.DASHBOARD?.PROJECT_KEY ?? 'IGMU').trim();
         return fetchEpicsForProjectKey(pk);
     },
     getIssuesForEpic: async (epicKey: string, difficultyFieldId?: string, extraFieldIds?: string[]) => {

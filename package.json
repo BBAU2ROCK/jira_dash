@@ -1,7 +1,7 @@
 {
   "name": "01_jira_dash",
   "private": true,
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "Jira Dashboard Application",
   "author": "Okestro",
   "type": "module",

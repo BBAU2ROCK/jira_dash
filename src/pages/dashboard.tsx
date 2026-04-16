@@ -57,10 +57,11 @@ export function Dashboard() {
     // v1.0.10 S2: store의 dashboardProjectKey 구독 — 설정 변경 시 자동 재요청
     const dashboardProjectKey = useKpiRulesStore((s) => s.rules.dashboardProjectKey);
 
-    // Fetch all epics
+    // Fetch all epics — v1.0.12 hotfix: projectKey를 queryFn에 명시 전달
+    //   (이전엔 jiraApi.getEpics() 파라미터 생략 → 항상 JIRA_CONFIG 값 사용, store 무시됨)
     const { data: epics, isLoading: epicsLoading, error: epicsError } = useQuery({
         queryKey: ['epics', dashboardProjectKey ?? 'IGMU'],
-        queryFn: jiraApi.getEpics,
+        queryFn: () => jiraApi.getEpics(dashboardProjectKey),
         refetchOnWindowFocus: false,
         retry: 2,
     });
