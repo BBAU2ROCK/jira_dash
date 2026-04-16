@@ -1,16 +1,21 @@
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { jiraApi } from '@/api/jiraClient';
+import { jiraApi, type JiraIssue } from '@/api/jiraClient';
 import {
     aggregateDefectKpiForPair,
+    extractWorkerPerson,
     mergeDefectKpiRows,
+    personKeyFromAssignee,
     resolveDefectSeverityFieldId,
     resolveWorkerFieldId,
     type DefectKpiDeveloperRow,
 } from '@/lib/defect-kpi-utils';
 import { filterLeafIssues } from '@/lib/jira-helpers';
 import { useEpicMappingStore } from '@/stores/epicMappingStore';
+import { parseLocalDay, startOfKoreanWeek, dayKey } from '@/lib/date-utils';
+import { addDays } from 'date-fns';
+import { classifyTrend } from '@/services/retrospective/defectInsights';
 
 /** 매핑된 단일 dev 에픽의 결함 통계 (회고에서 에픽별 결함 표시용) */
 export interface DefectStatsByDevEpic {
@@ -26,6 +31,72 @@ export interface DefectStatsByDevEpic {
     severityBreakdown: Array<{ name: string; count: number }>;
     /** 결함 담당자별 row */
     perAssignee: DefectKpiDeveloperRow[];
+
+    // v1.0.12 F3-1 — 심도 분석 필드
+    /** 결함 이슈의 issuetype.name 분포 */
+    typeBreakdown: Array<{ name: string; count: number }>;
+    /** 주간 결함 발생 추이 (최근 12주, 오래된 순) */
+    weeklyTrend: Array<{ weekStart: string; count: number }>;
+    /** 트렌드 방향 — classifyTrend 결과 */
+    trendDirection: 'improving' | 'stable' | 'worsening' | 'insufficient';
+    /** 결함 집중 담당자 (상위 3명) — worker 필드 기준, 없으면 assignee */
+    topAffectedPeople: Array<{ name: string; count: number; pctOfEpic: number }>;
+}
+
+/** 결함 이슈 배열 → 주간 추이 (최근 12주) */
+function buildWeeklyTrend(defectLeaf: JiraIssue[], now: Date): Array<{ weekStart: string; count: number }> {
+    const weekMap = new Map<string, number>();
+    const earliest = addDays(now, -7 * 12);
+    for (const issue of defectLeaf) {
+        const created = parseLocalDay(issue.fields.created);
+        if (!created || created < earliest || created > now) continue;
+        const wkStart = startOfKoreanWeek(created);
+        const key = dayKey(wkStart) ?? '';
+        if (!key) continue;
+        weekMap.set(key, (weekMap.get(key) ?? 0) + 1);
+    }
+    // 12주 모두 포함 (count=0 포함) — 시각화 시 빈 주 표시
+    const result: Array<{ weekStart: string; count: number }> = [];
+    for (let i = 11; i >= 0; i--) {
+        const weekDate = startOfKoreanWeek(addDays(now, -7 * i));
+        const key = dayKey(weekDate) ?? '';
+        if (key) result.push({ weekStart: key, count: weekMap.get(key) ?? 0 });
+    }
+    return result;
+}
+
+/** 결함 이슈 배열 → 타입 분포 */
+function buildTypeBreakdown(defectLeaf: JiraIssue[]): Array<{ name: string; count: number }> {
+    const map = new Map<string, number>();
+    for (const issue of defectLeaf) {
+        const name = issue.fields.issuetype?.name ?? '(미분류)';
+        map.set(name, (map.get(name) ?? 0) + 1);
+    }
+    return Array.from(map.entries())
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count);
+}
+
+/** 결함 이슈 배열 → 집중 담당자 (worker 우선, 없으면 assignee) */
+function buildTopAffectedPeople(
+    defectLeaf: JiraIssue[],
+    workerFieldId: string
+): Array<{ name: string; count: number; pctOfEpic: number }> {
+    const total = defectLeaf.length;
+    if (total === 0) return [];
+    const map = new Map<string, { name: string; count: number }>();
+    for (const issue of defectLeaf) {
+        // worker 우선
+        const worker = extractWorkerPerson(issue, workerFieldId);
+        const person = worker ?? (issue.fields.assignee ? personKeyFromAssignee(issue) : null);
+        if (!person) continue;
+        const prev = map.get(person.key) ?? { name: person.label, count: 0 };
+        map.set(person.key, { name: prev.name || person.label, count: prev.count + 1 });
+    }
+    return Array.from(map.values())
+        .map((p) => ({ ...p, pctOfEpic: Math.round((p.count / total) * 100) }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 3);
 }
 
 export function useDefectKpiAggregation() {
@@ -71,6 +142,15 @@ export function useDefectKpiAggregation() {
                             sevMap.set(s.name, (sevMap.get(s.name) ?? 0) + s.count);
                         }
                     }
+                    // v1.0.12 F3-1: 심도 분석 필드 생성
+                    const now = new Date();
+                    const weeklyTrend = buildWeeklyTrend(defectLeaf, now);
+                    const typeBreakdown = buildTypeBreakdown(defectLeaf);
+                    const topAffectedPeople = workerFieldId
+                        ? buildTopAffectedPeople(defectLeaf, workerFieldId)
+                        : [];
+                    const trendDirection = classifyTrend(weeklyTrend);
+
                     const stats: DefectStatsByDevEpic = {
                         devEpicKey: m.devEpicKey,
                         defectEpicKey: m.defectEpicKey,
@@ -83,6 +163,10 @@ export function useDefectKpiAggregation() {
                             .map(([name, count]) => ({ name, count }))
                             .sort((a, b) => b.count - a.count),
                         perAssignee,
+                        typeBreakdown,
+                        weeklyTrend,
+                        trendDirection,
+                        topAffectedPeople,
                     };
                     return { perAssigneeRows: perAssignee, stats };
                 })

@@ -14,6 +14,7 @@ import { parseLocalDay, endOfLocalDay } from '@/lib/date-utils';
 import { calculateKPI, getCompletionDateStr } from '@/services/kpiService';
 import { personKeyFromAssignee } from '@/lib/defect-kpi-utils';
 import type { EpicRetroSummary, EpicComparisonRow, DeveloperStrengthRow } from './types';
+import { generateDefectRecommendations } from './defectInsights';
 
 function isDone(issue: JiraIssue): boolean {
     return getStatusCategoryKey(issue) === 'done';
@@ -236,6 +237,11 @@ export interface DefectStatsLite {
     defectCount: number;
     defectsPerTaskPct: number;
     severityBreakdown: Array<{ name: string; count: number }>;
+    // v1.0.12 F3-1 — 심도 분석 필드 (optional — 이전 버전 호환)
+    typeBreakdown?: Array<{ name: string; count: number }>;
+    weeklyTrend?: Array<{ weekStart: string; count: number }>;
+    trendDirection?: 'improving' | 'stable' | 'worsening' | 'insufficient';
+    topAffectedPeople?: Array<{ name: string; count: number; pctOfEpic: number }>;
 }
 
 /**
@@ -278,6 +284,15 @@ export function analyzeEpicsRetrospective(
         }
     }
 
+    // v1.0.12 F3-1: 팀 평균 Density 선행 계산 (선택된 모든 에픽의 매핑된 것에서 평균)
+    const allStats = selectedEpicKeys
+        .map((k) => defectStatsByDevEpic?.get(k))
+        .filter((s): s is DefectStatsLite => s != null);
+    const teamAvgDensity: number | null =
+        allStats.length >= 2
+            ? +(allStats.reduce((sum, s) => sum + s.defectsPerTaskPct, 0) / allStats.length).toFixed(1)
+            : null;
+
     const perEpic: EpicRetroSummary[] = [];
     for (const epicKey of selectedEpicKeys) {
         const epic = epicByKey.get(epicKey);
@@ -293,13 +308,39 @@ export function analyzeEpicsRetrospective(
               )
             : buildEpicRetroSummary(epic, tasks);
 
-        // 결함 통계 attach (매핑 있을 때만)
+        // 결함 통계 attach (매핑 있을 때만) — v1.0.12: 심도 분석 필드 포함
         const defectStats = defectStatsByDevEpic?.get(epicKey);
         if (defectStats) {
+            const typeBreakdown = defectStats.typeBreakdown ?? [];
+            const weeklyTrend = defectStats.weeklyTrend ?? [];
+            const trendDirection = defectStats.trendDirection ?? 'insufficient';
+            const topAffectedPeople = defectStats.topAffectedPeople ?? [];
+            const densityVsTeamAvg =
+                teamAvgDensity != null
+                    ? +(defectStats.defectsPerTaskPct - teamAvgDensity).toFixed(1)
+                    : null;
+
+            // 자동 권고 생성
+            const recommendations = generateDefectRecommendations({
+                defectCount: defectStats.defectCount,
+                defectsPerCompletedTask: defectStats.defectsPerTaskPct,
+                severityBreakdown: defectStats.severityBreakdown,
+                typeBreakdown,
+                trendDirection,
+                topAffectedPeople,
+                teamAvgDensity,
+            });
+
             summary.defectStats = {
                 defectCount: defectStats.defectCount,
                 defectsPerCompletedTask: defectStats.defectsPerTaskPct,
                 severityBreakdown: defectStats.severityBreakdown,
+                typeBreakdown,
+                weeklyTrend,
+                trendDirection,
+                topAffectedPeople,
+                recommendations,
+                densityVsTeamAvg,
             };
         }
         perEpic.push(summary);

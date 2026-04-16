@@ -76,12 +76,46 @@ export function EpicRetroCard({ summary }: Props) {
                             <table className="w-full text-[11px]">
                                 <thead>
                                     <tr className="text-slate-500">
-                                        <th className="text-left py-1 pr-2 font-medium">담당자 ({summary.contributors.length}명)</th>
-                                        <th className="py-1 px-1 font-medium text-center text-slate-600">전체</th>
-                                        <th className="py-1 px-1 font-medium text-center text-green-700">완료</th>
-                                        <th className="py-1 px-1 font-medium text-center text-blue-700">진행</th>
-                                        <th className="py-1 px-1 font-medium text-center text-slate-500">대기</th>
-                                        <th className="py-1 px-1 font-medium text-center text-red-600">지연</th>
+                                        <th className="text-left py-1 pr-2 font-medium">
+                                            <span className="inline-flex items-center gap-1">
+                                                담당자 ({summary.contributors.length}명)
+                                                <InfoTip size="sm">
+                                                    이 에픽에 assignee로 연결된 인원 수.
+                                                    각 행의 수치는 해당 담당자의 leaf task 수 (프로젝트 현황 탭과 동일 카운트 규칙).
+                                                    하위 작업이 있는 부모 task는 제외되고 leaf만 카운트됩니다. 상위 7명까지 표시.
+                                                </InfoTip>
+                                            </span>
+                                        </th>
+                                        <th className="py-1 px-1 font-medium text-center text-slate-600">
+                                            <span className="inline-flex items-center gap-1 justify-center">
+                                                전체
+                                                <InfoTip size="sm">담당자의 leaf task 총 수 (부모 작업 제외).</InfoTip>
+                                            </span>
+                                        </th>
+                                        <th className="py-1 px-1 font-medium text-center text-green-700">
+                                            <span className="inline-flex items-center gap-1 justify-center">
+                                                완료
+                                                <InfoTip size="sm">statusCategory가 'done'인 task. Jira의 완료 분류 기준.</InfoTip>
+                                            </span>
+                                        </th>
+                                        <th className="py-1 px-1 font-medium text-center text-blue-700">
+                                            <span className="inline-flex items-center gap-1 justify-center">
+                                                진행
+                                                <InfoTip size="sm">statusCategory가 'indeterminate' (진행 중, 리뷰 등) task.</InfoTip>
+                                            </span>
+                                        </th>
+                                        <th className="py-1 px-1 font-medium text-center text-slate-500">
+                                            <span className="inline-flex items-center gap-1 justify-center">
+                                                대기
+                                                <InfoTip size="sm">statusCategory가 'new' (To Do, Backlog 등) — 아직 착수하지 않은 task.</InfoTip>
+                                            </span>
+                                        </th>
+                                        <th className="py-1 px-1 font-medium text-center text-red-600">
+                                            <span className="inline-flex items-center gap-1 justify-center">
+                                                지연
+                                                <InfoTip size="sm">미완료 + 마감일(duedate)이 오늘 이전인 task. 즉시 조치 대상.</InfoTip>
+                                            </span>
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>

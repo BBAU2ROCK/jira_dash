@@ -34,12 +34,37 @@ export interface EpicRetroSummary {
     }>;
     /** 에픽 lead time (created → 마지막 task done) */
     epicLeadTimeDays: number | null;
-    /** 결함 매핑이 있을 때만 채워짐 */
-    defectStats?: {
-        defectCount: number;
-        defectsPerCompletedTask: number; // %
-        severityBreakdown: Array<{ name: string; count: number }>;
-    };
+    /** 결함 매핑이 있을 때만 채워짐 (v1.0.12: 심도 분석 필드 확장) */
+    defectStats?: DefectStatsExtended;
+}
+
+/**
+ * v1.0.12: 결함 회고 심도 분석 — 기존 3필드 + 신규 6필드.
+ * 트렌드·타입 분포·집중 담당자·자동 권고 포함.
+ */
+export interface DefectStatsExtended {
+    // 기존 필드
+    defectCount: number;
+    defectsPerCompletedTask: number; // %
+    severityBreakdown: Array<{ name: string; count: number }>;
+
+    // 신규 필드 (v1.0.12 F3-1)
+    /** 결함 타입 분포 (issuetype.name — 버그/개선/보안 등) */
+    typeBreakdown: Array<{ name: string; count: number }>;
+    /** 주간 발생 추이 (최근 12주, 오래된 순) */
+    weeklyTrend: Array<{ weekStart: string; count: number }>;
+    /** 트렌드 방향 — 최근 4주 vs 이전 4주 비교 */
+    trendDirection: 'improving' | 'stable' | 'worsening' | 'insufficient';
+    /** 결함 집중 담당자 (상위 최대 3명, 등록자·assignee 기준) */
+    topAffectedPeople: Array<{ name: string; count: number; pctOfEpic: number }>;
+    /** 자동 생성된 권고 메시지 (최대 3건) */
+    recommendations: string[];
+    /**
+     * 팀 평균 Defect Density 대비 델타(pct points).
+     * 양수 = 평균보다 높음(나쁨), 음수 = 평균보다 낮음(좋음).
+     * 팀 baseline 산출 불가 시 null.
+     */
+    densityVsTeamAvg: number | null;
 }
 
 export interface EpicComparisonRow extends EpicRetroSummary {

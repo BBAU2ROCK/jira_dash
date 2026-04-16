@@ -3,6 +3,7 @@ import { ko } from 'date-fns/locale';
 import React from 'react';
 import { Sparkles, AlertTriangle, ShieldAlert, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { InfoTip } from '@/components/ui/info-tip';
 import type { TeamForecast, ConfidenceLevel } from '@/services/prediction/types';
 import { confidenceGuidance } from '@/services/prediction/confidence';
 import { useDisplayPreferenceStore } from '@/stores/displayPreferenceStore';
@@ -20,8 +21,9 @@ function formatDateRange(d?: Date) {
     return format(d, 'yyyy.MM.dd (E)', { locale: ko });
 }
 
-function ScenarioRow({ label, days, date, icon: Icon, accent, note, guidance }: {
+function ScenarioRow({ label, labelTip, days, date, icon: Icon, accent, note, guidance }: {
     label: string;
+    labelTip?: string;
     days: number;
     date: Date;
     icon: React.ElementType;
@@ -35,11 +37,18 @@ function ScenarioRow({ label, days, date, icon: Icon, accent, note, guidance }: 
         red: 'text-red-700',
     }[accent];
 
+    const labelEl = (
+        <span className="text-sm font-medium text-slate-700 w-32 inline-flex items-center gap-1">
+            {label}
+            {labelTip && <InfoTip size="sm">{labelTip}</InfoTip>}
+        </span>
+    );
+
     if (!guidance.showRange && !guidance.showSingleEta) {
         return (
             <div className="flex items-center gap-3 py-2 border-b border-slate-100 last:border-0">
                 <Icon className={cn('h-4 w-4 shrink-0', accentClass)} />
-                <span className="text-sm font-medium text-slate-700 w-32">{label}</span>
+                {labelEl}
                 <span className="text-sm text-slate-400 italic">예측 불가 — 진단 정보 참조</span>
             </div>
         );
@@ -48,7 +57,7 @@ function ScenarioRow({ label, days, date, icon: Icon, accent, note, guidance }: 
     return (
         <div className="flex items-center gap-3 py-2 border-b border-slate-100 last:border-0">
             <Icon className={cn('h-4 w-4 shrink-0', accentClass)} />
-            <span className="text-sm font-medium text-slate-700 w-32">{label}</span>
+            {labelEl}
             <div className="flex-1 min-w-0">
                 <div className="flex items-baseline gap-2">
                     {guidance.showSingleEta ? (
@@ -59,7 +68,11 @@ function ScenarioRow({ label, days, date, icon: Icon, accent, note, guidance }: 
                         <span className="text-sm text-slate-500">단일 날짜 표시 안함 (신뢰도 낮음)</span>
                     )}
                     {days > 0 && (
-                        <span className="text-xs text-slate-500">({days} 영업일)</span>
+                        <span className="text-xs text-slate-500 inline-flex items-center gap-1">
+                            ({days} 영업일
+                            <InfoTip size="sm">주말 + 한국 공휴일 제외 기준. 휴가·병가는 미반영 — 참고값.</InfoTip>
+                            )
+                        </span>
                     )}
                 </div>
                 {note && <div className="text-[11px] text-slate-500 mt-0.5">{note}</div>}
@@ -91,15 +104,26 @@ export function EtaScenarioCard({ team }: Props) {
     return (
         <div className="rounded-lg border border-slate-200 bg-white p-4">
             <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-slate-800">팀 ETA — 3 시나리오</h3>
-                <span className={cn('rounded-full border px-2 py-0.5 text-[11px] font-medium', badge.color)}>
+                <h3 className="text-sm font-semibold text-slate-800 inline-flex items-center gap-1.5">
+                    팀 ETA — 3 시나리오
+                    <InfoTip size="sm">
+                        ETA (Estimated Time of Arrival) = 예상 완료일.
+                        P85 기준(=15% 리스크 감수)으로 산정. 3 시나리오는 할당 가정에 따른 낙관·기준·병목.
+                    </InfoTip>
+                </h3>
+                <span className={cn('rounded-full border px-2 py-0.5 text-[11px] font-medium inline-flex items-center gap-1', badge.color)}>
                     신뢰도: {badge.label}
+                    <InfoTip size="sm">
+                        활동일·변동성(CV)·Scope ratio로 4단계 분류.
+                        낮으면 단일 날짜는 숨기고 범위만 표시 (정직성 원칙).
+                    </InfoTip>
                 </span>
             </div>
 
             <div className="mt-2">
                 <ScenarioRow
                     label="낙관 (자유 재할당)"
+                    labelTip="모든 잔여 task가 누구에게나 재할당 가능하다는 가정. 실무에서는 전문 영역·숙련도 때문에 비현실적 — 이론적 하한선 참조용."
                     days={team.optimistic.p85Days}
                     date={team.optimistic.p85Date}
                     icon={Sparkles}
@@ -109,6 +133,7 @@ export function EtaScenarioCard({ team }: Props) {
                 />
                 <ScenarioRow
                     label="기준 ★ 권장 약속"
+                    labelTip="현재 담당자 배정을 그대로 유지했을 때의 팀 ETA. 개인별 P85 중 최대값 = 팀 P85. 이해관계자 약속·마감 협의 시 이 값을 권장."
                     days={team.realistic.p85Days}
                     date={team.realistic.p85Date}
                     icon={CheckCircle2}
@@ -119,6 +144,7 @@ export function EtaScenarioCard({ team }: Props) {
                 {team.bottleneck && team.bottleneck.forecast && (
                     <ScenarioRow
                         label="병목 (최대 ETA)"
+                        labelTip="현재 ETA가 가장 긴 인원. 이 인원이 팀 일정을 사실상 좌우함 → 업무 재배분·지원 투입·숙련자 멘토링 대상 신호."
                         days={team.bottleneck.forecast.p85Days}
                         date={team.bottleneck.forecast.p85Date}
                         icon={ShieldAlert}

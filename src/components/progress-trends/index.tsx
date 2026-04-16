@@ -34,6 +34,7 @@ import { TodayWeekCards } from './TodayWeekCards';
 import { DelayCards } from './DelayCards';
 import { DailyCompletionChart } from './DailyCompletionChart';
 import { EtaScenarioCard } from './EtaScenarioCard';
+import { ForecastGlossaryTip } from './ForecastGlossaryTip';
 import { ForecastFunnelChart } from './ForecastFunnelChart';
 import { ForecastAccuracyCard } from './ForecastAccuracyCard';
 import { SprintForecastCard } from './SprintForecastCard';
@@ -207,6 +208,7 @@ export function ProgressTrends({ issues, selectedEpicIds, epics }: ProgressTrend
             <CategorySection
                 icon={TrendingUp}
                 title="완료 예측"
+                titleAfter={<ForecastGlossaryTip />}
                 subtitle="Monte Carlo 처리량 시뮬레이션 — 3 시나리오 + 확률 분포"
                 accent="indigo"
                 headerRight={
@@ -359,6 +361,7 @@ export function ProgressTrends({ issues, selectedEpicIds, epics }: ProgressTrend
                     isLoading={defectKpi.isLoading}
                     mappingCount={defectKpi.mappingCount}
                     workerFieldResolved={defectKpi.workerFieldResolved}
+                    strengthRows={retro.strengthMatrix}
                 />
             </CategorySection>
         </div>

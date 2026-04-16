@@ -4,6 +4,126 @@
 
 ---
 
+## [1.0.12] 회고·예측 인사이트 강화 — 용어 글로서리 + 결함 심도 분석 + 담당자 프로파일
+
+### 적용 버전
+- 앱 버전: **1.0.12** (package.json 기준)
+- 패치 반영일: 2026년 4월
+- 기반: `docs/retrospective-insights-plan.md` (사용자 피드백 6건)
+
+### 배경
+회고·예측 섹션이 지표는 있으나 **"어떻게 읽어야 하는가"**와 **"다음에 무엇을 해야 하는가"**에 대한 안내가 부족했습니다. 본 패치는 용어 설명·심도 분석·자동 권고·담당자 프로파일을 추가하여 **개발자 개선을 위한 인사이트 도구**로 격상합니다.
+
+### 설계 원칙 — 코칭 vs 평가
+- 순위·등수 대신 **영역별 강·약점 매핑**
+- 절대값 대신 **팀 중앙값 대비 상대 위치** (백분위)
+- 낙인 용어 금지 ("D 등급", "평가") → **"권장·고려·기회 제공"**
+- 자동 권고는 규칙 기반 투명성 + 구체 액션 포함
+
+### Phase 1 — InfoTip 확대 (요청 1·2·4)
+
+#### F1-1. 에픽 회고 담당자 테이블
+- `EpicRetroCard.tsx` — 담당자/전체/완료/진행/대기/지연 **5개 컬럼 모두** InfoTip 부착
+- 카운트 규칙(leaf task, filterLeafIssues), Jira statusCategory 매핑, 지연 정의 명시
+
+#### F1-2. 완료 예측 섹션 용어 글로서리
+- 신규 `ForecastGlossaryTip.tsx` — 6개 핵심 용어 설명 Popover
+- CategorySection 헤더 옆 ❓ 아이콘 클릭 → Monte Carlo / Throughput / P50·P85·P95 / 3 시나리오 / Scope Ratio / Confidence / 영업일 한번에 확인
+- `CategorySection`에 `titleAfter` prop 추가 (기타 섹션도 확장 가능)
+
+#### F1-3. ETA 카드 시나리오별 InfoTip
+- `EtaScenarioCard.tsx` — 3 시나리오(낙관·기준·병목) 각각 개별 툴팁
+- "영업일" 옆 미니 InfoTip (주말·공휴일 제외 기준)
+- 상단 "팀 ETA — 3 시나리오" 제목에 ETA 정의 툴팁
+- 신뢰도 배지에도 4단계 분류 설명
+
+### Phase 2 — 심각도 분포 UI 정리 (요청 5)
+
+#### F2-1. `DefectPatternCard` 심각도 pill 형태
+- 기존: `flex justify-between` 으로 이름↔카운트 양 끝 배치 (여백 과다)
+- 신규: 색상 pill (이름·카운트 붙어 표시) + Critical/Major/Minor 색상 코딩
+- 최대 4개 표시 + 나머지는 +N
+
+#### F2-2. `src/lib/defect-severity-color.ts` 공용화
+- EpicDefectCard·DefectPatternCard가 중복 정의하던 SEVERITY_COLOR를 헬퍼로 추출
+- `severityColorClass(name)` / `severityWeight(name)` / `weightedSeverityScore(breakdown)` / `criticalPlusCount(breakdown)`
+
+### Phase 3 — 결함 회고 심도 확장 (요청 3)
+
+#### F3-1. `DefectStatsExtended` 타입 확장
+기존 3필드(결함수·Density·심각도) → 신규 9필드:
+- `typeBreakdown` — issuetype 분포
+- `weeklyTrend` — 최근 12주 주간 추이
+- `trendDirection` — improving/stable/worsening/insufficient
+- `topAffectedPeople` — 집중 담당자 상위 3명
+- `recommendations` — 자동 권고 최대 3건
+- `densityVsTeamAvg` — 팀 평균 대비 델타
+
+#### F3-2. `EpicDefectCard` 재설계
+4개 메트릭 카드 → 6개 섹션:
+1. 핵심 메트릭 (결함수·Density·팀대비·트렌드 — 4 타일)
+2. 심각도 분포 pill
+3. **타입 분포 pill** (버그/개선/보안 색상 구분)
+4. **주간 추이 스파크라인** (12주 bar chart, 색상 강도)
+5. **집중 담당자** (상위 3명 + 비율, 익명화 지원)
+6. **자동 권장 액션** (최대 3건, 💡 아이콘)
+
+#### F3-3. 권고 규칙 엔진 — `defectInsights.ts`
+6개 규칙:
+- R1: Critical/Blocker ≥ 3건 → RCA 세션 권장
+- R2: 1인 집중 ≥ 50% → Pair programming 고려
+- R3: 트렌드 악화 → QA 체크리스트·회귀 테스트 보강
+- R4: 트렌드 개선 → 프로세스 유지·확산
+- R5: 팀 평균 +5%p 초과 → 요구사항·설계 리뷰 강화
+- R6: 타입 편향 ≥ 70% → 자동화 테스트 투자
+
+`classifyTrend` — 최근 4주 vs 이전 4주 ±30% 경계로 4단계 분류.
+
+### Phase 4 — 담당자별 결함 인사이트 (요청 6)
+
+#### F4-1. `developerInsights.ts` 엔진
+- `computeTeamBaseline` — 팀 중앙값 (결함율·cycle time)
+- `analyzeDeveloperProfile` — 강점 3규칙(S1~S3) + 개선점 3규칙(I1~I3)
+- **페르소나 분류** (5종):
+  - `mentor` — 강점 2+, 개선 0 (리뷰어·멘토 적합)
+  - `balanced` — 강점·개선 1개씩
+  - `specialized` — 특정 타입 강함
+  - `needs-support` — 개선점 2+ (pair programming 기회)
+  - `new-joiner` — 담당 task < 5 (표본 부족)
+
+#### F4-2. `DefectPatternCard` 드릴다운 UI
+- 행 클릭 시 펼침: **팀 내 위치 / 강점 / 개선 기회 3열**
+- 팀 백분위 + 심각도 가중 점수 + 주력 타입 표시
+- 프로파일 배지 (각 페르소나 색상)
+- 펼침 영역 하단에 프로파일 설명 + "코칭 도구 · 성과 평가 X" 재강조
+
+### 인프라
+- **vitest 279건 통과** (v1.0.11 251 + 신규 28)
+  - `defectInsights.test.ts` 16 케이스
+  - `developerInsights.test.ts` 12 케이스
+- TypeScript strict 에러 0, ESLint 에러 0
+- 신규 파일 5개:
+  - `src/lib/defect-severity-color.ts`
+  - `src/services/retrospective/defectInsights.ts`
+  - `src/services/retrospective/developerInsights.ts`
+  - `src/services/retrospective/__tests__/defectInsights.test.ts`
+  - `src/services/retrospective/__tests__/developerInsights.test.ts`
+  - `src/components/progress-trends/ForecastGlossaryTip.tsx`
+
+### 보호된 기존 기능 (변경 없음)
+- `calculateKPI` 산식
+- 익명화 모드 (외부 공유)
+- 프로젝트 현황 탭·KPI 탭 UI
+- 다중 에픽 비교·개발자 강점 매트릭스 (데이터 소스만 확장)
+
+### 빌드
+```bash
+npm run build          # 1.0.12 .exe + portable 생성
+npm test               # vitest 279 케이스 통과
+```
+
+---
+
 ## [1.0.11] Hotfix — 설치 빌드에서 `jira-proxy-handler.cjs` 누락 수정
 
 ### 적용 버전

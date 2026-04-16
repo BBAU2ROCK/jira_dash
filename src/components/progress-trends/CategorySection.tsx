@@ -13,6 +13,8 @@ export interface CategorySectionProps {
     children: React.ReactNode;
     /** 우측 상단 액션 (배지·버튼 등) */
     headerRight?: React.ReactNode;
+    /** 제목 옆에 바로 붙는 보조 요소 (InfoTip·Glossary 등) */
+    titleAfter?: React.ReactNode;
 }
 
 const ACCENT_CLASS: Record<NonNullable<CategorySectionProps['accent']>, { border: string; bg: string; iconBg: string; iconText: string; titleText: string }> = {
@@ -24,7 +26,7 @@ const ACCENT_CLASS: Record<NonNullable<CategorySectionProps['accent']>, { border
     slate:  { border: 'border-slate-200',  bg: 'bg-slate-50/40',  iconBg: 'bg-slate-100',  iconText: 'text-slate-600',  titleText: 'text-slate-900' },
 };
 
-export function CategorySection({ icon: Icon, title, subtitle, accent = 'slate', children, headerRight }: CategorySectionProps) {
+export function CategorySection({ icon: Icon, title, subtitle, accent = 'slate', children, headerRight, titleAfter }: CategorySectionProps) {
     const c = ACCENT_CLASS[accent];
     return (
         <section className={cn('rounded-xl border-2 p-3 sm:p-4', c.border, c.bg)}>
@@ -34,7 +36,10 @@ export function CategorySection({ icon: Icon, title, subtitle, accent = 'slate',
                         <Icon className={cn('h-5 w-5', c.iconText)} />
                     </div>
                     <div>
-                        <h2 className={cn('text-base font-bold', c.titleText)}>{title}</h2>
+                        <h2 className={cn('text-base font-bold flex items-center gap-1.5', c.titleText)}>
+                            {title}
+                            {titleAfter}
+                        </h2>
                         {subtitle && <p className="text-xs text-slate-600 mt-0.5">{subtitle}</p>}
                     </div>
                 </div>
