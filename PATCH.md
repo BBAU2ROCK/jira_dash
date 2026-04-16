@@ -4,6 +4,43 @@
 
 ---
 
+## [1.0.11] Hotfix — 설치 빌드에서 `jira-proxy-handler.cjs` 누락 수정
+
+### 적용 버전
+- 앱 버전: **1.0.11** (package.json 기준)
+- 패치 반영일: 2026년 4월
+
+### 문제
+NSIS 설치 후 실행 시 다음 에러로 앱이 기동되지 않음:
+```
+A JavaScript error occurred in the main process
+Uncaught Exception:
+Error: Cannot find module './jira-proxy-handler.cjs'
+Require stack:
+- C:\Program Files\Jira Dashboard\resources\app.asar\dist-electron\main.js
+```
+
+### 원인
+`electron/main.ts` 가 `createRequire('./jira-proxy-handler.cjs')` 로 CommonJS 헬퍼를 **동적 require** 함. Vite 번들러는 이 동적 require를 정적 분석하지 못해 `.cjs` 파일을 `dist-electron/` 으로 자동 복사하지 않음. `electron-builder` 의 `files: ["dist-electron/**/*"]` 규칙에 따라 asar 패키지에 아예 포함되지 않아 설치 버전에서 즉시 크래시.
+
+### 수정
+`vite.config.ts` 에 `copyElectronCjsAssets` 빌드 플러그인 추가:
+- main 빌드의 `closeBundle` 훅에서 `electron/jira-proxy-handler.cjs` 를 `dist-electron/` 로 명시 복사
+- dev watch + prod build 양쪽 모두 동작 (electron이 실제 로드하는 위치)
+- electron-builder가 자동으로 asar에 포함 → 설치 버전에서도 정상 로드
+
+### 검증
+- 로컬 빌드 후 `dist-electron/` 에 `jira-proxy-handler.cjs` 정상 복사됨
+- `vitest 251/251`, `tsc`, `lint` 모두 통과
+- 이전 `npm run start`, `dev` 모드에서도 동일 로그 경고가 사라짐
+
+### 빌드
+```bash
+npm run build          # 1.0.11 .exe + portable 재생성
+```
+
+---
+
 ## [1.0.10] KPI Store 완전 통합 — statusNames·projectKey·weekStartsOn·prediction·fields
 
 ### 적용 버전
