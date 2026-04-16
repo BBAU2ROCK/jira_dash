@@ -1,6 +1,8 @@
 import { Input } from '@/components/ui/input';
 import { InfoTip } from '@/components/ui/info-tip';
+import { AlertTriangle } from 'lucide-react';
 import type { KpiRuleSet } from '@/stores/kpiRulesStore';
+import { cn } from '@/lib/utils';
 
 type PredConfig = KpiRuleSet['prediction'];
 
@@ -9,30 +11,51 @@ interface Props {
     onChange: (config: PredConfig) => void;
 }
 
+/**
+ * K13: NumRow 내부에서 범위 위반 즉시 감지.
+ * validateRuleSet은 저장 시 한 번에 전체 검사 → 편집 중에는 느껴지지 않음 → 로컬 피드백 추가.
+ */
 function NumRow({ label, tip, value, onChange, min, max, step, unit }: {
     label: string; tip: string; value: number; onChange: (v: number) => void;
     min?: number; max?: number; step?: number; unit?: string;
 }) {
+    const outOfRange = (min != null && value < min) || (max != null && value > max);
     return (
-        <div className="grid grid-cols-[180px_1fr] gap-2 items-center">
-            <label className="text-xs text-slate-600 flex items-center gap-1">
+        <div className="grid grid-cols-[180px_1fr] gap-2 items-start">
+            <label className="text-xs text-slate-600 flex items-center gap-1 pt-1.5">
                 {label}
                 <InfoTip>{tip}</InfoTip>
             </label>
-            <div className="flex items-center gap-1">
-                <Input
-                    type="number"
-                    value={value}
-                    onChange={(e) => {
-                        const n = parseFloat(e.target.value);
-                        if (!isNaN(n)) onChange(n);
-                    }}
-                    className="h-7 text-xs w-24"
-                    min={min}
-                    max={max}
-                    step={step}
-                />
-                {unit && <span className="text-xs text-slate-500">{unit}</span>}
+            <div>
+                <div className="flex items-center gap-1">
+                    <Input
+                        type="number"
+                        value={value}
+                        onChange={(e) => {
+                            const n = parseFloat(e.target.value);
+                            if (!isNaN(n)) onChange(n);
+                        }}
+                        className={cn(
+                            'h-7 text-xs w-24',
+                            outOfRange && 'border-red-400 focus-visible:ring-red-400 text-red-700'
+                        )}
+                        min={min}
+                        max={max}
+                        step={step}
+                        aria-invalid={outOfRange || undefined}
+                    />
+                    {unit && <span className="text-xs text-slate-500">{unit}</span>}
+                </div>
+                {outOfRange && (
+                    <div className="mt-0.5 text-[11px] text-red-600 flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3 shrink-0" />
+                        {min != null && max != null
+                            ? `허용 범위: ${min} ~ ${max}${unit ?? ''}`
+                            : min != null
+                              ? `최소값: ${min}${unit ?? ''}`
+                              : `최대값: ${max}${unit ?? ''}`}
+                    </div>
+                )}
             </div>
         </div>
     );

@@ -44,8 +44,15 @@ export function anonymizeName(name: string, map: Map<string, string>): string {
 
 /**
  * 미할당·비활성 등 특수 라벨은 그대로 유지 (alias 적용 X).
+ * K8: 과거 호환성 유지 — '미할당'도 preserved에 포함하여 older localStorage 데이터 보호.
  */
-const PRESERVED_LABELS = new Set(['미배정', '미할당', '(unknown)', '(미상)']);
+import { UNASSIGNED_LABEL, UNKNOWN_LABEL, UNKNOWN_VALUE } from '@/lib/jira-constants';
+const PRESERVED_LABELS = new Set<string>([
+    UNASSIGNED_LABEL,  // '미배정'
+    '미할당',            // 과거 데이터 호환
+    UNKNOWN_VALUE,      // '(unknown)'
+    UNKNOWN_LABEL,      // '(미상)'
+]);
 export function isPreservedLabel(name: string): boolean {
     return PRESERVED_LABELS.has(name);
 }

@@ -1,6 +1,7 @@
 import { type JiraIssue } from '@/api/jiraClient';
 import { filterLeafIssues } from '@/lib/jira-helpers';
 import { DEFECT_KPI_CONFIG } from '@/config/defectKpiConfig';
+import { UNASSIGNED_LABEL, UNKNOWN_LABEL } from '@/lib/jira-constants';
 
 export interface DefectKpiDeveloperRow {
     /** personKey — account 우선 */
@@ -21,13 +22,13 @@ function norm(s: string): string {
     return s.trim().toLowerCase();
 }
 
-/** 담당자·작업자 공통 키 (accountId 우선) */
+/** 담당자·작업자 공통 키 (accountId 우선) — K8: UNASSIGNED_LABEL 상수 사용 */
 export function personKeyFromAssignee(issue: JiraIssue): { key: string; label: string } {
     const a = issue.fields.assignee;
-    if (!a) return { key: '__unassigned__', label: '미배정' };
+    if (!a) return { key: '__unassigned__', label: UNASSIGNED_LABEL };
     const id = 'accountId' in a && typeof a.accountId === 'string' ? a.accountId.trim() : '';
     if (id) return { key: `id:${id}`, label: a.displayName || id };
-    return { key: `n:${norm(a.displayName || '')}`, label: a.displayName || '미상' };
+    return { key: `n:${norm(a.displayName || '')}`, label: a.displayName || UNKNOWN_LABEL };
 }
 
 export function extractWorkerPerson(

@@ -139,8 +139,11 @@ interface KpiRulesState {
     createVersion: (version: string, label: string) => void;
     /** 기본값으로 리셋 */
     resetToDefault: () => void;
-    /** JSON에서 가져오기 (전체 교체) */
-    importFromJson: (ruleSet: KpiRuleSet) => void;
+    /**
+     * JSON에서 가져오기 (전체 교체).
+     * K7: 반환값은 검증 에러 배열. 빈 배열이면 성공, 그렇지 않으면 적용 안 됨.
+     */
+    importFromJson: (ruleSet: KpiRuleSet) => string[];
 }
 
 export const useKpiRulesStore = create<KpiRulesState>()(
@@ -169,13 +172,23 @@ export const useKpiRulesStore = create<KpiRulesState>()(
                 }));
             },
             resetToDefault: () => set({ rules: getDefaultRuleSet() }),
-            importFromJson: (ruleSet) =>
+            /**
+             * K7: import 시 전체 스키마 검증.
+             * 에러 배열 반환. 빈 배열이면 적용됨 (호출자는 errors.length === 0이면 성공).
+             */
+            importFromJson: (ruleSet) => {
+                const errors = validateRuleSet(ruleSet);
+                if (errors.length > 0) {
+                    return errors;
+                }
                 set({
                     rules: {
                         ...ruleSet,
                         updatedAt: new Date().toISOString(),
                     },
-                }),
+                });
+                return [];
+            },
         }),
         {
             name: 'jira-dash-kpi-rules',
@@ -219,10 +232,12 @@ export function getDefectGradeFromRules(rate: number, grades: GradeThresholds): 
 /**
  * 검증 함수 — 규칙셋의 유효성 검사.
  * 에러 메시지 배열 반환. 빈 배열이면 유효.
+ *
+ * K7: defectGrades 범위, earlyBonus 빈/중복/음수, weights 음수, prediction 범위 추가 검증.
  */
 export function validateRuleSet(rules: KpiRuleSet): string[] {
     const errors: string[] = [];
-    const { grades, defectGrades, weights, earlyBonus } = rules;
+    const { grades, defectGrades, weights, earlyBonus, prediction } = rules;
 
     // 등급 순서
     if (grades.S <= grades.A || grades.A <= grades.B || grades.B <= grades.C) {
@@ -236,27 +251,82 @@ export function validateRuleSet(rules: KpiRuleSet): string[] {
     if (defectGrades.S >= defectGrades.A || defectGrades.A >= defectGrades.B || defectGrades.B >= defectGrades.C) {
         errors.push('결함 등급: S < A < B < C 순서여야 합니다 (낮을수록 좋음).');
     }
+    // K7: 결함 등급 범위
+    if (defectGrades.S < 0 || defectGrades.C > 100) {
+        errors.push('결함 등급 기준: 0~100 범위여야 합니다.');
+    }
 
     // 가중치 합
     const weightSum = weights.completion + weights.compliance;
     if (Math.abs(weightSum - 1.0) > 0.01) {
         errors.push(`가중치 합이 ${(weightSum * 100).toFixed(0)}% — 100%여야 합니다.`);
     }
+    // K7: 가중치 개별 음수 금지
+    if (weights.completion < 0 || weights.compliance < 0) {
+        errors.push('가중치는 0 이상이어야 합니다.');
+    }
 
-    // 보너스 순서
-    for (let i = 1; i < earlyBonus.length; i++) {
-        if (earlyBonus[i].minRate >= earlyBonus[i - 1].minRate) {
-            errors.push('조기 보너스: minRate가 내림차순이어야 합니다.');
-            break;
+    // 보너스 — K7: 빈 배열, 중복, 음수 bonus 검사
+    if (!Array.isArray(earlyBonus) || earlyBonus.length === 0) {
+        errors.push('조기 보너스 단계가 비어있습니다.');
+    } else {
+        const seenMinRate = new Set<number>();
+        for (const step of earlyBonus) {
+            if (typeof step.minRate !== 'number' || typeof step.bonus !== 'number') {
+                errors.push('조기 보너스: minRate·bonus는 숫자여야 합니다.');
+                break;
+            }
+            if (seenMinRate.has(step.minRate)) {
+                errors.push(`조기 보너스: minRate ${step.minRate}%가 중복됩니다.`);
+                break;
+            }
+            seenMinRate.add(step.minRate);
+            if (step.bonus < 0) {
+                errors.push(`조기 보너스: bonus ${step.bonus}점은 0 이상이어야 합니다.`);
+                break;
+            }
+            if (step.minRate < 0 || step.minRate > 100) {
+                errors.push(`조기 보너스: minRate ${step.minRate}%는 0~100 범위여야 합니다.`);
+                break;
+            }
+        }
+        // 내림차순 순서
+        for (let i = 1; i < earlyBonus.length; i++) {
+            if (earlyBonus[i].minRate >= earlyBonus[i - 1].minRate) {
+                errors.push('조기 보너스: minRate가 내림차순이어야 합니다.');
+                break;
+            }
         }
     }
 
     // 필수 필드
-    if (!rules.dashboardProjectKey.trim()) {
+    if (!rules.dashboardProjectKey?.trim()) {
         errors.push('대시보드 프로젝트 키가 비어있습니다.');
     }
-    if (!rules.fields.storyPoint.trim()) {
+    if (!rules.fields?.storyPoint?.trim()) {
         errors.push('Story Point 필드 ID가 비어있습니다.');
+    }
+
+    // K7: 예측 파라미터 범위
+    if (prediction) {
+        if (prediction.monteCarloTrials < 100 || prediction.monteCarloTrials > 100_000) {
+            errors.push('Monte Carlo 시뮬레이션 횟수는 100~100,000 범위여야 합니다.');
+        }
+        if (prediction.defaultHistoryDays < 7 || prediction.defaultHistoryDays > 365) {
+            errors.push('예측 history 일수는 7~365 범위여야 합니다.');
+        }
+        if (prediction.defaultUtilization <= 0 || prediction.defaultUtilization > 1) {
+            errors.push('기본 가동률은 0(초과)~1 범위여야 합니다.');
+        }
+        if (prediction.etaEffortGapThreshold < 0 || prediction.etaEffortGapThreshold > 1) {
+            errors.push('ETA·Effort gap 임계값은 0~1 범위여야 합니다.');
+        }
+        if (prediction.spCoverageThreshold < 0 || prediction.spCoverageThreshold > 1) {
+            errors.push('SP 커버리지 임계값은 0~1 범위여야 합니다.');
+        }
+        if (prediction.worklogCoverageThreshold < 0 || prediction.worklogCoverageThreshold > 1) {
+            errors.push('worklog 커버리지 임계값은 0~1 범위여야 합니다.');
+        }
     }
 
     return errors;

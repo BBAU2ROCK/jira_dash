@@ -162,7 +162,7 @@ export function ProgressTrends({ issues, selectedEpicIds, epics }: ProgressTrend
             <CategorySection
                 icon={Layers}
                 title="현황"
-                subtitle="선택한 에픽 내 이슈 — 잔여·활성·보류·미할당·완료·마감일 미설정"
+                subtitle="선택한 에픽 내 이슈 — 잔여·활성·보류·미배정·완료·마감일 미설정"
                 accent="blue"
             >
                 <BacklogStateCards counts={counts} />

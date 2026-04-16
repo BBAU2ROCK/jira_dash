@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { calculateKPI } from '../kpiService';
+import { describe, it, expect, afterEach } from 'vitest';
+import { calculateKPI, getCompletionDate } from '../kpiService';
 import type { JiraIssue } from '../../api/jiraClient';
 import { JIRA_CONFIG } from '../../config/jiraConfig';
+import { useKpiRulesStore } from '../../stores/kpiRulesStore';
 
 type IssueOpts = {
     key?: string;
@@ -163,5 +164,189 @@ describe('calculateKPI', () => {
         const m95 = calculateKPI(issues95);
         expect(m95.completionRate).toBe(95);
         expect(m95.grades.completion).toBe('S');
+    });
+});
+
+// K1 — Store 완전 연동 검증
+describe('calculateKPI — kpiRulesStore 연동 (K1)', () => {
+    // 각 테스트 후 기본값 복구
+    afterEach(() => {
+        useKpiRulesStore.getState().resetToDefault();
+    });
+
+    it('store의 agreedDelay 라벨을 변경하면 커스텀 라벨이 인식됨', () => {
+        // 커스텀 라벨 설정
+        useKpiRulesStore.setState({
+            rules: {
+                ...useKpiRulesStore.getState().rules,
+                labels: { agreedDelay: 'custom-agreed', verificationDelay: 'verification-delay' },
+            },
+        });
+
+        const issues = [
+            makeIssue({
+                statusKey: 'done',
+                duedate: '2024-06-30',
+                resolutiondate: '2024-07-05T10:00:00Z',
+                labels: ['custom-agreed'],
+            }),
+            makeIssue({
+                statusKey: 'done',
+                duedate: '2024-06-30',
+                resolutiondate: '2024-07-05T10:00:00Z',
+                labels: [JIRA_CONFIG.LABELS.AGREED_DELAY], // 기본 라벨 — 이제 무시돼야 함
+            }),
+        ];
+        const m = calculateKPI(issues);
+        expect(m.agreedDelayIssues).toBe(1); // custom-agreed만 인식
+        expect(m.delayedIssues).toBe(1); // 기본 라벨은 일반 지연으로 집계
+    });
+
+    it('store의 verificationDelay 라벨 변경이 준수 흡수에 반영', () => {
+        useKpiRulesStore.setState({
+            rules: {
+                ...useKpiRulesStore.getState().rules,
+                labels: { agreedDelay: 'agreed-delay', verificationDelay: 'custom-verify' },
+            },
+        });
+
+        const issues = [
+            makeIssue({
+                statusKey: 'done',
+                duedate: '2024-06-30',
+                resolutiondate: '2024-07-05T10:00:00Z',
+                labels: ['custom-verify'],
+            }),
+        ];
+        const m = calculateKPI(issues);
+        expect(m.delayedIssues).toBe(0);
+        expect(m.compliantIssues).toBe(1);
+    });
+
+    it('store의 가중치 변경이 totalScore에 반영 (완료 70% + 준수 30%)', () => {
+        useKpiRulesStore.setState({
+            rules: {
+                ...useKpiRulesStore.getState().rules,
+                weights: { completion: 0.7, compliance: 0.3 },
+            },
+        });
+
+        // 완료 100% + 준수 50% → 가중점수 70*1.0 + 30*0.5 = 85
+        const issues = [
+            makeIssue({ statusKey: 'done', duedate: '2024-06-30', resolutiondate: '2024-06-25T00:00:00Z' }), // 준수+조기
+            makeIssue({ statusKey: 'done', duedate: '2024-06-30', resolutiondate: '2024-07-05T10:00:00Z' }), // 지연
+        ];
+        const m = calculateKPI(issues);
+        expect(m.completionRate).toBe(100);
+        expect(m.complianceRate).toBe(50);
+        // 가중점수 = 100*0.7 + 50*0.3 = 85
+        // earlyRate = 1/2 = 50% → 50% 이상이면 +5점
+        expect(m.totalScore).toBe(90); // 85 + 5
+    });
+
+    it('store의 등급 기준 변경이 즉시 반영 (S=80으로 완화)', () => {
+        useKpiRulesStore.setState({
+            rules: {
+                ...useKpiRulesStore.getState().rules,
+                grades: { S: 80, A: 70, B: 60, C: 50 },
+            },
+        });
+
+        // 완료 80% → 완화된 기준에서는 S
+        const issues = Array.from({ length: 5 }, (_, i) =>
+            makeIssue({
+                statusKey: i < 4 ? 'done' : 'indeterminate',
+                duedate: '2024-06-30',
+                resolutiondate: '2024-06-25T00:00:00Z',
+            })
+        );
+        const m = calculateKPI(issues);
+        expect(m.completionRate).toBe(80);
+        expect(m.grades.completion).toBe('S');
+    });
+});
+
+// K5 — earlyRate 100% 상한
+describe('calculateKPI — earlyRate cap (K5)', () => {
+    afterEach(() => {
+        useKpiRulesStore.getState().resetToDefault();
+    });
+
+    it('earlyRate는 100% 상한 적용 (합의지연 차감 시 과대 계산 방지)', () => {
+        const issues = [
+            // 일반 조기완료 2건
+            makeIssue({ statusKey: 'done', duedate: '2024-06-30', resolutiondate: '2024-06-20T00:00:00Z' }),
+            makeIssue({ statusKey: 'done', duedate: '2024-06-30', resolutiondate: '2024-06-20T00:00:00Z' }),
+            // 합의지연 조기완료 1건 (분모에서 제외)
+            makeIssue({
+                statusKey: 'done',
+                duedate: '2024-06-30',
+                resolutiondate: '2024-06-20T00:00:00Z',
+                labels: [JIRA_CONFIG.LABELS.AGREED_DELAY],
+            }),
+        ];
+        const m = calculateKPI(issues);
+        // kpiTotal=2, kpiEarly=2 → 100%. 상한 없으면 계산상 (2/2)*100=100이라 동일하나
+        // 상한 적용 자체로 회귀 방지
+        expect(m.earlyRate).toBeLessThanOrEqual(100);
+        expect(m.earlyRate).toBe(100);
+    });
+});
+
+// K6 — 기한 없음 이슈 분리 카운트
+describe('calculateKPI — noDueDateCount (K6)', () => {
+    afterEach(() => {
+        useKpiRulesStore.getState().resetToDefault();
+    });
+
+    it('기한 없는 완료 이슈는 compliant + noDueDateCount 동시 증가', () => {
+        const issues = [
+            makeIssue({ statusKey: 'done', resolutiondate: '2024-06-25T00:00:00Z' }), // 기한 없음
+            makeIssue({ statusKey: 'done', duedate: '2024-06-30', resolutiondate: '2024-06-25T00:00:00Z' }), // 기한 있음
+        ];
+        const m = calculateKPI(issues);
+        expect(m.compliantIssues).toBe(2);
+        expect(m.noDueDateCount).toBe(1); // 기한 없는 1건만 노출
+    });
+
+    it('완료일 없는 완료 이슈도 noDueDateCount 증가', () => {
+        const issues = [
+            makeIssue({ statusKey: 'done', duedate: '2024-06-30' }), // resolutiondate 없음
+        ];
+        const m = calculateKPI(issues);
+        expect(m.compliantIssues).toBe(1);
+        expect(m.noDueDateCount).toBe(1);
+    });
+
+    it('모두 기한 있을 때 noDueDateCount 0', () => {
+        const issues = [
+            makeIssue({ statusKey: 'done', duedate: '2024-06-30', resolutiondate: '2024-06-25T00:00:00Z' }),
+            makeIssue({ statusKey: 'done', duedate: '2024-06-30', resolutiondate: '2024-07-05T00:00:00Z' }),
+        ];
+        const m = calculateKPI(issues);
+        expect(m.noDueDateCount).toBe(0);
+    });
+});
+
+// getCompletionDate 헬퍼
+describe('getCompletionDate (K1 헬퍼)', () => {
+    it('ACTUAL_DONE 필드 우선', () => {
+        const issue = makeIssue({
+            resolutiondate: '2024-07-10T00:00:00Z',
+            actualDone: '2024-06-20T00:00:00Z',
+        });
+        const d = getCompletionDate(issue);
+        expect(d?.toISOString()).toBe('2024-06-20T00:00:00.000Z');
+    });
+
+    it('ACTUAL_DONE 없으면 resolutiondate', () => {
+        const issue = makeIssue({ resolutiondate: '2024-07-10T00:00:00Z' });
+        const d = getCompletionDate(issue);
+        expect(d?.toISOString()).toBe('2024-07-10T00:00:00.000Z');
+    });
+
+    it('둘 다 없으면 null', () => {
+        const issue = makeIssue({ statusKey: 'indeterminate' });
+        expect(getCompletionDate(issue)).toBeNull();
     });
 });

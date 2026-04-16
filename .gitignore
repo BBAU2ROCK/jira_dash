@@ -30,3 +30,6 @@ jira-proxy-config.json
 # 원격 저장소 URL (개인 설정, 커밋 제외)
 .github-repo
 .gitlab-repo
+
+# Claude Code 로컬 설정 (preview 서버·개인 권한)
+.claude/

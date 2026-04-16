@@ -7,6 +7,7 @@
 import type { BacklogStateCounts, TeamForecast, BacklogEffortReport, DailyPoint } from '@/services/prediction/types';
 import type { ForecastRecord } from '@/stores/forecastHistoryStore';
 import { format } from 'date-fns';
+import { UNASSIGNED_LABEL } from '@/lib/jira-constants';
 
 export interface ExportPayload {
     projectKey: string;
@@ -33,7 +34,7 @@ export async function exportToExcel(payload: ExportPayload): Promise<void> {
         ['잔여 (전체)', payload.counts?.total ?? 0],
         ['활성', payload.counts?.active ?? 0],
         ['보류', payload.counts?.onHold ?? 0],
-        ['미할당', payload.counts?.unassigned ?? 0],
+        [UNASSIGNED_LABEL, payload.counts?.unassigned ?? 0],
         ['90일 완료', payload.counts?.completed90d ?? 0],
         ['오늘 완료', payload.counts?.completedToday ?? 0],
         ['이번주 완료', payload.counts?.completedThisWeek ?? 0],

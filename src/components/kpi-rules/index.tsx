@@ -12,6 +12,7 @@ import { JiraFieldsEditor } from './JiraFieldsEditor';
 import { ProjectEditor } from './ProjectEditor';
 import { PredictionConfigEditor } from './PredictionConfigEditor';
 import { JsonImportExport } from './JsonImportExport';
+import { ArchiveList } from './ArchiveList';
 
 /**
  * KPI 규칙 관리 UI — 설정 다이얼로그 안 탭으로 배치.
@@ -193,14 +194,30 @@ export function KpiRulesManager() {
                 <JsonImportExport
                     rules={draft}
                     onImport={(imported) => {
-                        importFromJson(imported);
+                        // K7: importFromJson이 검증 에러 배열 반환 — 실패 시 토스트 + 미적용
+                        const importErrors = importFromJson(imported);
+                        if (importErrors.length > 0) {
+                            setErrors(importErrors);
+                            toast.error(
+                                `가져오기 실패 (${importErrors.length}건): ${importErrors[0]}`
+                            );
+                            return;
+                        }
                         setDraft(imported);
+                        setErrors([]);
+                        toast.success('규칙셋을 가져왔습니다.');
                     }}
                     onReset={() => {
                         resetToDefault();
                         setDraft(useKpiRulesStore.getState().rules);
+                        setErrors([]);
                     }}
                 />
+            </section>
+
+            {/* ━ K12: 아카이브 복원 ━ */}
+            <section className="rounded-lg border border-slate-200 bg-white p-4">
+                <ArchiveList archive={archive} />
             </section>
 
             {/* 저장 상태 */}

@@ -11,6 +11,8 @@ import {
     safeParseDate,
     dayKey,
     lastNDayKeys,
+    endOfLocalDay,
+    startOfLocalDay,
 } from '../date-utils';
 
 describe('isBusinessDay', () => {
@@ -167,5 +169,44 @@ describe('dayKey / lastNDayKeys', () => {
         const now = new Date(2026, 3, 15);
         const keys = lastNDayKeys(3, now);
         expect(keys).toEqual(['2026-04-13', '2026-04-14', '2026-04-15']);
+    });
+});
+
+// K10 — 타임존 혼합 방어 헬퍼
+describe('endOfLocalDay / startOfLocalDay (K10)', () => {
+    it('endOfLocalDay: YYYY-MM-DD → 로컬 23:59:59.999', () => {
+        const d = endOfLocalDay('2026-04-15');
+        expect(d).not.toBeNull();
+        expect(d!.getHours()).toBe(23);
+        expect(d!.getMinutes()).toBe(59);
+        expect(d!.getSeconds()).toBe(59);
+        expect(d!.getMilliseconds()).toBe(999);
+        expect(d!.getFullYear()).toBe(2026);
+        expect(d!.getMonth()).toBe(3); // 4월
+        expect(d!.getDate()).toBe(15);
+    });
+
+    it('startOfLocalDay: YYYY-MM-DD → 로컬 00:00:00.000', () => {
+        const d = startOfLocalDay('2026-04-15');
+        expect(d).not.toBeNull();
+        expect(d!.getHours()).toBe(0);
+        expect(d!.getMinutes()).toBe(0);
+        expect(d!.getSeconds()).toBe(0);
+        expect(d!.getMilliseconds()).toBe(0);
+    });
+
+    it('null·undefined·잘못된 값 → null', () => {
+        expect(endOfLocalDay(null)).toBeNull();
+        expect(endOfLocalDay(undefined)).toBeNull();
+        expect(endOfLocalDay('')).toBeNull();
+        expect(startOfLocalDay(null)).toBeNull();
+    });
+
+    it('start < end (동일 날짜)', () => {
+        const start = startOfLocalDay('2026-04-15');
+        const end = endOfLocalDay('2026-04-15');
+        expect(start!.getTime()).toBeLessThan(end!.getTime());
+        // 같은 날짜 내에서 차이는 하루 근접 (86399999ms)
+        expect(end!.getTime() - start!.getTime()).toBe(86_400_000 - 1);
     });
 });

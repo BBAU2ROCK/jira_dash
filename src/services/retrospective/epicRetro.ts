@@ -10,8 +10,8 @@
 import { differenceInDays } from 'date-fns';
 import type { JiraIssue } from '@/api/jiraClient';
 import { filterLeafIssues, getStatusCategoryKey } from '@/lib/jira-helpers';
-import { parseLocalDay } from '@/lib/date-utils';
-import { calculateKPI } from '@/services/kpiService';
+import { parseLocalDay, endOfLocalDay } from '@/lib/date-utils';
+import { calculateKPI, getCompletionDateStr } from '@/services/kpiService';
 import { personKeyFromAssignee } from '@/lib/defect-kpi-utils';
 import type { EpicRetroSummary, EpicComparisonRow, DeveloperStrengthRow } from './types';
 
@@ -30,19 +30,26 @@ function getEpicKey(issue: JiraIssue): string | null {
     return null;
 }
 
+/** 실제 완료 시각 — kpiService와 동일 규칙(ACTUAL_DONE 우선, resolutiondate fallback) */
+function completionDate(issue: JiraIssue): Date | null {
+    const s = getCompletionDateStr(issue);
+    return s ? parseLocalDay(s) : null;
+}
+
 function cycleTimeDays(issue: JiraIssue): number | null {
     const created = parseLocalDay(issue.fields.created);
-    const done = parseLocalDay(issue.fields.resolutiondate ?? null);
+    // K3: ACTUAL_DONE 우선 (kpiService와 통일)
+    const done = completionDate(issue);
     if (!created || !done || done < created) return null;
     return Math.max(differenceInDays(done, created), 1);
 }
 
 function isOnTime(issue: JiraIssue): boolean {
-    const due = parseLocalDay(issue.fields.duedate ?? null);
-    const done = parseLocalDay(issue.fields.resolutiondate ?? null);
-    if (!due || !done) return true; // 마감일 없으면 준수로 간주 (KPI 룰과 동일)
-    const dueEnd = new Date(due);
-    dueEnd.setHours(23, 59, 59, 999);
+    // K10: 타임존 혼합 방어 — endOfLocalDay 헬퍼 사용 (kpiService와 동일 규칙)
+    const dueEnd = endOfLocalDay(issue.fields.duedate ?? null);
+    // K3: ACTUAL_DONE 우선 (kpiService와 통일)
+    const done = completionDate(issue);
+    if (!dueEnd || !done) return true; // 마감일 없으면 준수로 간주 (KPI 룰과 동일)
     return done <= dueEnd;
 }
 
@@ -113,10 +120,10 @@ export function buildEpicRetroSummary(epic: JiraIssue, tasks: JiraIssue[]): Epic
         .map(([key, v]) => ({ key, ...v }))
         .sort((a, b) => b.taskCount - a.taskCount);
 
-    // 에픽 lead time
+    // 에픽 lead time — K3: ACTUAL_DONE 우선
     const epicCreated = parseLocalDay(epic.fields.created);
     const lastDoneTask = completed
-        .map((t) => parseLocalDay(t.fields.resolutiondate ?? null))
+        .map((t) => completionDate(t))
         .filter((d): d is Date => d != null)
         .reduce<Date | null>((max, d) => (max == null || d > max ? d : max), null);
     const epicLeadTimeDays = epicCreated && lastDoneTask

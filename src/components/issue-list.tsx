@@ -8,6 +8,7 @@ import { filterLeafIssues, getStatusCategoryKey } from '@/lib/jira-helpers';
 import { formatDateSafe } from '@/lib/date-utils';
 import { Button } from '@/components/ui/button';
 import { IssueFilterBar, type FilterState } from './issue-filter-bar';
+import { UNASSIGNED_LABEL } from '@/lib/jira-constants';
 
 const INITIAL_FILTER: FilterState = {
     title: '',
@@ -249,7 +250,7 @@ export function IssueList({ issues, isLoading, focusIssueKeys, onClearFocusIssue
                         {issue.fields.assignee ? (
                             <span className="text-slate-700">{issue.fields.assignee.displayName}</span>
                         ) : (
-                            <span className="text-muted-foreground text-xs">미할당</span>
+                            <span className="text-muted-foreground text-xs">{UNASSIGNED_LABEL}</span>
                         )}
                     </TableCell>
 

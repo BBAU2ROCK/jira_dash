@@ -109,7 +109,7 @@ export function PerAssigneeTable({ team, issues }: Props) {
         <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
             <div className="px-3 py-2 border-b border-slate-200 flex items-baseline justify-between">
                 <h3 className="text-sm font-semibold text-slate-800">담당자별 처리량 + ETA</h3>
-                <span className="text-[11px] text-slate-500">미할당 {team.unassignedCount}건 / 보류 {team.onHoldCount}건은 별도</span>
+                <span className="text-[11px] text-slate-500">미배정 {team.unassignedCount}건 / 보류 {team.onHoldCount}건은 별도</span>
             </div>
             <div className="overflow-x-auto">
                 <table className="w-full text-sm">

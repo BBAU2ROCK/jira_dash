@@ -61,6 +61,39 @@ export function parseLocalDay(dateStr: string | undefined | null): Date | null {
     return safeParseDate(dateStr);
 }
 
+/**
+ * K10: Jira의 `duedate`(YYYY-MM-DD) 를 **로컬 타임존 그날 23:59:59.999** 로 변환.
+ *
+ * 과거 패턴:
+ *   const due = new Date(dueDateStr);  // UTC 자정으로 파싱됨
+ *   due.setHours(23, 59, 59, 999);     // 로컬 시각으로 덮어써 → 타임존 혼합 발생
+ *
+ * 신규:
+ *   const due = endOfLocalDay(dueDateStr); // 로컬 자정 기반으로 일관성 있게 23:59:59.999
+ *
+ * 반환값은 로컬 타임존 기준 그날의 마지막 밀리초. actualEnd(UTC ISO)와 비교 시
+ * Date 객체의 epoch 비교는 일관된다 (둘 다 Date).
+ *
+ * 예외: 잘못된 입력이나 시간 포함 ISO는 그대로 반환 (endOfLocalDay 동작 불가).
+ */
+export function endOfLocalDay(dateStr: string | undefined | null): Date | null {
+    const d = parseLocalDay(dateStr);
+    if (!d) return null;
+    // parseLocalDay가 YYYY-MM-DD 케이스는 로컬 자정으로 반환했으므로 여기서 23:59:59.999 덮어쓰기 안전
+    const out = new Date(d);
+    out.setHours(23, 59, 59, 999);
+    return out;
+}
+
+/**
+ * K10: Jira의 `duedate`(YYYY-MM-DD) 를 **로컬 타임존 그날 00:00:00.000** 로 변환.
+ * "조기 완료" 경계 판정(actualEnd < dueStart) 에 사용.
+ */
+export function startOfLocalDay(dateStr: string | undefined | null): Date | null {
+    // parseLocalDay가 YYYY-MM-DD를 로컬 자정(00:00:00.000)으로 반환하므로 그대로 반환
+    return parseLocalDay(dateStr);
+}
+
 /** 한국 공휴일 Set (lazy memoize).
  *  date-holidays 라이브러리로 다년치(2025-2030) 자동 산출. 실패 시 JIRA_CONFIG 배열로 fallback. */
 let cachedHolidaySet: Set<string> | null = null;

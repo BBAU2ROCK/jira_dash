@@ -12,6 +12,7 @@ import { type JiraIssue, type CommentSegment, jiraApi, buildCommentAdf, adfToSeg
 import { cn } from '@/lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { JIRA_CONFIG } from '@/config/jiraConfig';
+import { UNASSIGNED_LABEL } from '@/lib/jira-constants';
 
 /** CommentSegment[] → contentEditable innerHTML 변환 */
 function segmentsToHtml(segments: CommentSegment[]): string {
@@ -579,7 +580,7 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                 <EditableInfoRow
                                     icon={<User className="w-4 h-4 text-violet-500" />}
                                     label="담당자"
-                                    value={details?.fields.assignee?.displayName ?? issue.fields.assignee?.displayName ?? '미할당'}
+                                    value={details?.fields.assignee?.displayName ?? issue.fields.assignee?.displayName ?? UNASSIGNED_LABEL}
                                     type="user"
                                     onSave={(val) => handleUpdateField('assignee', val ? { accountId: val } : null)}
                                 />

@@ -4,6 +4,113 @@
 
 ---
 
+## [1.0.9] KPI 규칙 정합성 — Store 완전 연동 + 판정 기준 통일 + 검증 강화
+
+### 적용 버전
+- 앱 버전: **1.0.9** (package.json 기준)
+- 패치 반영일: 2026년 4월
+- 기반 분석: `docs/kpi-rules-fix-plan.md` (Cursor 분석 보고서 13건)
+
+### 배경
+v1.0.8의 Level 4 KPI 관리 UI는 편집은 가능했으나, **labels·fields·prediction 등 일부 규칙은 UI에서 변경해도 실제 계산에 반영되지 않는** 정합성 이슈가 있었습니다. 탭 간 준수율 산식 불일치, 에픽 회고의 on-time 판정이 ACTUAL_DONE 필드를 무시하는 문제도 확인됐습니다. 이 패치는 해당 13건을 4 Phase로 정리했습니다.
+
+### Critical 수정 (Phase 1)
+
+#### K1. kpiService Store 완전 연동
+- `calculateKPI()`가 `JIRA_CONFIG.LABELS.AGREED_DELAY` 하드코딩 대신 `kpiRulesStore`의 `labels.agreedDelay` 참조
+- `JIRA_CONFIG.FIELDS.ACTUAL_DONE`도 `rules.fields.actualDone`로 교체 → PM이 UI에서 custom field 변경 시 즉시 반영
+- `resolveKpiRules()` 헬퍼로 fallback 보장 (store 초기화 전에도 안전)
+- `getCompletionDate()` / `getCompletionDateStr()` 공통 헬퍼 export — 다른 서비스에서 재사용
+
+#### K2. 프로젝트 현황 vs KPI 탭 준수율 통일
+- 프로젝트 현황의 담당자별 준수율이 `compliant.length / total` (agreed-delay 미제외) → `calculateKPI(a.total).complianceRate` (agreed-delay 이중 제외)로 변경
+- 동일 담당자의 준수율이 두 탭에서 **항상 일치**
+
+#### K3. 에픽 회고 on-time 판정 통일
+- `epicRetro.isOnTime()` / `cycleTimeDays()` / lastDoneTask가 `resolutiondate`만 쓰던 것을 `getCompletionDate()` 공통 헬퍼로 교체
+- `onTimeRate`와 `kpiGrade`가 동일 날짜 소스 (ACTUAL_DONE 우선) 사용
+
+#### K4. GradeCard 툴팁 동적화
+- 4개 GradeCard의 하드코딩 `"S: 95% 이상"` 텍스트를 `kpiRules` 구독 기반 동적 생성으로 교체
+- 신규 `src/lib/kpi-tooltip.ts` — `completionTooltip` / `complianceTooltip` / `earlyBonusTooltip` / `defectDensityTooltip` 헬퍼
+- PM이 등급 기준을 변경하면 툴팁 설명도 즉시 반영
+
+### Major 수정 (Phase 2)
+
+#### K5. earlyRate 100% 상한
+- `earlyRate = (kpiEarly / kpiTotal) * 100` → `Math.min(..., 100)` 적용
+- 표시값이 논리적으로 100%를 초과하는 엣지 케이스 방지
+
+#### K6. 기한 미설정 이슈 투명성
+- `KPIMetrics.noDueDateCount` 필드 추가 — 기한 없이 "준수로 카운트된" 이슈 수
+- 일정 준수율 카드 description + tooltip에 "기한 미설정 N건 준수 처리" 안내
+
+#### K7. validateRuleSet 검증 범위 대폭 확장
+- 기존 8건 → 신규 15건 검증 케이스
+- defectGrades 범위(0~100), earlyBonus 빈 배열·중복 minRate·음수 bonus, weights 개별 음수, prediction 6개 파라미터 범위
+- `importFromJson`이 에러 배열 반환 → 잘못된 규칙 import 거부 + toast
+
+### Phase 3 — 정합성 & 타임존
+
+#### K8. "미할당" / "미배정" 레이블 통일
+- 신규 `src/lib/jira-constants.ts` — `UNASSIGNED_LABEL = '미배정'` 상수
+- 6개 파일의 리터럴 → 상수 참조로 통일 (`'미할당'` 6곳 제거)
+- `project-stats-dialog`의 `a.name === '미할당'` 특수 분기 로직 제거
+- 결함 KPI 매핑의 brittle한 이름 fallback 해소
+
+#### K10. 타임존 혼합 방어 헬퍼
+- 신규 `endOfLocalDay()` / `startOfLocalDay()` in `date-utils.ts`
+- `new Date(dueDateStr).setHours(23,59,59,999)` 패턴 3곳(kpiService, epicRetro, project-stats-dialog)에서 헬퍼로 통일
+- 자정 근처 완료 이슈의 준수/지연 판정 안정성 확보
+
+### Phase 4 — 관리 UI 완성
+
+#### K12. Archive 복원 UI
+- 신규 `src/components/kpi-rules/ArchiveList.tsx`
+- 아카이브 20개 이하 목록 표시 + 복원 버튼
+- 복원 시 **현재 규칙을 자동으로 "복원 전 백업" 아카이브에 보존**하여 사고 방지
+- 복원 대상도 `validateRuleSet` 검사 → 잘못된 아카이브 복원 거부
+
+#### K13. PredictionConfigEditor 즉시 범위 피드백
+- 숫자 입력 시 min/max 범위 위반을 **즉시** 빨간 border + helper text로 표시
+- 저장 시 전체 검증(K7)과 별개로 편집 중에도 잘못된 값 감지
+
+#### K11. grades.total 반올림 정책 명시 (현행 유지)
+- completion/compliance 등급은 unrounded float 기반, total은 rounded integer 기반 — 경계 케이스에서 정책 차이 발생 가능
+- 코드 주석으로 **현행 정책·미래 변경 시 합의 필요** 명시. 실제 로직 변경은 PM 합의 전 미실행.
+
+### 인프라
+- **vitest 235건 통과** (기존 183 + 신규 52)
+  - kpiService K1·K5·K6: 9건
+  - epicRetro K3: 5건
+  - kpi-tooltip K4: 8건
+  - kpiRulesStore K7: 24건
+  - date-utils K10: 4건
+  - getCompletionDate: 3건
+- TypeScript strict 통과, 빌드 실패 0
+- 신규 파일 4개:
+  - `src/lib/kpi-tooltip.ts`
+  - `src/lib/jira-constants.ts`
+  - `src/components/kpi-rules/ArchiveList.tsx`
+  - `src/services/retrospective/__tests__/epicRetro.test.ts`
+  - `src/stores/__tests__/kpiRulesStore.test.ts`
+  - `src/lib/__tests__/kpi-tooltip.test.ts`
+
+### 보호된 기존 기능 (변경 없음)
+- `calculateKPI`의 핵심 산식 흐름 (for문 단일 패스, agreed-delay 이중 제외)
+- `getGradeFromRules` / `getEarlyBonusFromRules` / `getDefectGradeFromRules` 알고리즘
+- Zustand persist 키 (`jira-dash-kpi-rules`) — localStorage 마이그레이션 없음
+- Level 4 UI의 탭 구조 (Jira 연결 / KPI 규칙)
+- 사이드바 + 이슈 목록 + 이슈 상세 드로어
+
+### 빌드
+```bash
+npm run build          # 1.0.9 .exe + portable 생성
+npm test               # vitest 235 케이스 통과
+```
+
+---
+
 ## [1.0.7] 진행 추이/예측 신규 탭 — Monte Carlo ETA + 담당자별 처리량 + 백로그 공수
 
 ### 적용 버전

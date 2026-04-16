@@ -23,6 +23,15 @@ import { defectRateToGrade, type DefectKpiDeveloperRow } from '@/lib/defect-kpi-
 import { cn } from '@/lib/utils';
 import { DifficultyMiniPie } from '@/components/ui/difficulty-mini-pie';
 import { ProgressTrends } from '@/components/progress-trends';
+import { useKpiRulesStore } from '@/stores/kpiRulesStore';
+import {
+    completionTooltip,
+    complianceTooltip,
+    earlyBonusTooltip,
+    defectDensityTooltip,
+} from '@/lib/kpi-tooltip';
+import { UNASSIGNED_LABEL } from '@/lib/jira-constants';
+import { endOfLocalDay } from '@/lib/date-utils';
 
 interface ProjectStatsDialogProps {
     open: boolean;
@@ -76,6 +85,9 @@ export function ProjectStatsDialog({
     defectKpiSeverityFieldOk = true,
     defectKpiMappingCount = 0,
 }: ProjectStatsDialogProps) {
+    // K4: kpiRulesStore 구독 — 규칙 변경 시 GradeCard 툴팁 자동 재렌더
+    const kpiRules = useKpiRulesStore((s) => s.rules);
+
     const [selectedGroup, setSelectedGroup] = React.useState<IssueGroup | null>(null);
     const [currentTab, setCurrentTab] = React.useState('status');
     const [epicMappingDialogOpen, setEpicMappingDialogOpen] = React.useState(false);
@@ -146,7 +158,7 @@ export function ProjectStatsDialog({
         getStatusCategoryKey(issue) === 'done' || isOnHold(issue) || isCancelled(issue);
 
     leafIssues.forEach(issue => {
-        const name = issue.fields.assignee?.displayName ?? '미할당';
+        const name = issue.fields.assignee?.displayName ?? UNASSIGNED_LABEL;
         if (!assigneeMap.has(name)) {
             assigneeMap.set(name, {
                 name, total: [], done: [], inProgress: [], todo: [], delayed: [],
@@ -166,9 +178,10 @@ export function ProjectStatsDialog({
                 }
                 const isVerificationDelay = issue.fields.labels?.includes(JIRA_CONFIG.LABELS.VERIFICATION_DELAY);
                 if (issue.fields.duedate && issue.fields.resolutiondate) {
-                    const due = new Date(issue.fields.duedate); due.setHours(23, 59, 59, 999);
+                    // K10: endOfLocalDay 헬퍼 — kpiService와 동일 규칙
+                    const due = endOfLocalDay(issue.fields.duedate);
                     const resolved = new Date(issue.fields.resolutiondate);
-                    if (resolved <= due || isVerificationDelay) {
+                    if ((due && resolved <= due) || isVerificationDelay) {
                         s.compliant.push(issue);
                     }
                 } else {
@@ -205,7 +218,7 @@ export function ProjectStatsDialog({
         if (!parentsWithChildren.has(issue.key)) return;
         const timeSpent = issue.fields.timespent || 0;
         if (timeSpent <= 0) return;
-        const name = issue.fields.assignee?.displayName ?? '미할당';
+        const name = issue.fields.assignee?.displayName ?? UNASSIGNED_LABEL;
         if (!assigneeMap.has(name)) {
             assigneeMap.set(name, {
                 name, total: [], done: [], inProgress: [], todo: [], delayed: [],
@@ -522,12 +535,11 @@ export function ProjectStatsDialog({
                                                 const t = a.total.length;
                                                 const d = a.done.length;
                                                 const progressRate = t > 0 ? Math.round((d / t) * 100) : 0;
-                                                // 준수율: 완료된 것 중 준수 건수 비율 (Project Compliance Rate와 동일 기준)
-                                                // 분모: 완료된 이슈 - 합의 연기 (여기서는 단순화하여 완료 전체 기준)
-                                                // KPI A와 일치시키려면: (compliant / (total - agreed)) * 100?
-                                                // 여기서는 심플하게: compliant / total * 100 (전체 대비 준수율)
-                                                // KPI B: (Compliant / Total) * 100
-                                                const complianceRate = t > 0 ? Math.round((a.compliant.length / t) * 100) : 0;
+                                                // K2: KPI 탭과 준수율 산식 통일 — calculateKPI 재사용 (agreed-delay 이중 제외)
+                                                //   이전: a.compliant.length / t * 100 (합의지연 미제외 → KPI 탭과 불일치)
+                                                //   현재: calculateKPI(a.total).complianceRate (합의지연 분모·분자 양쪽 차감)
+                                                const assigneeKpi = calculateKPI(a.total);
+                                                const complianceRate = assigneeKpi.complianceRate;
                                                 const delayRate = t > 0 ? Math.round((a.delayed.length / t) * 100) : 0;
                                                 const earlyRate = d > 0 ? Math.round((a.earlyDone.length / d) * 100) : 0;
 
@@ -723,18 +735,23 @@ export function ProjectStatsDialog({
                             <section>
                                 <SectionTitle>KPI 등급 평가는 팀 전체 기준입니다</SectionTitle>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mt-4">
+                                    {/* K4: 툴팁은 kpiRules 구독 → store 변경 시 즉시 동적 반영 */}
                                     <GradeCard title="기능 개발 완료율" grade={kpiMetrics.grades.completion}
                                         rate={kpiMetrics.completionRate} color="blue"
                                         desc="계획 대비 완료된 기능 수 (연기 합의 제외)"
-                                        tooltip={`📌 지표 설명\n계획된 기능(이슈) 중 실제로 완료된 비율입니다. 연기 합의 이슈는 분모·분자에서 제외해 공정하게 평가합니다.\n\n📌 산정 기준\n(완료된 이슈 / (전체 대상 - 합의된 연기)) × 100\n\n📌 예외 조건\n'합의된 연기(agreed-delay)' 라벨이 있는 이슈는 전체 대상에서 제외되어 불이익이 없습니다.\n\n📌 등급 기준 (S·A·B·C·D)\nS: 95% 이상  A: 90% 이상  B: 80% 이상  C: 70% 이상  D: 70% 미만`} />
+                                        tooltip={completionTooltip(kpiRules)} />
                                     <GradeCard title="일정 준수율" grade={kpiMetrics.grades.compliance}
                                         rate={kpiMetrics.complianceRate} color="green"
-                                        desc="총 계획 기능 중 기한 내 완료된 기능의 비율"
-                                        tooltip={`📌 지표 설명\n완료 예정일(Due Date) 안에 완료된 기능의 비율입니다. 기한 내 완료·검증 지연 인정 이슈를 합산해 일정 준수 성과를 측정합니다.\n\n📌 산정 기준\n(기한 내 완료 + 검증 지연) / 전체 이슈 × 100\n\n📌 검증 지연(Verify Delay)이란?\n개발은 기한 내 완료되었으나, 검증(QA) 과정에서 일정이 지연된 경우입니다.\n\n📌 판단 기준\n완료일이 늦더라도 'verification-delay' 라벨이 있으면 준수로 인정합니다.\n\n📌 등급 기준 (S·A·B·C·D)\nS: 95% 이상  A: 90% 이상  B: 80% 이상  C: 70% 이상  D: 70% 미만`} />
+                                        desc={
+                                            kpiMetrics.noDueDateCount > 0
+                                                ? `기한 내 완료 비율 (기한 미설정 ${kpiMetrics.noDueDateCount}건 준수 처리)`
+                                                : '총 계획 기능 중 기한 내 완료된 기능의 비율'
+                                        }
+                                        tooltip={complianceTooltip(kpiRules, kpiMetrics.noDueDateCount)} />
                                     <GradeCard title="조기 종료 가점" grade={`+${kpiMetrics.grades.earlyBonus}`}
                                         rate={kpiMetrics.earlyRate} color="amber"
                                         desc={`조기 완료율 ${kpiMetrics.earlyRate}% 달성`}
-                                        tooltip={`📌 지표 설명\n완료 예정일보다 일찍 완료한 비율(조기 완료율)에 따라 가산점을 부여합니다. 종합 등급은 완료율·준수율 평균에 이 가점을 더해 산출합니다.\n\n📌 가점 기준 (조기 완료율)\n50% 이상 → +5점  40% 이상 → +4점  30% 이상 → +3점  20% 이상 → +2점  10% 이상 → +1점  10% 미만 → 0점\n\n📌 종합 등급 (S·A·B·C·D)\nS: 95점 이상  A: 90점 이상  B: 80점 이상  C: 70점 이상  D: 70점 미만 (완료율·준수율 평균 + 조기 가점)`} />
+                                        tooltip={earlyBonusTooltip(kpiRules)} />
                                     <GradeCard
                                         title="팀 결함 밀도"
                                         grade={teamDefectKpiSummary ? teamDefectKpiSummary.grade : '—'}
@@ -750,7 +767,7 @@ export function ProjectStatsDialog({
                                                 ? `결함 ${teamDefectKpiSummary.totalDefect}건 / 담당 개발 이슈 ${teamDefectKpiSummary.totalDev}건 (에픽 매핑)`
                                                 : '에픽 매핑·결함 KPI 집계가 없습니다'
                                         }
-                                        tooltip={`📌 지표 설명\n매핑된 개발·결함 에픽 기준으로, 팀 전체 담당 개발 이슈 대비 등록 결함 비율입니다.\n\n📌 산정 기준\n(팀 합계 결함 건수 ÷ 팀 합계 담당 개발 이슈) × 100\n\n📌 등급 기준 (S·A·B·C·D)\nS: 5% 이하  A: 10% 이하  B: 15% 이하  C: 20% 이하  D: 그 외`}
+                                        tooltip={defectDensityTooltip(kpiRules)}
                                     />
                                 </div>
                             </section>
@@ -1060,11 +1077,8 @@ export function ProjectStatsDialog({
                                             {assigneesWithKPI.map(a => {
                                                 const kpi = a.kpi;
                                                 const delayPct = kpi.totalIssues > 0 ? Math.round((kpi.delayedIssues / kpi.totalIssues) * 100) : 0;
-                                                const dRow =
-                                                    defectKpiByDisplayName.get(a.name) ??
-                                                    (a.name === '미할당'
-                                                        ? defectKpiByDisplayName.get('미배정')
-                                                        : undefined);
+                                                // K8: UNASSIGNED_LABEL 통일. 과거 '미할당'/'미배정' 분기 로직 제거.
+                                                const dRow = defectKpiByDisplayName.get(a.name);
                                                 return (
                                                     <tr key={a.name} style={{ backgroundColor: '#ffffff', transition: 'background-color 0.15s' }}
                                                         onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f8fafc')}
