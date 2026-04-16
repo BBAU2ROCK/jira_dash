@@ -7,7 +7,7 @@ import { IssueList } from '@/components/issue-list';
 import { IssueDetailDrawer } from '@/components/issue-detail-drawer';
 import { ProjectStatsDialog } from '@/components/project-stats-dialog';
 import { JiraSettingsDialog, type JiraConfig } from '@/components/jira-settings-dialog';
-import { JIRA_CONFIG } from '@/config/jiraConfig';
+import { useKpiRulesStore } from '@/stores/kpiRulesStore';
 import { Button } from '@/components/ui/button';
 import { BarChart3, RefreshCw, AlertCircle, Settings, Bug } from 'lucide-react';
 import { useEpicMappingStore } from '@/stores/epicMappingStore';
@@ -54,9 +54,12 @@ export function Dashboard() {
         }
     }, [isElectron, jiraConfig, settingsOpen]);
 
+    // v1.0.10 S2: store의 dashboardProjectKey 구독 — 설정 변경 시 자동 재요청
+    const dashboardProjectKey = useKpiRulesStore((s) => s.rules.dashboardProjectKey);
+
     // Fetch all epics
     const { data: epics, isLoading: epicsLoading, error: epicsError } = useQuery({
-        queryKey: ['epics', JIRA_CONFIG.DASHBOARD?.PROJECT_KEY ?? 'IGMU'],
+        queryKey: ['epics', dashboardProjectKey ?? 'IGMU'],
         queryFn: jiraApi.getEpics,
         refetchOnWindowFocus: false,
         retry: 2,

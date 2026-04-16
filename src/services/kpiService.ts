@@ -1,63 +1,32 @@
 import { type JiraIssue } from "../api/jiraClient";
-import { JIRA_CONFIG } from "../config/jiraConfig";
 import { getStatusCategoryKey } from "../lib/jira-helpers";
 import { endOfLocalDay, startOfLocalDay } from "../lib/date-utils";
 import {
-    useKpiRulesStore,
     getGradeFromRules,
     getEarlyBonusFromRules,
-    type GradeThresholds,
-    type EarlyBonusStep,
-    type KpiRuleSet,
 } from "../stores/kpiRulesStore";
+import {
+    resolveAgreedDelayLabel,
+    resolveVerificationDelayLabel,
+    resolveFields,
+    resolveWeights,
+    resolveGrades,
+    resolveEarlyBonus,
+} from "../lib/kpi-rules-resolver";
 
 /**
- * store 규칙 우선, 실패 시 JIRA_CONFIG fallback.
- * React 외부에서도 호출 가능. store 초기화 전 기본값 복구.
+ * v1.0.10: KPI 산식용 규칙 해석.
+ * 공통 resolver 헬퍼(`@/lib/kpi-rules-resolver`)를 조합하여 필요한 값만 취함.
+ * 기존 v1.0.9의 `resolveKpiRules` + `FALLBACK_RULES`는 resolver로 이전됨.
  */
-function getActiveRules(): KpiRuleSet | null {
-    try {
-        return useKpiRulesStore.getState().rules;
-    } catch {
-        return null;
-    }
-}
-
-/** KPI 산식에 직접 영향을 주는 규칙 필드들을 단일 객체로 */
-interface ResolvedKpiRules {
-    agreedDelayLabel: string;
-    verificationDelayLabel: string;
-    actualDoneField: string;
-    weights: { completion: number; compliance: number };
-    grades: GradeThresholds;
-    earlyBonus: EarlyBonusStep[];
-}
-
-const FALLBACK_RULES: ResolvedKpiRules = {
-    agreedDelayLabel: JIRA_CONFIG.LABELS.AGREED_DELAY,
-    verificationDelayLabel: JIRA_CONFIG.LABELS.VERIFICATION_DELAY,
-    actualDoneField: JIRA_CONFIG.FIELDS.ACTUAL_DONE,
-    weights: { completion: 0.5, compliance: 0.5 },
-    grades: { S: 95, A: 90, B: 80, C: 70 },
-    earlyBonus: [
-        { minRate: 50, bonus: 5 },
-        { minRate: 40, bonus: 4 },
-        { minRate: 30, bonus: 3 },
-        { minRate: 20, bonus: 2 },
-        { minRate: 10, bonus: 1 },
-    ],
-};
-
-function resolveKpiRules(): ResolvedKpiRules {
-    const r = getActiveRules();
-    if (!r) return FALLBACK_RULES;
+function resolveKpiRules() {
     return {
-        agreedDelayLabel: r.labels?.agreedDelay ?? FALLBACK_RULES.agreedDelayLabel,
-        verificationDelayLabel: r.labels?.verificationDelay ?? FALLBACK_RULES.verificationDelayLabel,
-        actualDoneField: r.fields?.actualDone ?? FALLBACK_RULES.actualDoneField,
-        weights: r.weights ?? FALLBACK_RULES.weights,
-        grades: r.grades ?? FALLBACK_RULES.grades,
-        earlyBonus: r.earlyBonus ?? FALLBACK_RULES.earlyBonus,
+        agreedDelayLabel: resolveAgreedDelayLabel(),
+        verificationDelayLabel: resolveVerificationDelayLabel(),
+        actualDoneField: resolveFields().ACTUAL_DONE,
+        weights: resolveWeights(),
+        grades: resolveGrades(),
+        earlyBonus: resolveEarlyBonus(),
     };
 }
 
@@ -67,7 +36,7 @@ function resolveKpiRules(): ResolvedKpiRules {
  * 외부(epicRetro 등)에서도 재사용 가능하도록 export.
  */
 export function getCompletionDateStr(issue: JiraIssue): string | null {
-    const { actualDoneField } = resolveKpiRules();
+    const actualDoneField = resolveFields().ACTUAL_DONE;
     const value = issue.fields[actualDoneField] as string | undefined;
     return value || issue.fields.resolutiondate || null;
 }

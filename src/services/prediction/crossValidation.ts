@@ -12,12 +12,12 @@
  *   - 공수 ETA > MC ETA → worklog 미기록 가능성
  */
 
-import { JIRA_CONFIG } from '@/config/jiraConfig';
 import type { TeamForecast, BacklogEffortReport } from './types';
 import { aggregateBacklogEffort } from './effortEstimation';
 import type { JiraIssue } from '@/api/jiraClient';
+import { resolvePredictionConfig } from '@/lib/kpi-rules-resolver';
 
-const C = JIRA_CONFIG.PREDICTION;
+/** v1.0.10: 모듈 스코프 const C 제거 — 함수 진입 시 resolve */
 
 export interface CrossValidationResult {
     /** 비교 가능 여부 (양쪽 모두 의미 있는 값) */
@@ -38,6 +38,7 @@ export interface CrossValidationResult {
  * 팀 forecast + 공수 보고서 통합 검증.
  */
 export function crossValidate(team: TeamForecast, effort: BacklogEffortReport): CrossValidationResult {
+    const C = resolvePredictionConfig();
     if (!team.realistic || team.realistic.confidence === 'unreliable') {
         return {
             available: false,

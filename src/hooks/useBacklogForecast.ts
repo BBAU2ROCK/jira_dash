@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { addDays } from 'date-fns';
 import type { JiraIssue } from '@/api/jiraClient';
-import { JIRA_CONFIG } from '@/config/jiraConfig';
 import { filterLeafIssues, getStatusCategoryKey } from '@/lib/jira-helpers';
+import {
+    resolveOnHoldStatus,
+    resolveDashboardProjectKey,
+    resolveFields,
+    resolvePredictionConfig,
+} from '@/lib/kpi-rules-resolver';
 import {
     isToday,
     isThisWeek,
@@ -62,8 +67,9 @@ export function useBacklogForecast(issues: JiraIssue[], options?: {
     /** Forecast 기록·정확도 추적용 (default IGMU) */
     projectKey?: string;
 }): UseBacklogForecastResult {
-    const historyDays = options?.historyDays ?? JIRA_CONFIG.PREDICTION.DEFAULT_HISTORY_DAYS;
-    const projectKey = options?.projectKey ?? JIRA_CONFIG.DASHBOARD.PROJECT_KEY;
+    // v1.0.10: store 우선 참조. options 명시값 > store 값 > JIRA_CONFIG 순.
+    const historyDays = options?.historyDays ?? resolvePredictionConfig().DEFAULT_HISTORY_DAYS;
+    const projectKey = options?.projectKey ?? resolveDashboardProjectKey();
     // now를 useMemo로 고정하여 매 렌더마다 새 Date로 인한 useMemo deps 변경 방지
     const now = useMemo(() => options?.now ?? new Date(), [options?.now]);
 
@@ -72,22 +78,24 @@ export function useBacklogForecast(issues: JiraIssue[], options?: {
         const leaf = filterLeafIssues(issues);
         const total = leaf.length;
         const active = leaf.filter(isInBacklog);
-        const onHold = active.filter((i) => i.fields.status?.name === JIRA_CONFIG.STATUS_NAMES.ON_HOLD);
+        const onHoldName = resolveOnHoldStatus();
+        const actualDoneField = resolveFields().ACTUAL_DONE;
+        const onHold = active.filter((i) => i.fields.status?.name === onHoldName);
         const unassigned = active.filter((i) => !i.fields.assignee);
         const since = addDays(now, -90);
         const completed90d = leaf.filter((i) => {
             if (getStatusCategoryKey(i) !== 'done') return false;
-            const d = parseLocalDay(i.fields[JIRA_CONFIG.FIELDS.ACTUAL_DONE] as string | undefined ?? null) ?? parseLocalDay(i.fields.resolutiondate ?? null);
+            const d = parseLocalDay(i.fields[actualDoneField] as string | undefined ?? null) ?? parseLocalDay(i.fields.resolutiondate ?? null);
             return d ? d >= since : false;
         });
         const completedToday = leaf.filter((i) => {
             if (getStatusCategoryKey(i) !== 'done') return false;
-            const d = parseLocalDay(i.fields[JIRA_CONFIG.FIELDS.ACTUAL_DONE] as string | undefined ?? null) ?? parseLocalDay(i.fields.resolutiondate ?? null);
+            const d = parseLocalDay(i.fields[actualDoneField] as string | undefined ?? null) ?? parseLocalDay(i.fields.resolutiondate ?? null);
             return isToday(d, now);
         });
         const completedThisWeek = leaf.filter((i) => {
             if (getStatusCategoryKey(i) !== 'done') return false;
-            const d = parseLocalDay(i.fields[JIRA_CONFIG.FIELDS.ACTUAL_DONE] as string | undefined ?? null) ?? parseLocalDay(i.fields.resolutiondate ?? null);
+            const d = parseLocalDay(i.fields[actualDoneField] as string | undefined ?? null) ?? parseLocalDay(i.fields.resolutiondate ?? null);
             return isThisWeek(d, now);
         });
         // 미완료 지연 (overdue in progress)
@@ -100,7 +108,7 @@ export function useBacklogForecast(issues: JiraIssue[], options?: {
         const lateCompletion = leaf.filter((i) => {
             if (getStatusCategoryKey(i) !== 'done') return false;
             const due = parseLocalDay(i.fields.duedate ?? null);
-            const done = parseLocalDay(i.fields[JIRA_CONFIG.FIELDS.ACTUAL_DONE] as string | undefined ?? null) ?? parseLocalDay(i.fields.resolutiondate ?? null);
+            const done = parseLocalDay(i.fields[actualDoneField] as string | undefined ?? null) ?? parseLocalDay(i.fields.resolutiondate ?? null);
             if (!due || !done) return false;
             return done > due;
         });
@@ -123,11 +131,12 @@ export function useBacklogForecast(issues: JiraIssue[], options?: {
     const dailySeries = useMemo<DailyPoint[] | null>(() => {
         if (!issues) return null;
         const leaf = filterLeafIssues(issues);
+        const actualDoneField = resolveFields().ACTUAL_DONE;
         const counts: Record<string, number> = {};
         const since = addDays(now, -historyDays + 1);
         for (const issue of leaf) {
             if (getStatusCategoryKey(issue) !== 'done') continue;
-            const d = parseLocalDay(issue.fields[JIRA_CONFIG.FIELDS.ACTUAL_DONE] as string | undefined ?? null) ?? parseLocalDay(issue.fields.resolutiondate ?? null);
+            const d = parseLocalDay(issue.fields[actualDoneField] as string | undefined ?? null) ?? parseLocalDay(issue.fields.resolutiondate ?? null);
             if (!d || d < since || d > now) continue;
             const k = dayKey(d);
             if (k) counts[k] = (counts[k] ?? 0) + 1;

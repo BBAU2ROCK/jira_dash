@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { JIRA_CONFIG } from '@/config/jiraConfig';
 import { UNASSIGNED_LABEL } from '@/lib/jira-constants';
+import { useKpiRulesStore } from '@/stores/kpiRulesStore';
 
 /** CommentSegment[] → contentEditable innerHTML 변환 */
 function segmentsToHtml(segments: CommentSegment[]): string {
@@ -216,6 +217,11 @@ interface IssueDetailDrawerProps {
 
 export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerProps) {
     const queryClient = useQueryClient();
+    // v1.0.10 S5: store 필드 구독 — 필드 ID 변경 시 즉시 반영
+    const kpiFields = useKpiRulesStore((s) => s.rules.fields);
+    const plannedStartField = kpiFields?.plannedStart ?? JIRA_CONFIG.FIELDS.PLANNED_START;
+    const actualStartField = kpiFields?.actualStart ?? JIRA_CONFIG.FIELDS.ACTUAL_START;
+    const actualDoneField = kpiFields?.actualDone ?? JIRA_CONFIG.FIELDS.ACTUAL_DONE;
 
     // 필드 목록(필드명 '난이도' → id 매핑용)
     const { data: allFields = [] } = useQuery({
@@ -228,8 +234,9 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
         const found = (allFields as Array<{ id: string; name: string }>).find(
             (f) => f.name === '난이도' || (f.name && f.name.trim() === '난이도')
         );
-        return found?.id ?? JIRA_CONFIG.FIELDS.DIFFICULTY;
-    }, [allFields]);
+        // v1.0.10 S5: 1순위 Jira 메타데이터, 2순위 store, 3순위 JIRA_CONFIG
+        return found?.id ?? kpiFields?.difficulty ?? JIRA_CONFIG.FIELDS.DIFFICULTY;
+    }, [allFields, kpiFields?.difficulty]);
 
     // 드로어가 열리면 이슈 상세(댓글/이력/업무로그, 난이도 필드 포함) 조회
     const {
@@ -552,9 +559,9 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                 <EditableInfoRow
                                     icon={<Calendar className="w-4 h-4 text-blue-500" />}
                                     label="계획 시작일"
-                                    value={details?.fields[JIRA_CONFIG.FIELDS.PLANNED_START] ?? issue.fields[JIRA_CONFIG.FIELDS.PLANNED_START]}
+                                    value={details?.fields[plannedStartField] ?? issue.fields[plannedStartField]}
                                     type="date"
-                                    onSave={(val) => handleUpdateField(JIRA_CONFIG.FIELDS.PLANNED_START, val)}
+                                    onSave={(val) => handleUpdateField(plannedStartField, val)}
                                 />
                                 <EditableInfoRow
                                     icon={<Calendar className="w-4 h-4 text-slate-400" />}
@@ -566,16 +573,16 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                 <EditableInfoRow
                                     icon={<Clock className="w-4 h-4 text-emerald-500" />}
                                     label="실제 시작일"
-                                    value={details?.fields[JIRA_CONFIG.FIELDS.ACTUAL_START] ?? issue.fields[JIRA_CONFIG.FIELDS.ACTUAL_START]}
+                                    value={details?.fields[actualStartField] ?? issue.fields[actualStartField]}
                                     type="date"
-                                    onSave={(val) => handleUpdateField(JIRA_CONFIG.FIELDS.ACTUAL_START, val)}
+                                    onSave={(val) => handleUpdateField(actualStartField, val)}
                                 />
                                 <EditableInfoRow
                                     icon={<CheckCircle className="w-4 h-4 text-green-500" />}
                                     label="실제 완료일"
-                                    value={details?.fields[JIRA_CONFIG.FIELDS.ACTUAL_DONE] ?? issue.fields[JIRA_CONFIG.FIELDS.ACTUAL_DONE]}
+                                    value={details?.fields[actualDoneField] ?? issue.fields[actualDoneField]}
                                     type="date"
-                                    onSave={(val) => handleUpdateField(JIRA_CONFIG.FIELDS.ACTUAL_DONE, val)}
+                                    onSave={(val) => handleUpdateField(actualDoneField, val)}
                                 />
                                 <EditableInfoRow
                                     icon={<User className="w-4 h-4 text-violet-500" />}

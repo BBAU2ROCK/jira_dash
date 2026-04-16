@@ -1,8 +1,6 @@
 import { cn } from '@/lib/utils';
 import type { JiraIssue } from '@/api/jiraClient';
-import { JIRA_CONFIG } from '@/config/jiraConfig';
-
-const DIFF_FIELD = JIRA_CONFIG.FIELDS.DIFFICULTY;
+import { resolveFields } from '@/lib/kpi-rules-resolver';
 
 const DIFFICULTY_COLORS: Record<string, string> = {
     '상': '#ef4444',      // red
@@ -19,6 +17,8 @@ const DIFFICULTY_COLORS: Record<string, string> = {
 };
 
 function getDifficultyLabel(issue: JiraIssue): string {
+    // v1.0.10 S5: store 우선 참조
+    const DIFF_FIELD = resolveFields().DIFFICULTY;
     const raw = issue.fields[DIFF_FIELD];
     if (raw == null) return '미지정';
     if (typeof raw === 'string') return raw.trim() || '미지정';

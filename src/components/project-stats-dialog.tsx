@@ -116,9 +116,11 @@ export function ProjectStatsDialog({
     // 건수 규칙: 할 일만 있으면 카운트, 하위 작업 있으면 부모 제외·하위만 반영 (통계/KPI 동일)
     const leafIssues = React.useMemo(() => filterLeafIssues(issues), [issues]);
 
-    // 보류·취소 식별 (status.name 기준, jiraConfig.STATUS_NAMES)
-    const isOnHold = (i: JiraIssue) => (i.fields.status?.name?.trim() ?? '') === (JIRA_CONFIG.STATUS_NAMES?.ON_HOLD ?? '보류');
-    const isCancelled = (i: JiraIssue) => (i.fields.status?.name?.trim() ?? '') === (JIRA_CONFIG.STATUS_NAMES?.CANCELLED ?? '취소');
+    // v1.0.10 S1: store 우선 — kpiRules 구독값으로 status명 참조 (설정 변경 시 즉시 반영)
+    const onHoldName = kpiRules.statusNames?.onHold ?? JIRA_CONFIG.STATUS_NAMES?.ON_HOLD ?? '보류';
+    const cancelledName = kpiRules.statusNames?.cancelled ?? JIRA_CONFIG.STATUS_NAMES?.CANCELLED ?? '취소';
+    const isOnHold = (i: JiraIssue) => (i.fields.status?.name?.trim() ?? '') === onHoldName;
+    const isCancelled = (i: JiraIssue) => (i.fields.status?.name?.trim() ?? '') === cancelledName;
 
     // ── KPI 계산 ─────────────────────────────────────────────────────────────
     const kpiMetrics = calculateKPI(leafIssues);
@@ -147,8 +149,10 @@ export function ProjectStatsDialog({
     const total = leafIssues.length;
     const completionRate = total > 0 ? Math.round((done.length / total) * 100) : 0;
 
-    const totalSP = leafIssues.reduce((s, i) => s + (i.fields[JIRA_CONFIG.FIELDS.STORY_POINT] || 0), 0);
-    const doneSP = done.reduce((s, i) => s + (i.fields[JIRA_CONFIG.FIELDS.STORY_POINT] || 0), 0);
+    // v1.0.10 S5: store에서 필드 ID 참조 (커스텀 필드 변경 시 즉시 반영)
+    const spField = kpiRules.fields?.storyPoint ?? JIRA_CONFIG.FIELDS.STORY_POINT;
+    const totalSP = leafIssues.reduce((s, i) => s + ((i.fields[spField] as number | undefined) || 0), 0);
+    const doneSP = done.reduce((s, i) => s + ((i.fields[spField] as number | undefined) || 0), 0);
 
     // ── 담당자별 통계 ─────────────────────────────────────────────────────────
     const assigneeMap = new Map<string, AssigneeStats>();
@@ -290,8 +294,9 @@ export function ProjectStatsDialog({
         const found = (statsFields as Array<{ id: string; name: string }>).find(
             (f) => f.name === '난이도' || (f.name && f.name.trim() === '난이도')
         );
-        return found?.id ?? JIRA_CONFIG.FIELDS.DIFFICULTY;
-    }, [statsFields]);
+        // v1.0.10 S5: 1순위 Jira 메타데이터, 2순위 store, 3순위 JIRA_CONFIG
+        return found?.id ?? kpiRules.fields?.difficulty ?? JIRA_CONFIG.FIELDS.DIFFICULTY;
+    }, [statsFields, kpiRules.fields?.difficulty]);
 
     // 난이도별 건수·% (하단 패널 리스트 최상단 표시용, 순서 고정: 상·중·하·미지정)
     const difficultyBreakdown = React.useMemo(() => {

@@ -12,7 +12,6 @@
 
 import { differenceInHours } from 'date-fns';
 import type { JiraIssue } from '@/api/jiraClient';
-import { JIRA_CONFIG } from '@/config/jiraConfig';
 import { filterLeafIssues, getStatusCategoryKey } from '@/lib/jira-helpers';
 import { parseLocalDay } from '@/lib/date-utils';
 import type {
@@ -21,8 +20,15 @@ import type {
     EffortSource,
     IssueEffortPrediction,
 } from './types';
+import {
+    resolveCancelledStatus,
+    resolvePredictionConfig,
+    resolveFields,
+} from '@/lib/kpi-rules-resolver';
 
-const C = JIRA_CONFIG.PREDICTION;
+/**
+ * v1.0.10: 모듈 스코프 C 제거 — 각 함수 진입 시 resolvePredictionConfig() 사용.
+ */
 
 interface CoverageStats {
     spCoverage: number;
@@ -48,6 +54,8 @@ interface HistoricalAverages {
  * 완료된 이슈에서 데이터 커버리지 측정 → 어느 모드를 활성화할지 자동 결정.
  */
 export function measureCoverage(resolvedIssues: JiraIssue[]): CoverageStats {
+    const C = resolvePredictionConfig();
+    const F = resolveFields();
     const total = resolvedIssues.length;
     if (total === 0) {
         return {
@@ -60,13 +68,13 @@ export function measureCoverage(resolvedIssues: JiraIssue[]): CoverageStats {
         };
     }
     const withSp = resolvedIssues.filter(
-        (i) => typeof i.fields[JIRA_CONFIG.FIELDS.STORY_POINT] === 'number' && (i.fields[JIRA_CONFIG.FIELDS.STORY_POINT] as number) > 0
+        (i) => typeof i.fields[F.STORY_POINT] === 'number' && (i.fields[F.STORY_POINT] as number) > 0
     ).length;
     const withWl = resolvedIssues.filter(
         (i) => typeof i.fields.timespent === 'number' && (i.fields.timespent as number) > 0
     ).length;
     const withDiff = resolvedIssues.filter(
-        (i) => i.fields[JIRA_CONFIG.FIELDS.DIFFICULTY] != null
+        (i) => i.fields[F.DIFFICULTY] != null
     ).length;
 
     const spC = withSp / total;
@@ -85,8 +93,9 @@ export function measureCoverage(resolvedIssues: JiraIssue[]): CoverageStats {
 
 /** 이슈의 cycle time (시간 단위) — 생성부터 완료까지 wall-clock */
 function cycleTimeHours(issue: JiraIssue): number | null {
+    const F = resolveFields();
     const created = parseLocalDay(issue.fields.created);
-    const actualDone = issue.fields[JIRA_CONFIG.FIELDS.ACTUAL_DONE] as string | undefined;
+    const actualDone = issue.fields[F.ACTUAL_DONE] as string | undefined;
     const done = parseLocalDay(actualDone ?? null) ?? parseLocalDay(issue.fields.resolutiondate ?? null);
     if (!created || !done || done < created) return null;
     return Math.max(differenceInHours(done, created), 1);
@@ -97,6 +106,7 @@ export function computeHistoricalAverages(
     resolvedIssues: JiraIssue[],
     coverage: CoverageStats
 ): HistoricalAverages {
+    const F = resolveFields();
     let totalHours = 0;
     let countCT = 0;
     const byDifficulty = new Map<string, { sum: number; n: number }>();
@@ -119,7 +129,7 @@ export function computeHistoricalAverages(
 
         // 난이도별
         if (coverage.difficultyActive) {
-            const diff = issue.fields[JIRA_CONFIG.FIELDS.DIFFICULTY];
+            const diff = issue.fields[F.DIFFICULTY];
             if (diff != null) {
                 const label = typeof diff === 'object' && diff !== null && 'value' in diff
                     ? String((diff as { value: unknown }).value)
@@ -133,7 +143,7 @@ export function computeHistoricalAverages(
 
         // SP × hours (worklog 우선, 없으면 cycle time)
         if (coverage.spActive) {
-            const sp = issue.fields[JIRA_CONFIG.FIELDS.STORY_POINT];
+            const sp = issue.fields[F.STORY_POINT];
             const hours = coverage.worklogActive && typeof issue.fields.timespent === 'number' && issue.fields.timespent > 0
                 ? issue.fields.timespent / 3600
                 : ct;
@@ -165,6 +175,7 @@ export function predictIssueEffort(
     coverage: CoverageStats,
     avgs: HistoricalAverages
 ): IssueEffortPrediction {
+    const F = resolveFields();
     const summary = issue.fields.summary ?? issue.key;
     const issueKey = issue.key;
 
@@ -185,7 +196,7 @@ export function predictIssueEffort(
 
     // SP × 평균 시간
     if (coverage.spActive) {
-        const sp = issue.fields[JIRA_CONFIG.FIELDS.STORY_POINT];
+        const sp = issue.fields[F.STORY_POINT];
         if (typeof sp === 'number' && sp > 0 && avgs.hoursPerSp > 0) {
             const hours = sp * avgs.hoursPerSp;
             return {
@@ -202,7 +213,7 @@ export function predictIssueEffort(
 
     // 난이도별 평균
     if (coverage.difficultyActive) {
-        const diff = issue.fields[JIRA_CONFIG.FIELDS.DIFFICULTY];
+        const diff = issue.fields[F.DIFFICULTY];
         if (diff != null) {
             const label = typeof diff === 'object' && diff !== null && 'value' in diff
                 ? String((diff as { value: unknown }).value)
@@ -248,12 +259,14 @@ export function aggregateBacklogEffort(
         teamEtaDays?: number;
     } = {}
 ): BacklogEffortReport {
+    const C = resolvePredictionConfig();
+    const cancelledName = resolveCancelledStatus();
     const leaf = filterLeafIssues(allIssues);
     const resolved = leaf.filter((i) => getStatusCategoryKey(i) === 'done');
     const active = leaf.filter((i) => {
         const cat = getStatusCategoryKey(i);
         const name = i.fields.status?.name;
-        return cat !== 'done' && name !== JIRA_CONFIG.STATUS_NAMES.CANCELLED;
+        return cat !== 'done' && name !== cancelledName;
     });
 
     const coverage = measureCoverage(resolved);

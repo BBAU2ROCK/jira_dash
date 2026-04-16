@@ -8,10 +8,12 @@
  * 정직성 원칙: 낮은 신뢰도일 때 단일 날짜를 보여주는 게 가장 큰 거짓말.
  */
 
-import { JIRA_CONFIG } from '@/config/jiraConfig';
 import type { ConfidenceLevel, ThroughputStats } from './types';
+import { resolvePredictionConfig } from '@/lib/kpi-rules-resolver';
 
-const C = JIRA_CONFIG.PREDICTION;
+/**
+ * v1.0.10: 모듈-스코프 `const C` 제거. 함수 진입 시 resolve로 변경 → store 변경 즉시 반영.
+ */
 
 /**
  * 통계 입력으로 신뢰도 등급 결정.
@@ -25,6 +27,7 @@ const C = JIRA_CONFIG.PREDICTION;
  *   6. 그 외 → 'medium'
  */
 export function confidenceLevel(stats: ThroughputStats): ConfidenceLevel {
+    const C = resolvePredictionConfig();
     if (stats.activeDays < C.MIN_ACTIVE_DAYS_RELIABLE) return 'unreliable';
     if (stats.scopeRatio > C.SCOPE_CRISIS_RATIO) return 'unreliable';
     if (stats.cv > C.UNRELIABLE_CV) return 'low';
@@ -84,6 +87,7 @@ export function confidenceGuidance(level: ConfidenceLevel): {
  * 통계로부터 사용자 경고 메시지 목록 생성.
  */
 export function buildConfidenceWarnings(stats: ThroughputStats): string[] {
+    const C = resolvePredictionConfig();
     const warnings: string[] = [];
     if (stats.activeDays < C.MIN_ACTIVE_DAYS_RELIABLE) {
         warnings.push(`활동 일수 부족 (${stats.activeDays}일 < ${C.MIN_ACTIVE_DAYS_RELIABLE}일 권장)`);

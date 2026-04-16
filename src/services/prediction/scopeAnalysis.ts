@@ -12,10 +12,10 @@
  *   - IPCON: 1.69 → 'crisis' (발산)
  */
 
-import { JIRA_CONFIG } from '@/config/jiraConfig';
 import type { ScopeStatus } from './types';
+import { resolvePredictionConfig } from '@/lib/kpi-rules-resolver';
 
-const C = JIRA_CONFIG.PREDICTION;
+/** v1.0.10: 모듈 스코프 const C 제거 — 함수 진입 시 resolve */
 
 /**
  * 신규/완료 비율 계산.
@@ -30,6 +30,7 @@ export function scopeChangeRatio(createdCount: number, resolvedCount: number): n
  * 비율로부터 상태 분류.
  */
 export function classifyScopeStatus(ratio: number): ScopeStatus {
+    const C = resolvePredictionConfig();
     if (ratio <= 0) return 'converging'; // 완료만 있는 경우도 수렴으로 분류
     if (ratio > C.SCOPE_CRISIS_RATIO) return 'crisis';
     if (ratio > C.SCOPE_GROWING_RATIO) return 'growing';

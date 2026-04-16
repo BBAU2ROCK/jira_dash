@@ -12,6 +12,7 @@ import {
 } from 'date-fns';
 import Holidays from 'date-holidays';
 import { JIRA_CONFIG } from '@/config/jiraConfig';
+import { resolveWeekStartsOn } from '@/lib/kpi-rules-resolver';
 
 /** Jira 날짜 문자열을 안전하게 파싱·포매팅. 잘못된 값은 fallback 반환. */
 export function formatDateSafe(dateStr: string | undefined | null, pattern = 'yy.MM.dd', fallback = '-'): string {
@@ -153,14 +154,14 @@ export function businessDaysBetween(a: Date, b: Date, holidays: Set<string> = ge
     return count;
 }
 
-/** 한국식 주 시작 (월요일) */
+/** 한국식 주 시작 (기본 월요일, v1.0.10부터 store에서 변경 가능) */
 export function startOfKoreanWeek(date: Date): Date {
-    return startOfWeek(date, { weekStartsOn: JIRA_CONFIG.WEEK_STARTS_ON });
+    return startOfWeek(date, { weekStartsOn: resolveWeekStartsOn() });
 }
 
-/** 한국식 주 종료 (일요일 23:59:59.999) */
+/** 한국식 주 종료 (일요일 23:59:59.999, v1.0.10부터 store에서 변경 가능) */
 export function endOfKoreanWeek(date: Date): Date {
-    return endOfWeek(date, { weekStartsOn: JIRA_CONFIG.WEEK_STARTS_ON });
+    return endOfWeek(date, { weekStartsOn: resolveWeekStartsOn() });
 }
 
 /** 주어진 날짜가 오늘인가 (로컬 시각 기준) */

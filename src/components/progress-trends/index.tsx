@@ -46,7 +46,7 @@ import { EtaEffortConsistency } from './EtaEffortConsistency';
 import { MethodologyDialog } from './MethodologyDialog';
 import { ExportMenu } from './ExportMenu';
 import { scopeStatusMeta } from '@/services/prediction';
-import { JIRA_CONFIG } from '@/config/jiraConfig';
+import { useKpiRulesStore } from '@/stores/kpiRulesStore';
 import type { JiraIssue } from '@/api/jiraClient';
 
 interface ProgressTrendsProps {
@@ -69,7 +69,8 @@ interface ProgressTrendsProps {
  *   - ETA·Funnel·Sprint는 잔여 의존이라 활성 0건일 때 안내로 대체
  */
 export function ProgressTrends({ issues, selectedEpicIds, epics }: ProgressTrendsProps) {
-    const projectKey = JIRA_CONFIG.DASHBOARD.PROJECT_KEY; // IGMU 고정
+    // v1.0.10 S2: store에서 구독 — 설정 변경 시 자동 반영
+    const projectKey = useKpiRulesStore((s) => s.rules.dashboardProjectKey);
     const anonymizeMode = useDisplayPreferenceStore((s) => s.anonymizeMode);
     const toggleAnonymize = useDisplayPreferenceStore((s) => s.toggleAnonymizeMode);
 

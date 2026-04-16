@@ -4,6 +4,96 @@
 
 ---
 
+## [1.0.10] KPI Store 완전 통합 — statusNames·projectKey·weekStartsOn·prediction·fields
+
+### 적용 버전
+- 앱 버전: **1.0.10** (package.json 기준)
+- 패치 반영일: 2026년 4월
+- 기반: `docs/kpi-store-integration-v1.0.10-plan.md` (감사 보고서 §5.1의 v1.0.9 미처리 잔여)
+
+### 배경
+v1.0.9에서 K1으로 `labels` / `fields.actualDone` / `grades` / `weights` / `earlyBonus`를 store 우선 참조로 교체했지만, 감사 보고서 §5.1이 지적한 나머지 5개 필드 군은 여전히 `JIRA_CONFIG` 직접 참조 상태였습니다. 이번 패치는 v1.0.9의 패턴을 공통 헬퍼로 승격하고 남은 필드를 일괄 통합합니다.
+
+### 신규 공통 헬퍼
+
+#### `src/lib/kpi-rules-resolver.ts`
+- `getActiveRules()` — store 우선 + null fallback
+- 개별 resolver: `resolveAgreedDelayLabel` / `resolveVerificationDelayLabel` / `resolveOnHoldStatus` / `resolveCancelledStatus` / `resolveDashboardProjectKey` / `resolveWeekStartsOn`
+- 묶음 resolver: `resolvePredictionConfig()` (JIRA_CONFIG.PREDICTION shape 동일 — drop-in 교체 가능), `resolveFields()`
+- v1.0.9 K1 재사용 헬퍼 통합: `resolveWeights` / `resolveGrades` / `resolveEarlyBonus`
+
+#### `kpiService.ts` 리팩토링
+- v1.0.9의 내부 `resolveKpiRules` + `FALLBACK_RULES` 제거
+- 공통 resolver 조합만으로 동일 동작 유지 — 중복 제거
+
+### Phase 1 — statusNames 통합 (5 지점)
+- `useBacklogForecast.ts` — `onHold` 필터에 store 값 사용
+- `project-stats-dialog.tsx` — `isOnHold` / `isCancelled`가 `kpiRules` 구독값 참조
+- `perAssigneeForecast.ts` — 모듈 스코프 `const C = JIRA_CONFIG.PREDICTION` 제거 → 함수 진입 시 resolve
+- `effortEstimation.ts` — cancelled status가 `resolveCancelledStatus()` 사용
+- → store에서 `statusNames.onHold`를 `대기중`으로 변경 시 즉시 반영
+
+### Phase 2 — dashboardProjectKey 통합
+- `dashboard.tsx` — `useKpiRulesStore` 구독 → TanStack Query key 자동 재요청
+- `progress-trends/index.tsx` — `useKpiRulesStore` 구독
+- `useBacklogForecast.ts` — `options?.projectKey ?? resolveDashboardProjectKey()` 순서
+- `api/jiraClient.ts` — API 레이어 (store 초기화 전 호출 가능) 이므로 `JIRA_CONFIG` fallback 유지
+
+### Phase 3 — weekStartsOn 통합
+- `date-utils.ts` — `startOfKoreanWeek` / `endOfKoreanWeek`가 `resolveWeekStartsOn()` 호출
+- → store에서 `weekStartsOn: 0` 변경 시 "이번주 완료" 카운트가 일~토 기준으로 집계
+
+### Phase 4 — prediction.* 모듈 스코프 해체
+5개 파일의 `const C = JIRA_CONFIG.PREDICTION` 모듈 상수를 **함수 진입 시** `resolvePredictionConfig()`으로 대체:
+- `confidence.ts` — confidenceLevel / buildConfidenceWarnings
+- `crossValidation.ts` — crossValidate
+- `effortEstimation.ts` — measureCoverage / aggregateBacklogEffort
+- `perAssigneeForecast.ts` — buildForecast / perAssigneeForecast / teamForecast
+- `scopeAnalysis.ts` — classifyScopeStatus
+
+→ 설정에서 `monteCarloTrials: 5000` 변경 시 **다음 호출부터** 즉시 반영 (앱 재시작 불요).
+
+### Phase 5 — 나머지 fields.* 통합
+- `issue-detail-drawer.tsx` — `plannedStart` / `actualStart` / `actualDone` / `difficulty` 4필드 모두 store 구독
+- `project-stats-dialog.tsx` — `storyPoint` / `difficulty` store 우선 참조
+- `difficulty-mini-pie.tsx` — `DIFFICULTY` 필드 resolve
+- `useBacklogForecast.ts` — dailySeries + counts에서 actualDoneField 변수화
+- `effortEstimation.ts` — STORY_POINT / DIFFICULTY / ACTUAL_DONE 모두 store 참조
+
+### 인프라
+- **vitest 251건 통과** (v1.0.9 235 + 신규 resolver 16)
+- `src/lib/__tests__/kpi-rules-resolver.test.ts` — 16 케이스 (default 일치 + store 변경 반영)
+- TypeScript strict 통과, ESLint 에러 0
+
+### 설정 변경 즉시 반영 필드 (v1.0.10)
+v1.0.10 이후 PM이 KPI 관리 UI에서 변경 시 **앱 재시작 없이 즉시 반영**되는 필드:
+
+| 필드 | v1.0.9 | v1.0.10 |
+|------|--------|---------|
+| `labels.*` | ✅ | ✅ |
+| `fields.actualDone` | ✅ | ✅ |
+| `grades` / `weights` / `earlyBonus` / `defectGrades` | ✅ | ✅ |
+| `statusNames.onHold` / `cancelled` | ❌ | ✅ |
+| `dashboardProjectKey` | ❌ | ✅ |
+| `weekStartsOn` | ❌ | ✅ |
+| `prediction.*` (6개 파라미터) | ❌ | ✅ |
+| `fields.storyPoint` / `plannedStart` / `actualStart` / `difficulty` | ❌ | ✅ |
+
+### 보호된 기존 기능 (변경 없음)
+- `calculateKPI`의 KPI 산식 흐름
+- Zustand persist 키 (`jira-dash-kpi-rules`)
+- `JIRA_CONFIG` 자체 — fallback 유지 (삭제하지 않음)
+- `api/jiraClient.ts` L298 — API 레이어는 `JIRA_CONFIG` 그대로 (store 초기화 전 호출 대비)
+- 감사 보고서 §5.0 (지표 구조 유연성) — 별도 마일스톤 예약
+
+### 빌드
+```bash
+npm run build          # 1.0.10 .exe + portable 생성
+npm test               # vitest 251 케이스 통과
+```
+
+---
+
 ## [1.0.9] KPI 규칙 정합성 — Store 완전 연동 + 판정 기준 통일 + 검증 강화
 
 ### 적용 버전

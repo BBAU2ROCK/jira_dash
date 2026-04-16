@@ -11,7 +11,6 @@
 
 import { addDays } from 'date-fns';
 import type { JiraIssue } from '@/api/jiraClient';
-import { JIRA_CONFIG } from '@/config/jiraConfig';
 import { filterLeafIssues, getStatusCategoryKey } from '@/lib/jira-helpers';
 import { addBusinessDays, dayKey, parseLocalDay } from '@/lib/date-utils';
 import { personKeyFromAssignee } from '@/lib/defect-kpi-utils';
@@ -25,14 +24,24 @@ import type {
     WorkloadQuadrant,
 } from './types';
 import { classifyScopeStatus, scopeChangeRatio } from './scopeAnalysis';
-
-const C = JIRA_CONFIG.PREDICTION;
+import {
+    resolveOnHoldStatus,
+    resolveCancelledStatus,
+    resolveFields,
+    resolvePredictionConfig,
+} from '@/lib/kpi-rules-resolver';
 
 /**
- * Jira 이슈에서 완료일 추출 (KPI와 동일 룰: customfield_11485 우선, fallback resolutiondate)
+ * v1.0.10: 모듈-스코프 `const C` 를 함수 진입 시 resolve로 대체.
+ * store 변경이 다음 호출부터 반영된다.
+ */
+
+/**
+ * Jira 이슈에서 완료일 추출 (KPI와 동일 룰: ACTUAL_DONE 우선, fallback resolutiondate)
  */
 function getCompletionDate(issue: JiraIssue): Date | null {
-    const actual = issue.fields[JIRA_CONFIG.FIELDS.ACTUAL_DONE] as string | undefined;
+    const actualField = resolveFields().ACTUAL_DONE;
+    const actual = issue.fields[actualField] as string | undefined;
     return parseLocalDay(actual ?? null) ?? parseLocalDay(issue.fields.resolutiondate ?? null);
 }
 
@@ -45,11 +54,11 @@ function isDone(issue: JiraIssue): boolean {
 }
 
 function isOnHold(issue: JiraIssue): boolean {
-    return issue.fields.status?.name === JIRA_CONFIG.STATUS_NAMES.ON_HOLD;
+    return issue.fields.status?.name === resolveOnHoldStatus();
 }
 
 function isCancelled(issue: JiraIssue): boolean {
-    return issue.fields.status?.name === JIRA_CONFIG.STATUS_NAMES.CANCELLED;
+    return issue.fields.status?.name === resolveCancelledStatus();
 }
 
 /** 백로그 정의 (analysis.md §16.1) */
@@ -137,6 +146,7 @@ export function buildForecast(
     now = new Date(),
     options: { rngSeed?: number } = {}
 ): ForecastResult {
+    const C = resolvePredictionConfig();
     const stats = computeThroughputStats(throughput, creationCount);
     const confidence = confidenceLevel(stats);
     const warnings = buildConfidenceWarnings(stats);
@@ -200,7 +210,7 @@ function classifyQuadrant(remaining: number, throughput: number, medianRemaining
  */
 export function perAssigneeForecast(
     issues: JiraIssue[],
-    historyDays: number = C.DEFAULT_HISTORY_DAYS,
+    historyDays?: number,
     now = new Date(),
     options: { rngSeed?: number } = {}
 ): {
@@ -208,6 +218,8 @@ export function perAssigneeForecast(
     unassignedCount: number;
     onHoldCount: number;
 } {
+    const C = resolvePredictionConfig();
+    const histDays = historyDays ?? C.DEFAULT_HISTORY_DAYS;
     const leaf = filterLeafIssues(issues);
     const active = leaf.filter(isInBacklog);
     const onHoldCount = active.filter(isOnHold).length;
@@ -244,7 +256,7 @@ export function perAssigneeForecast(
         const remaining = remInfo?.count ?? 0;
         const onHold = remInfo?.onHold ?? 0;
         const completed = completedInfo?.issues ?? [];
-        const throughput = dailyThroughput(completed, historyDays, now);
+        const throughput = dailyThroughput(completed, histDays, now);
         const stats = computeThroughputStats(throughput, 0);
         // 우선순위: remaining의 이름 → completed의 이름 → key (id) 폴백
         const displayName = remInfo?.displayName ?? completedInfo?.displayName ?? key;
@@ -289,14 +301,16 @@ export function perAssigneeForecast(
  */
 export function teamForecast(
     issues: JiraIssue[],
-    historyDays: number = C.DEFAULT_HISTORY_DAYS,
+    historyDays?: number,
     now = new Date(),
     options: { rngSeed?: number } = {}
 ): TeamForecast {
+    const C = resolvePredictionConfig();
+    const histDays = historyDays ?? C.DEFAULT_HISTORY_DAYS;
     const leaf = filterLeafIssues(issues);
     const active = leaf.filter(isInBacklog).filter((i) => !isOnHold(i));
-    const teamThroughput = dailyThroughput(leaf, historyDays, now);
-    const teamCreations = dailyCreations(leaf, historyDays, now);
+    const teamThroughput = dailyThroughput(leaf, histDays, now);
+    const teamCreations = dailyCreations(leaf, histDays, now);
     const totalCreations = teamCreations.reduce((a, b) => a + b, 0);
     const totalCompletions = teamThroughput.reduce((a, b) => a + b, 0);
 
@@ -304,7 +318,7 @@ export function teamForecast(
 
     const { perAssignee, unassignedCount, onHoldCount } = perAssigneeForecast(
         issues,
-        historyDays,
+        histDays,
         now,
         options
     );
