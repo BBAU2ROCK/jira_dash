@@ -1,7 +1,7 @@
 {
   "name": "01_jira_dash",
   "private": true,
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Jira Dashboard Application",
   "author": "Okestro",
   "type": "module",
@@ -39,6 +39,7 @@
     "clsx": "^2.1.1",
     "cors": "^2.8.6",
     "date-fns": "^4.1.0",
+    "date-holidays": "^3.27.0",
     "express": "^5.2.1",
     "lucide-react": "^0.563.0",
     "react": "^19.2.0",
@@ -48,6 +49,7 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
+    "xlsx": "^0.18.5",
     "zustand": "^5.0.12"
   },
   "devDependencies": {

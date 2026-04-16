@@ -224,15 +224,15 @@ export function perAssigneeForecast(
         remainingByPerson.set(key, prev);
     }
 
-    // 담당자별 history (완료 이슈만)
-    const completedByPerson = new Map<string, JiraIssue[]>();
+    // 담당자별 history (완료 이슈만) — displayName도 함께 저장하여 활성 잔여 없는 인원도 이름 표시 가능
+    const completedByPerson = new Map<string, { displayName: string; issues: JiraIssue[] }>();
     for (const issue of leaf) {
         if (!isDone(issue)) continue;
         if (!issue.fields.assignee) continue;
-        const { key } = personKeyFromAssignee(issue);
-        const arr = completedByPerson.get(key) ?? [];
-        arr.push(issue);
-        completedByPerson.set(key, arr);
+        const { key, label } = personKeyFromAssignee(issue);
+        const prev = completedByPerson.get(key) ?? { displayName: label, issues: [] };
+        prev.issues.push(issue);
+        completedByPerson.set(key, prev);
     }
 
     const allKeys = new Set([...remainingByPerson.keys(), ...completedByPerson.keys()]);
@@ -240,12 +240,14 @@ export function perAssigneeForecast(
 
     for (const key of allKeys) {
         const remInfo = remainingByPerson.get(key);
+        const completedInfo = completedByPerson.get(key);
         const remaining = remInfo?.count ?? 0;
         const onHold = remInfo?.onHold ?? 0;
-        const completed = completedByPerson.get(key) ?? [];
+        const completed = completedInfo?.issues ?? [];
         const throughput = dailyThroughput(completed, historyDays, now);
         const stats = computeThroughputStats(throughput, 0);
-        const displayName = remInfo?.displayName ?? key;
+        // 우선순위: remaining의 이름 → completed의 이름 → key (id) 폴백
+        const displayName = remInfo?.displayName ?? completedInfo?.displayName ?? key;
 
         let forecast: ForecastResult | null = null;
         if (remaining > 0 && stats.activeDays >= C.MIN_ACTIVE_DAYS_RELIABLE) {

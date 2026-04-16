@@ -135,12 +135,24 @@ export function extractDefectSeverityLabel(
     return DEFECT_SEVERITY_EMPTY;
 }
 
+import { useKpiRulesStore, getDefectGradeFromRules } from '../stores/kpiRulesStore';
+
+/**
+ * 결함 등급 산정 — store 규칙 참조 (PM이 설정에서 편집 가능).
+ * store 초기화 전에는 기본값으로 fallback.
+ */
 export function defectRateToGrade(rate: number): 'S' | 'A' | 'B' | 'C' | 'D' {
-    if (rate <= 5) return 'S';
-    if (rate <= 10) return 'A';
-    if (rate <= 15) return 'B';
-    if (rate <= 20) return 'C';
-    return 'D';
+    try {
+        const defectGrades = useKpiRulesStore.getState().rules.defectGrades;
+        return getDefectGradeFromRules(rate, defectGrades);
+    } catch {
+        // fallback
+        if (rate <= 5) return 'S';
+        if (rate <= 10) return 'A';
+        if (rate <= 15) return 'B';
+        if (rate <= 20) return 'C';
+        return 'D';
+    }
 }
 
 export function sortSeverityBreakdown(

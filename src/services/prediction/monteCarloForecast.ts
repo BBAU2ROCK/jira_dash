@@ -8,7 +8,12 @@
  *    10,000번 시뮬레이션 후 결과 분포에서 P50/P85/P95 추출."
  *
  * 산업 표준: Daniel Vacanti (Kanban University), Troy Magennis (Forecaster).
+ *
+ * 1000+ 이슈에서는 monteCarloForecastAsync()를 사용하여 Web Worker로 offload — main thread freeze 방지.
  */
+
+/** Web Worker 사용 임계값. 이를 넘으면 monteCarloForecastAsync()가 worker로 분기. */
+export const MONTE_CARLO_WORKER_THRESHOLD = 50_000;
 
 export interface MonteCarloOptions {
     /** 시뮬레이션 횟수 (default 10,000) */
@@ -97,4 +102,43 @@ export function seededRng(seed: number): () => number {
         t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
         return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
+}
+
+/**
+ * Web Worker 분기 dispatcher.
+ * - 작은 입력(< MONTE_CARLO_WORKER_THRESHOLD) → main thread 동기 (worker overhead 회피)
+ * - 큰 입력 → Web Worker로 offload (UI freeze 방지)
+ *
+ * 시드 RNG는 worker로 전달 불가 (함수 직렬화 X). seededRng는 main thread에서만 사용.
+ */
+export async function monteCarloForecastAsync(
+    remainingCount: number,
+    historicalThroughput: number[],
+    options: Omit<MonteCarloOptions, 'rng'> = {}
+): Promise<MonteCarloResult> {
+    const trials = options.trials ?? 10_000;
+    const workSize = remainingCount * historicalThroughput.length * (trials / 1000);
+    if (workSize < MONTE_CARLO_WORKER_THRESHOLD || typeof Worker === 'undefined') {
+        return monteCarloForecast(remainingCount, historicalThroughput, options);
+    }
+    try {
+        // dynamic import of Vite ?worker — 빌드 타임에만 처리
+        const WorkerModule = await import('./monteCarloForecast.worker?worker');
+        const worker = new WorkerModule.default();
+        return await new Promise<MonteCarloResult>((resolve, reject) => {
+            worker.onmessage = (e: MessageEvent<MonteCarloResult>) => {
+                resolve(e.data);
+                worker.terminate();
+            };
+            worker.onerror = (err) => {
+                reject(err);
+                worker.terminate();
+            };
+            worker.postMessage({ remainingCount, historicalThroughput, options });
+        });
+    } catch (err) {
+        // Web Worker 실패 시 main thread fallback
+        console.warn('[MC] Worker dispatch failed, fallback to main thread:', err);
+        return monteCarloForecast(remainingCount, historicalThroughput, options);
+    }
 }

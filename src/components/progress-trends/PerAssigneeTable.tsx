@@ -2,8 +2,14 @@ import React from 'react';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import type { JiraIssue } from '@/api/jiraClient';
 import type { TeamForecast, ConfidenceLevel } from '@/services/prediction/types';
 import { confidenceGuidance } from '@/services/prediction/confidence';
+import { useDisplayPreferenceStore } from '@/stores/displayPreferenceStore';
+import { buildAnonymizeMap, maybeAnonymize } from '@/lib/anonymize';
+import { personKeyFromAssignee } from '@/lib/defect-kpi-utils';
+import { DifficultyMiniPie, extractDifficultyBreakdown, type DifficultyCount } from '@/components/ui/difficulty-mini-pie';
+import { InfoTip } from '@/components/ui/info-tip';
 
 const CONFIDENCE_DOT: Record<ConfidenceLevel, { dots: string; color: string }> = {
     high: { dots: '●●●', color: 'text-green-600' },
@@ -47,14 +53,41 @@ function SortableTh({
 
 interface Props {
     team: TeamForecast | null;
+    /** 난이도 파이 표시를 위한 원본 이슈 배열 (optional) */
+    issues?: JiraIssue[];
 }
 
-export function PerAssigneeTable({ team }: Props) {
+export function PerAssigneeTable({ team, issues }: Props) {
     const [sortKey, setSortKey] = React.useState<SortKey>('name');
     const [asc, setAsc] = React.useState(true);
+    const anonymizeMode = useDisplayPreferenceStore((s) => s.anonymizeMode);
+    const anonMap = React.useMemo(
+        () => buildAnonymizeMap(team?.perAssignee.map((r) => r.displayName) ?? []),
+        [team?.perAssignee]
+    );
+    // 인원별 난이도 breakdown (DifficultyMiniPie용)
+    const diffByPerson = React.useMemo<Map<string, DifficultyCount[]>>(() => {
+        const map = new Map<string, DifficultyCount[]>();
+        if (!issues) return map;
+        const grouped = new Map<string, JiraIssue[]>();
+        for (const issue of issues) {
+            if (!issue.fields.assignee) continue;
+            const key = personKeyFromAssignee(issue).key;
+            const arr = grouped.get(key) ?? [];
+            arr.push(issue);
+            grouped.set(key, arr);
+        }
+        for (const [key, iss] of grouped) {
+            map.set(key, extractDifficultyBreakdown(iss));
+        }
+        return map;
+    }, [issues]);
 
     if (!team) return null;
-    const rows = [...team.perAssignee];
+    const rows = team.perAssignee.map((r) => ({
+        ...r,
+        displayName: maybeAnonymize(r.displayName, anonMap, anonymizeMode),
+    }));
 
     rows.sort((a, b) => {
         let cmp = 0;
@@ -84,11 +117,12 @@ export function PerAssigneeTable({ team }: Props) {
                         <tr>
                             <SortableTh k="name" label="담당자" currentKey={sortKey} asc={asc} onSort={onSort} />
                             <SortableTh k="remaining" label="잔여" align="right" currentKey={sortKey} asc={asc} onSort={onSort} />
-                            <th className="px-2 py-2 text-xs font-medium text-slate-600 text-right">보류</th>
-                            <th className="px-2 py-2 text-xs font-medium text-slate-600 text-right">활동일/30</th>
+                            <th className="px-2 py-2 text-xs font-medium text-slate-600 text-center">난이도 <InfoTip>담당 이슈의 난이도(상/중/하) 비율. Jira에 미입력이면 회색 원.</InfoTip></th>
+                            <th className="px-2 py-2 text-xs font-medium text-slate-600 text-right">보류 <InfoTip>status가 '보류'인 이슈. ETA에서 제외됨.</InfoTip></th>
+                            <th className="px-2 py-2 text-xs font-medium text-slate-600 text-right">활동일 <InfoTip>최근 30일 중 1건 이상 완료가 있었던 일수. 7일 미만이면 신뢰도 낮음.</InfoTip></th>
                             <SortableTh k="throughput" label="일평균" align="right" currentKey={sortKey} asc={asc} onSort={onSort} />
                             <SortableTh k="eta" label="ETA (P85)" align="right" currentKey={sortKey} asc={asc} onSort={onSort} />
-                            <th className="px-2 py-2 text-xs font-medium text-slate-600 text-center">신뢰</th>
+                            <th className="px-2 py-2 text-xs font-medium text-slate-600 text-center">신뢰 <InfoTip>●●● 높음 / ●●○ 중간 / ●○○ 낮음 (범위만) / ○○○ 예측 불가. 활동일·CV·Scope로 산정.</InfoTip></th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -103,6 +137,11 @@ export function PerAssigneeTable({ team }: Props) {
                                 <tr key={r.key} className={cn(inactive && 'bg-slate-50/50 text-slate-400')}>
                                     <td className="px-2 py-2 text-slate-800">{r.displayName}</td>
                                     <td className="px-2 py-2 text-right tabular-nums">{r.remaining}</td>
+                                    <td className="px-2 py-2 text-center">
+                                        <div className="flex justify-center">
+                                            <DifficultyMiniPie breakdown={diffByPerson.get(r.key)} size={24} />
+                                        </div>
+                                    </td>
                                     <td className="px-2 py-2 text-right tabular-nums">{r.onHold || '-'}</td>
                                     <td className="px-2 py-2 text-right tabular-nums">{r.activeDays}일</td>
                                     <td className="px-2 py-2 text-right tabular-nums">{r.avgDailyThroughput}건</td>

@@ -11,7 +11,9 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Settings, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { Settings, CheckCircle2, XCircle, Loader2, Sliders } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { KpiRulesManager } from '@/components/kpi-rules';
 
 export interface JiraConfig {
     jiraEmail: string;
@@ -168,20 +170,34 @@ export function JiraSettingsDialog({ open, onClose, initialConfig }: JiraSetting
         }
     };
 
+    const [activeTab, setActiveTab] = React.useState('connection');
+
     return (
         <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <Settings className="h-5 w-5" />
-                        Jira 연결 설정
+                        설정
                     </DialogTitle>
                     <DialogDescription>
-                        {isWebMode
-                            ? `웹 모드 — 입력 후 "연결 테스트" → 정상이면 "저장". 즉시 반영됩니다 (서버 재시작 불필요).`
-                            : 'exe 실행 시 및 PC 재시작 후에도 Jira 데이터를 가져오려면 아래 정보를 저장해 두세요.'}
+                        Jira 연결 정보와 KPI 규칙을 관리합니다.
                     </DialogDescription>
                 </DialogHeader>
+
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
+                    <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="connection" className="flex items-center gap-1.5">
+                            <Settings className="h-3.5 w-3.5" />
+                            Jira 연결
+                        </TabsTrigger>
+                        <TabsTrigger value="kpi-rules" className="flex items-center gap-1.5">
+                            <Sliders className="h-3.5 w-3.5" />
+                            KPI 규칙
+                        </TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="connection" className="flex-1 overflow-y-auto mt-4">
 
                 {isWebMode && webStatus && (
                     <div className="rounded-md border bg-slate-50 p-2 text-xs text-slate-700">
@@ -272,6 +288,12 @@ export function JiraSettingsDialog({ open, onClose, initialConfig }: JiraSetting
                         </Button>
                     </div>
                 </DialogFooter>
+                    </TabsContent>
+
+                    <TabsContent value="kpi-rules" className="flex-1 overflow-y-auto mt-4">
+                        <KpiRulesManager />
+                    </TabsContent>
+                </Tabs>
             </DialogContent>
         </Dialog>
     );

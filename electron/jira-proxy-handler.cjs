@@ -23,7 +23,11 @@ function createJiraProxyMiddleware(options) {
     const log = options.log || (() => {});
 
     return async function jiraProxyHandler(req, res) {
-        const jiraPath = req.path.replace(/^\//, '/rest/api/3/');
+        // /agile/* → /rest/agile/1.0/* (Atlassian Agile API)
+        // 그 외 → /rest/api/3/* (Jira REST v3)
+        const jiraPath = req.path.startsWith('/agile/')
+            ? req.path.replace(/^\/agile\//, '/rest/agile/1.0/')
+            : req.path.replace(/^\//, '/rest/api/3/');
         const jiraUrl = `${baseUrl}${jiraPath}`;
         const isBinary = jiraPath.includes('/attachment/content/') || jiraPath.includes('/avatar/');
         const authHeader = options.getAuthHeader();

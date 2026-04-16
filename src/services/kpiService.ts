@@ -1,6 +1,13 @@
 import { type JiraIssue } from "../api/jiraClient";
 import { JIRA_CONFIG } from "../config/jiraConfig";
 import { getStatusCategoryKey } from "../lib/jira-helpers";
+import {
+    useKpiRulesStore,
+    getGradeFromRules,
+    getEarlyBonusFromRules,
+    type GradeThresholds,
+    type EarlyBonusStep,
+} from "../stores/kpiRulesStore";
 
 export type KpiGrade = 'S' | 'A' | 'B' | 'C' | 'D' | '—';
 
@@ -142,8 +149,16 @@ export function calculateKPI(issues: JiraIssue[]): KPIMetrics {
     const earlyRate = (kpiEarly / kpiTotal) * 100;
     const earlyBonus = getEarlyBonus(earlyRate);
 
-    const avgScore = (completionRate + complianceRate) / 2;
-    const totalScore = Math.min(Math.round(avgScore + earlyBonus), 100);
+    // 가중치 — store 규칙 사용
+    let wCompletion = 0.5;
+    let wCompliance = 0.5;
+    try {
+        const weights = useKpiRulesStore.getState().rules.weights;
+        wCompletion = weights.completion;
+        wCompliance = weights.compliance;
+    } catch { /* fallback */ }
+    const weightedScore = completionRate * wCompletion + complianceRate * wCompliance;
+    const totalScore = Math.min(Math.round(weightedScore + earlyBonus), 100);
 
     return {
         totalIssues,
@@ -166,19 +181,32 @@ export function calculateKPI(issues: JiraIssue[]): KPIMetrics {
     };
 }
 
+/** store에서 최신 규칙 조회 — React 외부에서도 작동 */
+function getRules(): { grades: GradeThresholds; earlyBonus: EarlyBonusStep[] } {
+    try {
+        const state = useKpiRulesStore.getState();
+        return { grades: state.rules.grades, earlyBonus: state.rules.earlyBonus };
+    } catch {
+        // store 초기화 전 fallback
+        return {
+            grades: { S: 95, A: 90, B: 80, C: 70 },
+            earlyBonus: [
+                { minRate: 50, bonus: 5 },
+                { minRate: 40, bonus: 4 },
+                { minRate: 30, bonus: 3 },
+                { minRate: 20, bonus: 2 },
+                { minRate: 10, bonus: 1 },
+            ],
+        };
+    }
+}
+
 function getGrade(rate: number): KpiGrade {
-    if (rate >= 95) return 'S';
-    if (rate >= 90) return 'A';
-    if (rate >= 80) return 'B';
-    if (rate >= 70) return 'C';
-    return 'D';
+    const { grades } = getRules();
+    return getGradeFromRules(rate, grades) as KpiGrade;
 }
 
 function getEarlyBonus(rate: number): number {
-    if (rate >= 50) return 5;
-    if (rate >= 40) return 4;
-    if (rate >= 30) return 3;
-    if (rate >= 20) return 2;
-    if (rate >= 10) return 1;
-    return 0;
+    const { earlyBonus } = getRules();
+    return getEarlyBonusFromRules(rate, earlyBonus);
 }

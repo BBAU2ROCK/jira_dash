@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { addDays } from 'date-fns';
 import type { JiraIssue } from '@/api/jiraClient';
 import { JIRA_CONFIG } from '@/config/jiraConfig';
@@ -10,6 +10,9 @@ import {
     dayKey,
     lastNDayKeys,
 } from '@/lib/date-utils';
+import { useForecastHistoryStore } from '@/stores/forecastHistoryStore';
+import { isBacklogCleared } from '@/services/prediction/accuracyTracking';
+import { computeCycleTimeByType, type CycleTimeStats } from '@/services/prediction/cycleTimeAnalysis';
 import {
     teamForecast,
     aggregateBacklogEffort,
@@ -23,10 +26,9 @@ import {
 } from '@/services/prediction';
 import { effortReportConfidence } from '@/services/prediction/effortEstimation';
 import type { CrossValidationResult } from '@/services/prediction/crossValidation';
-import { useProjectIssues } from './useProjectIssues';
 
 interface UseBacklogForecastResult {
-    /** 원본 이슈 (디버깅·드릴다운 용) */
+    /** 입력 이슈 그대로 반환 (디버깅·드릴다운 용) */
     issues: JiraIssue[];
     /** 백로그 6 카드용 카운트 */
     counts: BacklogStateCounts | null;
@@ -40,28 +42,30 @@ interface UseBacklogForecastResult {
     effortConfidence: ConfidenceLevel | null;
     /** ETA-공수 상호 검증 */
     validation: CrossValidationResult | null;
-    isLoading: boolean;
-    isFetching: boolean;
-    error: Error | null;
-    refetch: () => void;
+    /** 이슈 타입별 cycle time 통계 */
+    cycleTimeStats: CycleTimeStats[] | null;
 }
 
 /**
  * 진행 추이/예측 탭 — 통합 forecast hook.
- * useProjectIssues + 모든 prediction service를 useMemo chain으로 조합.
+ * 외부에서 fetch한 issues 배열을 받아 모든 prediction service를 useMemo chain으로 조합.
+ *
+ * 데이터 소스 결정: dashboard에서 사이드바 선택 에픽 기반 issues를 props로 전달받아 분석.
+ * 프로젝트 단위 fetch는 사용 안 함 (사용자 의도: 선택 에픽 한정 분석).
  */
-export function useBacklogForecast(projectKey: string, options?: {
+export function useBacklogForecast(issues: JiraIssue[], options?: {
     historyDays?: number;
     teamHeadcount?: number;
     utilization?: number;
     rngSeed?: number;
     now?: Date;
+    /** Forecast 기록·정확도 추적용 (default IGMU) */
+    projectKey?: string;
 }): UseBacklogForecastResult {
     const historyDays = options?.historyDays ?? JIRA_CONFIG.PREDICTION.DEFAULT_HISTORY_DAYS;
+    const projectKey = options?.projectKey ?? JIRA_CONFIG.DASHBOARD.PROJECT_KEY;
     // now를 useMemo로 고정하여 매 렌더마다 새 Date로 인한 useMemo deps 변경 방지
     const now = useMemo(() => options?.now ?? new Date(), [options?.now]);
-
-    const { data: issues, isLoading, isFetching, error, refetch } = useProjectIssues(projectKey);
 
     const counts = useMemo<BacklogStateCounts | null>(() => {
         if (!issues) return null;
@@ -153,6 +157,49 @@ export function useBacklogForecast(projectKey: string, options?: {
         return crossValidate(team, effort);
     }, [team, effort]);
 
+    const cycleTimeStats = useMemo<CycleTimeStats[] | null>(() => {
+        if (!issues) return null;
+        const resolved = filterLeafIssues(issues).filter((i) => getStatusCategoryKey(i) === 'done');
+        // changelog 없는 이슈도 lead time만으로 통계 산출됨
+        // 50개 sample (성능 + rate limit 고려)
+        const sample = resolved.slice(0, 50);
+        return computeCycleTimeByType(sample);
+    }, [issues]);
+
+    // B1: 예측 정확도 추적 — 자동 기록 + 백로그 0건 감지
+    const addRecord = useForecastHistoryStore((s) => s.addRecord);
+    const markCompleted = useForecastHistoryStore((s) => s.markCompleted);
+    const pruneStale = useForecastHistoryStore((s) => s.pruneStale);
+    const lastRecordedRef = useRef<{ projectKey: string; p85: number } | null>(null);
+
+    useEffect(() => {
+        if (!team || !counts) return;
+        // 백로그 비어있으면 미완료 기록에 actual 채움
+        if (isBacklogCleared(counts.active)) {
+            markCompleted(projectKey, new Date().toISOString());
+            return;
+        }
+        // 신뢰도가 충분하고 P85가 의미 있으면 기록
+        const r = team.realistic;
+        if (r.confidence === 'unreliable' || r.p85Days <= 0) return;
+        // 최근에 같은 P85로 이미 기록했으면 중복 회피 (변동 없음)
+        const last = lastRecordedRef.current;
+        if (last && last.projectKey === projectKey && Math.abs(last.p85 - r.p85Days) < 2) return;
+        addRecord({
+            projectKey,
+            recordedAt: new Date().toISOString(),
+            p50Days: r.p50Days,
+            p85Days: r.p85Days,
+            p95Days: r.p95Days,
+            remainingAtTime: counts.active,
+            teamCV: +r.stats.cv.toFixed(2),
+            teamMean: +r.stats.mean.toFixed(2),
+            activeDays: r.stats.activeDays,
+        });
+        lastRecordedRef.current = { projectKey, p85: r.p85Days };
+        pruneStale();
+    }, [team, counts, projectKey, addRecord, markCompleted, pruneStale]);
+
     return {
         issues: issues ?? [],
         counts,
@@ -161,9 +208,6 @@ export function useBacklogForecast(projectKey: string, options?: {
         effort,
         effortConfidence,
         validation,
-        isLoading,
-        isFetching,
-        error: error as Error | null,
-        refetch,
+        cycleTimeStats,
     };
 }

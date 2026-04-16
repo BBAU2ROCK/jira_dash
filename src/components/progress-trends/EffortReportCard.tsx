@@ -1,5 +1,6 @@
 import { Clock, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { InfoTip } from '@/components/ui/info-tip';
 import type { BacklogEffortReport, ConfidenceLevel, EffortSource } from '@/services/prediction/types';
 
 const SOURCE_LABEL: Record<EffortSource, string> = {
@@ -45,7 +46,7 @@ export function EffortReportCard({ report, confidence }: Props) {
                 <>
                     <div className="mt-3 grid grid-cols-2 gap-3">
                         <div>
-                            <div className="text-[11px] text-slate-500">총 공수 (mid)</div>
+                            <div className="text-[11px] text-slate-500">총 공수 (mid) <InfoTip>Worklog→SP→난이도→Cycle time 순으로 자동 선택된 hybrid 추정. mid = 중앙값, 범위는 아래 표시.</InfoTip></div>
                             <div className="text-2xl font-bold text-slate-800 tabular-nums">
                                 {report.totalHoursMid.toLocaleString('ko-KR')} 인시
                             </div>
@@ -54,7 +55,7 @@ export function EffortReportCard({ report, confidence }: Props) {
                             </div>
                         </div>
                         <div>
-                            <div className="text-[11px] text-slate-500">인일 환산 (8h/day)</div>
+                            <div className="text-[11px] text-slate-500">인일 환산 <InfoTip>총 인시 ÷ 8h = 인일. 팀 환산 = 인일 ÷ (인원수 × 가동률 65%).</InfoTip></div>
                             <div className="text-2xl font-bold text-slate-800 tabular-nums">
                                 {report.totalManDaysMid.toLocaleString('ko-KR')} 인일
                             </div>

@@ -10,6 +10,7 @@ import {
     isWithinInterval,
     differenceInCalendarDays,
 } from 'date-fns';
+import Holidays from 'date-holidays';
 import { JIRA_CONFIG } from '@/config/jiraConfig';
 
 /** Jira 날짜 문자열을 안전하게 파싱·포매팅. 잘못된 값은 fallback 반환. */
@@ -60,13 +61,31 @@ export function parseLocalDay(dateStr: string | undefined | null): Date | null {
     return safeParseDate(dateStr);
 }
 
-/** 한국 공휴일 Set (lazy memoize) */
+/** 한국 공휴일 Set (lazy memoize).
+ *  date-holidays 라이브러리로 다년치(2025-2030) 자동 산출. 실패 시 JIRA_CONFIG 배열로 fallback. */
 let cachedHolidaySet: Set<string> | null = null;
 function getKoreanHolidaySet(): Set<string> {
-    if (!cachedHolidaySet) {
-        cachedHolidaySet = new Set<string>(JIRA_CONFIG.KOREAN_HOLIDAYS_2026);
+    if (cachedHolidaySet) return cachedHolidaySet;
+    const set = new Set<string>();
+    try {
+        const hd = new Holidays('KR');
+        for (let year = 2025; year <= 2030; year++) {
+            const holidays = hd.getHolidays(year) as Array<{ date: string; type: string }>;
+            for (const h of holidays) {
+                if (h.type === 'public') {
+                    // h.date 형식: 'YYYY-MM-DD HH:mm:ss' → 앞 10자만
+                    set.add(h.date.slice(0, 10));
+                }
+            }
+        }
+    } catch {
+        // fallback: JIRA_CONFIG 수동 배열
+        for (const d of JIRA_CONFIG.KOREAN_HOLIDAYS_2026) set.add(d);
     }
-    return cachedHolidaySet;
+    // fallback 배열도 항상 union (라이브러리에 없는 임시 휴일 추가용)
+    for (const d of JIRA_CONFIG.KOREAN_HOLIDAYS_2026) set.add(d);
+    cachedHolidaySet = set;
+    return set;
 }
 
 /** 영업일 여부: 주말이 아니고 한국 공휴일이 아님 */

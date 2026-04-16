@@ -1,9 +1,12 @@
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
+import React from 'react';
 import { Sparkles, AlertTriangle, ShieldAlert, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { TeamForecast, ConfidenceLevel } from '@/services/prediction/types';
 import { confidenceGuidance } from '@/services/prediction/confidence';
+import { useDisplayPreferenceStore } from '@/stores/displayPreferenceStore';
+import { buildAnonymizeMap, maybeAnonymize } from '@/lib/anonymize';
 
 const CONFIDENCE_BADGE: Record<ConfidenceLevel, { label: string; color: string }> = {
     high: { label: '높음', color: 'bg-green-100 text-green-800 border-green-200' },
@@ -70,11 +73,20 @@ interface Props {
 }
 
 export function EtaScenarioCard({ team }: Props) {
+    const anonymizeMode = useDisplayPreferenceStore((s) => s.anonymizeMode);
+    const anonMap = React.useMemo(
+        () => buildAnonymizeMap(team?.perAssignee.map((r) => r.displayName) ?? []),
+        [team?.perAssignee]
+    );
+
     if (!team) {
         return <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-500">데이터 로딩 중...</div>;
     }
     const guidance = confidenceGuidance(team.realistic.confidence);
     const badge = CONFIDENCE_BADGE[team.realistic.confidence];
+    const bottleneckName = team.bottleneck
+        ? maybeAnonymize(team.bottleneck.displayName, anonMap, anonymizeMode)
+        : null;
 
     return (
         <div className="rounded-lg border border-slate-200 bg-white p-4">
@@ -101,7 +113,7 @@ export function EtaScenarioCard({ team }: Props) {
                     date={team.realistic.p85Date}
                     icon={CheckCircle2}
                     accent="green"
-                    note={team.bottleneck ? `현재 할당 유지. 병목: ${team.bottleneck.displayName}` : '현재 할당 유지'}
+                    note={bottleneckName ? `현재 할당 유지. 병목: ${bottleneckName}` : '현재 할당 유지'}
                     guidance={guidance}
                 />
                 {team.bottleneck && team.bottleneck.forecast && (
@@ -111,7 +123,7 @@ export function EtaScenarioCard({ team }: Props) {
                         date={team.bottleneck.forecast.p85Date}
                         icon={ShieldAlert}
                         accent="red"
-                        note={`${team.bottleneck.displayName} (잔여 ${team.bottleneck.remaining}건, 일평균 ${team.bottleneck.avgDailyThroughput}건)`}
+                        note={`${bottleneckName} (잔여 ${team.bottleneck.remaining}건, 일평균 ${team.bottleneck.avgDailyThroughput}건)`}
                         guidance={confidenceGuidance(team.bottleneck.forecast.confidence)}
                     />
                 )}

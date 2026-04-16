@@ -21,6 +21,7 @@ import { calculateKPI } from '@/services/kpiService';
 import { JIRA_CONFIG } from '@/config/jiraConfig';
 import { defectRateToGrade, type DefectKpiDeveloperRow } from '@/lib/defect-kpi-utils';
 import { cn } from '@/lib/utils';
+import { DifficultyMiniPie } from '@/components/ui/difficulty-mini-pie';
 import { ProgressTrends } from '@/components/progress-trends';
 
 interface ProjectStatsDialogProps {
@@ -549,8 +550,9 @@ export function ProjectStatsDialog({
                                                             </div>
                                                         </td>
                                                         <td className="px-3 py-3">
-                                                            <div className="flex justify-center">
+                                                            <div className="flex justify-center items-center gap-1.5">
                                                                 <PieChart segments={segs} size={52} />
+                                                                <DifficultyMiniPie issues={a.total} size={32} />
                                                             </div>
                                                         </td>
                                                         <ClickCell value={t} color="#64748b"
@@ -1140,10 +1142,10 @@ export function ProjectStatsDialog({
                         </div>
                     </TabsContent>
 
-                    {/* 진행 추이/예측 — 신규 탭 (다중 프로젝트 선택 + Monte Carlo ETA + 공수 분석) */}
+                    {/* 진행 추이/예측 — 사이드바 선택 에픽 기준 (IGMU 한정) */}
                     <TabsContent value="trends" className="flex-1 overflow-y-auto p-0 m-0 border-0 focus-visible:ring-0 focus-visible:outline-none">
                         <div className="px-6 py-5 pb-20">
-                            <ProgressTrends />
+                            <ProgressTrends issues={issues} selectedEpicIds={selectedEpicIds} epics={epics} />
                         </div>
                     </TabsContent>
                 </Tabs>

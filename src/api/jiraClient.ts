@@ -502,7 +502,56 @@ export const jiraApi = {
         const response = await jiraClient.put(`/issue/${issueKey}/comment/${commentId}`, { body });
         return response.data;
     },
+    /** Atlassian Agile API — 프로젝트의 보드 목록 */
+    getBoards: async (projectKey: string): Promise<JiraBoard[]> => {
+        try {
+            const response = await jiraClient.get('/agile/board', {
+                params: { projectKeyOrId: projectKey },
+            });
+            return (response.data as { values?: JiraBoard[] }).values ?? [];
+        } catch {
+            return [];
+        }
+    },
+    /** Atlassian Agile API — 특정 보드의 활성 스프린트 (calbal/scrum 보드만 sprint 있음) */
+    getActiveSprints: async (boardId: number): Promise<JiraSprint[]> => {
+        try {
+            const response = await jiraClient.get(`/agile/board/${boardId}/sprint`, {
+                params: { state: 'active' },
+            });
+            return (response.data as { values?: JiraSprint[] }).values ?? [];
+        } catch {
+            return [];
+        }
+    },
+    /** Atlassian Agile API — 스프린트 내 이슈 (page 1만, maxResults 100) */
+    getSprintIssues: async (sprintId: number): Promise<JiraIssue[]> => {
+        try {
+            const response = await jiraClient.get(`/agile/sprint/${sprintId}/issue`, {
+                params: { maxResults: 100, fields: 'summary,status,assignee,duedate,resolutiondate' },
+            });
+            return (response.data as { issues?: JiraIssue[] }).issues ?? [];
+        } catch {
+            return [];
+        }
+    },
 };
+
+export interface JiraBoard {
+    id: number;
+    name: string;
+    type: 'scrum' | 'kanban' | string;
+}
+
+export interface JiraSprint {
+    id: number;
+    name: string;
+    state: 'active' | 'closed' | 'future' | string;
+    startDate?: string;
+    endDate?: string;
+    completeDate?: string;
+    goal?: string;
+}
 
 /** ADF document for comment body (Jira REST v3). */
 export interface AdfDoc {
