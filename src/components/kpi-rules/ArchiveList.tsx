@@ -5,7 +5,6 @@
  * 복원 전 현재 규칙을 createVersion으로 자동 보존하여 사고 방지.
  */
 
-import React from 'react';
 import { toast } from 'sonner';
 import { History, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
