@@ -20,6 +20,7 @@ import type {
     EffortSource,
     IssueEffortPrediction,
 } from './types';
+import { BUSINESS_DAYS_PER_MONTH } from './types';
 import {
     resolveCancelledStatus,
     resolvePredictionConfig,
@@ -277,7 +278,7 @@ export function aggregateBacklogEffort(
     const totalLow = perIssue.reduce((s, p) => s + p.hoursLow, 0);
     const totalHigh = perIssue.reduce((s, p) => s + p.hoursHigh, 0);
 
-    // 출처별 집계
+    // 출처별 집계 (v1.0.16: manDays 함께 산출)
     const sourceMap = new Map<EffortSource, { count: number; hours: number }>();
     perIssue.forEach((p) => {
         const prev = sourceMap.get(p.source) ?? { count: 0, hours: 0 };
@@ -286,7 +287,7 @@ export function aggregateBacklogEffort(
         sourceMap.set(p.source, prev);
     });
     const sourceMix = Array.from(sourceMap.entries())
-        .map(([source, v]) => ({ source, ...v }))
+        .map(([source, v]) => ({ source, ...v, manDays: +(v.hours / 8).toFixed(1) }))
         .sort((a, b) => b.hours - a.hours);
 
     // Capacity 가정
@@ -316,17 +317,28 @@ export function aggregateBacklogEffort(
     const cycleTimeFallbackOnly =
         !coverage.worklogActive && !coverage.spActive && !coverage.difficultyActive;
 
+    // v1.0.16: 일·월 단위 표시 — 시간(인시)은 내부만, UI는 일/월
+    const manDaysMid = totalMid / 8;
+    const manDaysLow = totalLow / 8;
+    const manDaysHigh = totalHigh / 8;
+
     return {
         totalHoursMid: +totalMid.toFixed(1),
         totalHoursLow: +totalLow.toFixed(1),
         totalHoursHigh: +totalHigh.toFixed(1),
-        totalManDaysMid: +(totalMid / 8).toFixed(1),
+        totalManDaysMid: +manDaysMid.toFixed(1),
+        totalManDaysLow: +manDaysLow.toFixed(1),
+        totalManDaysHigh: +manDaysHigh.toFixed(1),
+        totalManMonthsMid: +(manDaysMid / BUSINESS_DAYS_PER_MONTH).toFixed(2),
+        totalManMonthsLow: +(manDaysLow / BUSINESS_DAYS_PER_MONTH).toFixed(2),
+        totalManMonthsHigh: +(manDaysHigh / BUSINESS_DAYS_PER_MONTH).toFixed(2),
         sourceMix,
         perIssue,
         teamCapacityAssumption: {
             headcount,
             utilization,
             teamDaysMid: +teamDaysMid.toFixed(1),
+            teamMonthsMid: +(teamDaysMid / BUSINESS_DAYS_PER_MONTH).toFixed(2),
         },
         consistencyWithEta,
         cycleTimeFallbackOnly,

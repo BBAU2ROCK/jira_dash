@@ -10,10 +10,10 @@ import { useDisplayPreferenceStore } from '@/stores/displayPreferenceStore';
 import { buildAnonymizeMap, maybeAnonymize } from '@/lib/anonymize';
 
 const CONFIDENCE_BADGE: Record<ConfidenceLevel, { label: string; color: string }> = {
-    high: { label: '높음', color: 'bg-green-100 text-green-800 border-green-200' },
-    medium: { label: '중간', color: 'bg-blue-100 text-blue-800 border-blue-200' },
-    low: { label: '낮음', color: 'bg-amber-100 text-amber-800 border-amber-200' },
-    unreliable: { label: '예측 불가', color: 'bg-red-100 text-red-800 border-red-200' },
+    high:        { label: '높음',        color: 'bg-green-100 text-green-800 border-green-200' },
+    medium:      { label: '중간',        color: 'bg-blue-100 text-blue-800 border-blue-200' },
+    low:         { label: '낮음',        color: 'bg-amber-100 text-amber-800 border-amber-200' },
+    unreliable:  { label: '데이터 부족',  color: 'bg-red-100 text-red-800 border-red-200' },
 };
 
 function formatDateRange(d?: Date) {

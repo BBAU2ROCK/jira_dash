@@ -35,6 +35,7 @@ import { DelayCards } from './DelayCards';
 import { DailyCompletionChart } from './DailyCompletionChart';
 import { EtaScenarioCard } from './EtaScenarioCard';
 import { ForecastGlossaryTip } from './ForecastGlossaryTip';
+import { DataReadinessCard } from './DataReadinessCard';
 import { ForecastFunnelChart } from './ForecastFunnelChart';
 import { ForecastAccuracyCard } from './ForecastAccuracyCard';
 import { SprintForecastCard } from './SprintForecastCard';
@@ -245,6 +246,8 @@ export function ProgressTrends({ issues, selectedEpicIds, epics }: ProgressTrend
                                 <span className="font-semibold">{scopeMeta.icon} {scopeMeta.label}:</span> {scopeMeta.description}
                             </div>
                         )}
+                        {/* v1.0.16: 데이터 충족 현황 — 다음 등급까지 필요한 조건 */}
+                        <DataReadinessCard stats={team?.realistic.stats ?? null} />
                         <SprintForecastCard projectKey={projectKey} team={team} />
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                             <EtaScenarioCard team={team} />

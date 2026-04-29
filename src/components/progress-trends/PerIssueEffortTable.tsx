@@ -3,11 +3,12 @@ import { ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { BacklogEffortReport, EffortSource, ConfidenceLevel } from '@/services/prediction/types';
 
-const SOURCE_BADGE: Record<EffortSource, { label: string; color: string }> = {
-    worklog: { label: 'WL', color: 'bg-green-100 text-green-800 border-green-200' },
-    sp: { label: 'SP', color: 'bg-blue-100 text-blue-800 border-blue-200' },
-    difficulty: { label: '난이도', color: 'bg-purple-100 text-purple-800 border-purple-200' },
-    'cycle-time': { label: 'CT', color: 'bg-slate-100 text-slate-700 border-slate-200' },
+// v1.0.16: 한글 라벨 + InfoTip 병기 가능
+const SOURCE_BADGE: Record<EffortSource, { label: string; full: string; color: string }> = {
+    worklog:      { label: '기록', full: '작업 기록 (Worklog)',     color: 'bg-green-100 text-green-800 border-green-200' },
+    sp:           { label: 'SP',   full: 'Story Point',              color: 'bg-blue-100 text-blue-800 border-blue-200' },
+    difficulty:   { label: '난이도', full: '난이도 라벨 (상/중/하)', color: 'bg-purple-100 text-purple-800 border-purple-200' },
+    'cycle-time': { label: '추정', full: '소요시간 추정 (Cycle Time fallback)', color: 'bg-slate-100 text-slate-700 border-slate-200' },
 };
 
 const CONFIDENCE_DOT: Record<ConfidenceLevel, string> = {
@@ -53,11 +54,11 @@ export function PerIssueEffortTable({ report }: Props) {
                                 scope="col"
                                 className="px-2 py-2 text-xs font-medium text-slate-600 text-right cursor-pointer hover:bg-slate-100 select-none"
                                 onClick={() => setSortDesc(!sortDesc)}
-                                title="공수 정렬 토글"
+                                title="작업량 정렬 토글"
                             >
-                                공수 (인시) {sortDesc ? '▼' : '▲'}
+                                추정 작업 (일) {sortDesc ? '▼' : '▲'}
                             </th>
-                            <th scope="col" className="px-2 py-2 text-xs font-medium text-slate-600 text-right">범위</th>
+                            <th scope="col" className="px-2 py-2 text-xs font-medium text-slate-600 text-right">범위 (일)</th>
                             <th scope="col" className="px-2 py-2 text-xs font-medium text-slate-600 text-center">출처</th>
                             <th scope="col" className="px-2 py-2 text-xs font-medium text-slate-600 text-center">신뢰</th>
                         </tr>
@@ -66,6 +67,10 @@ export function PerIssueEffortTable({ report }: Props) {
                         {visible.map((p) => {
                             const badge = SOURCE_BADGE[p.source];
                             const dot = CONFIDENCE_DOT[p.confidence];
+                            // v1.0.16: 시간 → 일 환산 (8시간 = 1일)
+                            const days = p.hours / 8;
+                            const daysLow = p.hoursLow / 8;
+                            const daysHigh = p.hoursHigh / 8;
                             return (
                                 <tr key={p.issueKey} className="hover:bg-slate-50">
                                     <td className="px-2 py-1.5">
@@ -83,13 +88,16 @@ export function PerIssueEffortTable({ report }: Props) {
                                         {p.summary}
                                     </td>
                                     <td className="px-2 py-1.5 text-right tabular-nums font-semibold">
-                                        {p.hours.toFixed(1)}
+                                        {days < 0.1 ? days.toFixed(2) : days.toFixed(1)}
                                     </td>
                                     <td className="px-2 py-1.5 text-right tabular-nums text-xs text-slate-500">
-                                        {p.hoursLow.toFixed(0)} ~ {p.hoursHigh.toFixed(0)}
+                                        {daysLow < 0.1 ? daysLow.toFixed(2) : daysLow.toFixed(1)} ~ {daysHigh < 0.1 ? daysHigh.toFixed(2) : daysHigh.toFixed(1)}
                                     </td>
                                     <td className="px-2 py-1.5 text-center">
-                                        <span className={cn('inline-block rounded border px-1.5 py-0.5 text-[10px] font-medium', badge.color)}>
+                                        <span
+                                            className={cn('inline-block rounded border px-1.5 py-0.5 text-[10px] font-medium', badge.color)}
+                                            title={badge.full}
+                                        >
                                             {badge.label}
                                         </span>
                                     </td>
@@ -114,7 +122,7 @@ export function PerIssueEffortTable({ report }: Props) {
                 </div>
             )}
             <p className="px-3 py-2 text-[11px] text-slate-500 bg-slate-50 border-t border-slate-100">
-                * 키 클릭 → Jira 새 탭으로 이동. 출처: WL=Worklog · SP=Story Point · CT=Cycle time fallback.
+                * 1일 = 작업자 1명 8시간. 키 클릭 → Jira 새 탭. 출처: 기록=Worklog / SP=Story Point / 추정=Cycle time fallback.
             </p>
         </div>
     );

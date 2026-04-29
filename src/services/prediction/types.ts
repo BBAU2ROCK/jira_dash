@@ -99,16 +99,28 @@ export interface IssueEffortPrediction {
     confidence: ConfidenceLevel;
 }
 
-/** 백로그 전체 공수 보고 */
+/** 백로그 전체 공수 보고
+ *
+ * v1.0.16: 사용자 친화 단위로 표시 — 시간 단위 제거, 일/월 기준.
+ *   - 일(인일) = 작업자 1명이 8시간 일한 만큼
+ *   - 월       = 영업일 20일 기준 (한 달 ≈ 4주 × 5일)
+ *   내부 계산은 시간(인시) 그대로 보존하되 UI는 일·월로 노출.
+ */
 export interface BacklogEffortReport {
-    /** mid-point 총 인시 */
+    /** mid-point 총 인시 (내부 계산용 — UI 직접 노출 X) */
     totalHoursMid: number;
     totalHoursLow: number;
     totalHoursHigh: number;
-    /** 인일(8시간 기준) 환산 */
+    /** 인일(8시간 기준) 환산 — 작업자 1명 기준 추정 일수 */
     totalManDaysMid: number;
+    totalManDaysLow: number;
+    totalManDaysHigh: number;
+    /** v1.0.16: 인월 환산 — 작업자 1명 기준 추정 개월 (1 인월 = 20 영업일) */
+    totalManMonthsMid: number;
+    totalManMonthsLow: number;
+    totalManMonthsHigh: number;
     /** 데이터 출처별 분포 */
-    sourceMix: { source: EffortSource; count: number; hours: number }[];
+    sourceMix: { source: EffortSource; count: number; hours: number; manDays: number }[];
     /** 이슈별 예측 (Tier 2에서는 그루밍 표 미노출, 데이터만 보존) */
     perIssue: IssueEffortPrediction[];
     /** 팀 capacity 가정 (UI 슬라이더는 Tier 3) */
@@ -116,6 +128,8 @@ export interface BacklogEffortReport {
         headcount: number;
         utilization: number;
         teamDaysMid: number;
+        /** v1.0.16: 팀 환산 월 (teamDaysMid / 20) */
+        teamMonthsMid: number;
     };
     /** ETA-공수 일관성 검증 결과 */
     consistencyWithEta?: {
@@ -127,6 +141,9 @@ export interface BacklogEffortReport {
     /** worklog 커버리지가 낮아 cycle time fallback만 사용된 경우 true */
     cycleTimeFallbackOnly: boolean;
 }
+
+/** v1.0.16: 1 인월 = 20 영업일 기준 (4주 × 5일) */
+export const BUSINESS_DAYS_PER_MONTH = 20 as const;
 
 /** 일별 처리량 포인트 */
 export interface DailyPoint {

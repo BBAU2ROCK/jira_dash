@@ -33,31 +33,31 @@ export function ForecastGlossaryTip() {
 
                     <dl className="space-y-2">
                         <div>
-                            <dt className="font-semibold text-indigo-700">Monte Carlo</dt>
+                            <dt className="font-semibold text-indigo-700">확률 시뮬레이션 (Monte Carlo)</dt>
                             <dd className="text-slate-600 ml-2">
                                 무작위 샘플링 기법. 과거 일별 완료 건수에서 하루씩 무작위로 뽑아 잔여가 0이 될 때까지 반복.
-                                10,000번 시뮬레이션 → 결과 분포로 P50/P85/P95 산출. 분포 가정 없는 robust 방법.
+                                10,000번 시뮬레이션 → 결과 분포로 50%/85%/95% 백분위 산출. 분포 가정 없는 robust 방법.
                             </dd>
                         </div>
 
                         <div>
-                            <dt className="font-semibold text-indigo-700">Throughput (처리량)</dt>
+                            <dt className="font-semibold text-indigo-700">처리량 (Throughput)</dt>
                             <dd className="text-slate-600 ml-2">
                                 일별 완료 건수. 팀 또는 개인의 "얼마나 빠르게 끝내는가" 지표. 변동성이 크면 신뢰도 하락.
                             </dd>
                         </div>
 
                         <div>
-                            <dt className="font-semibold text-indigo-700">P50 / P85 / P95</dt>
+                            <dt className="font-semibold text-indigo-700">백분위 (P50 / P85 / P95)</dt>
                             <dd className="text-slate-600 ml-2">
                                 시뮬레이션의 50/85/95%가 이 날짜까지 완료됨.
-                                <span className="font-medium text-slate-800"> P85 = 권장 약속일</span> (15% 리스크 감수).
+                                <span className="font-medium text-slate-800"> P85 = 권장 마감일</span> (15% 리스크 감수).
                                 P50은 중앙값 (낙관적), P95는 안전선 (보수적).
                             </dd>
                         </div>
 
                         <div>
-                            <dt className="font-semibold text-indigo-700">3 시나리오 ETA</dt>
+                            <dt className="font-semibold text-indigo-700">3 시나리오 ETA (예상 완료일)</dt>
                             <dd className="text-slate-600 ml-2">
                                 <ul className="list-disc pl-4 mt-0.5 space-y-0.5">
                                     <li><strong>낙관</strong>: 재할당 가능 가정 (비현실적 — 하한선)</li>
@@ -68,7 +68,7 @@ export function ForecastGlossaryTip() {
                         </div>
 
                         <div>
-                            <dt className="font-semibold text-indigo-700">Scope Ratio</dt>
+                            <dt className="font-semibold text-indigo-700">유입/완료 비율 (Scope Ratio)</dt>
                             <dd className="text-slate-600 ml-2">
                                 신규 유입 ÷ 완료 비율.
                                 <span className="text-red-700 font-medium"> 1.5x 초과 = 발산</span>,
@@ -78,21 +78,30 @@ export function ForecastGlossaryTip() {
                         </div>
 
                         <div>
-                            <dt className="font-semibold text-indigo-700">Confidence (신뢰도)</dt>
+                            <dt className="font-semibold text-indigo-700">신뢰도 (Confidence)</dt>
                             <dd className="text-slate-600 ml-2">
-                                활동일·변동성(CV)·Scope 기반 4단계:
-                                <span className="text-green-700"> high</span> ·
-                                <span className="text-blue-700"> medium</span> ·
-                                <span className="text-amber-700"> low</span> ·
-                                <span className="text-red-700"> unreliable</span>.
+                                활동일·변동성(CV)·유입 비율 기반 4단계:
+                                <span className="text-green-700"> 높음</span> ·
+                                <span className="text-blue-700"> 중간</span> ·
+                                <span className="text-amber-700"> 낮음</span> ·
+                                <span className="text-red-700"> 데이터 부족</span>.
                                 <br />낮을수록 단일 날짜 숨김, 범위만 표시 (정직성 원칙).
+                                <br /><span className="text-[10px]">→ 카드 상단 "데이터 충족 현황"에서 다음 등급 조건 확인</span>
                             </dd>
                         </div>
 
                         <div>
-                            <dt className="font-semibold text-indigo-700">영업일</dt>
+                            <dt className="font-semibold text-indigo-700">변동성 (CV)</dt>
                             <dd className="text-slate-600 ml-2">
-                                주말 + 한국 공휴일 제외. 휴가/병가는 미반영.
+                                표준편차 ÷ 평균. 낮을수록 안정적 처리 패턴. 0.3 이하 = "높음" 등급 가능.
+                            </dd>
+                        </div>
+
+                        <div>
+                            <dt className="font-semibold text-indigo-700">영업일 / 작업 일수 (인일)</dt>
+                            <dd className="text-slate-600 ml-2">
+                                영업일: 주말 + 한국 공휴일 제외. 휴가·병가 미반영.
+                                <br />1 인일 = 작업자 1명 8시간 작업량. 1 인월 = 영업일 20일 (4주×5일).
                             </dd>
                         </div>
                     </dl>

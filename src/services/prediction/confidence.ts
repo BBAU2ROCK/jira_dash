@@ -106,3 +106,159 @@ export function buildConfidenceWarnings(stats: ThroughputStats): string[] {
     }
     return warnings;
 }
+
+// ──────────────────────────────────────────────────────────────────
+// v1.0.16: 데이터 충족 현황 — 임계값 진행 + 다음 등급 요건
+// ──────────────────────────────────────────────────────────────────
+
+export interface ReadinessMetric {
+    /** 화면 표시 라벨 (한글 단순화) */
+    label: string;
+    /** InfoTip 영문/풀네임 */
+    tip: string;
+    /** 현재 값 */
+    current: number;
+    /** 표시 형식 */
+    format: 'days' | 'ratio' | 'cv' | 'pct';
+    /** 충족 임계값들 (낮은 → 높은 등급 순) */
+    targets: Array<{ level: ConfidenceLevel; threshold: number; comparator: '<' | '>' | '<=' | '>='; meet: boolean }>;
+    /** 진행 바 정규화 (0~1) */
+    progress: number;
+    /** 사용자 친화 상태 ("충족" / "부족" / "안정") */
+    status: 'good' | 'warn' | 'bad';
+}
+
+/** 다음 등급까지 필요한 항목 */
+export interface NextLevelRequirement {
+    /** 도달 대상 등급 */
+    target: ConfidenceLevel;
+    /** 어떤 조건을 충족해야 하는가 (사용자 친화 텍스트) */
+    items: Array<{ name: string; met: boolean; need: string }>;
+    /** 모두 충족되었는가 */
+    achievable: boolean;
+}
+
+/**
+ * 통계로부터 데이터 충족 진행 현황 + 다음 등급 요건 산출.
+ * UI(DataReadinessCard)에서 진행 바·다음 단계 안내 렌더링에 사용.
+ */
+export function computeReadiness(stats: ThroughputStats): {
+    currentLevel: ConfidenceLevel;
+    metrics: ReadinessMetric[];
+    nextRequirements: NextLevelRequirement[];
+} {
+    const C = resolvePredictionConfig();
+    const currentLevel = confidenceLevel(stats);
+
+    // 1. 활동일 metric
+    const activeDays: ReadinessMetric = {
+        label: '활동 일수',
+        tip: '최근 30일 중 완료 활동이 있었던 일수. 7일↑ 예측 가능, 14일↑ "중간", 30일↑ "높음" 등급 가능.',
+        current: stats.activeDays,
+        format: 'days',
+        targets: [
+            { level: 'low',    threshold: C.MIN_ACTIVE_DAYS_RELIABLE,    comparator: '>=', meet: stats.activeDays >= C.MIN_ACTIVE_DAYS_RELIABLE },
+            { level: 'medium', threshold: 14,                              comparator: '>=', meet: stats.activeDays >= 14 },
+            { level: 'high',   threshold: C.HIGH_CONFIDENCE_ACTIVE_DAYS,  comparator: '>=', meet: stats.activeDays >= C.HIGH_CONFIDENCE_ACTIVE_DAYS },
+        ],
+        progress: Math.min(stats.activeDays / C.HIGH_CONFIDENCE_ACTIVE_DAYS, 1),
+        status: stats.activeDays >= C.HIGH_CONFIDENCE_ACTIVE_DAYS ? 'good'
+              : stats.activeDays >= 14 ? 'warn' : 'bad',
+    };
+
+    // 2. CV (변동성) metric — 낮을수록 좋음 (역방향)
+    const cvProgress = stats.cv === 0 ? 1 : Math.max(0, Math.min(1, 1 - stats.cv / C.UNRELIABLE_CV));
+    const variability: ReadinessMetric = {
+        label: '처리량 변동성',
+        tip: 'CV (변동계수) = 표준편차 ÷ 평균. 낮을수록 안정적. 0.3 이하 = "높음" 등급 가능.',
+        current: stats.cv,
+        format: 'cv',
+        targets: [
+            { level: 'low',    threshold: C.UNRELIABLE_CV,    comparator: '<=', meet: stats.cv <= C.UNRELIABLE_CV },
+            { level: 'medium', threshold: C.LOW_CONFIDENCE_CV, comparator: '<=', meet: stats.cv <= C.LOW_CONFIDENCE_CV },
+            { level: 'high',   threshold: 0.3,                 comparator: '<=', meet: stats.cv <= 0.3 },
+        ],
+        progress: cvProgress,
+        status: stats.cv <= 0.3 ? 'good'
+              : stats.cv <= C.LOW_CONFIDENCE_CV ? 'warn' : 'bad',
+    };
+
+    // 3. Scope ratio (유입/완료) metric — 1.5 이하 안정
+    const scopeProgress = Math.max(0, Math.min(1, 1 - stats.scopeRatio / C.SCOPE_CRISIS_RATIO));
+    const scope: ReadinessMetric = {
+        label: '유입/완료 비율',
+        tip: '신규 task 유입 ÷ 완료 비율. 1.0 ≤ 안정, 1.0~1.5 = scope creep, 1.5 초과 = 백로그 발산 (예측 불가).',
+        current: stats.scopeRatio,
+        format: 'ratio',
+        targets: [
+            { level: 'low',    threshold: C.SCOPE_CRISIS_RATIO,  comparator: '<=', meet: stats.scopeRatio <= C.SCOPE_CRISIS_RATIO },
+            { level: 'medium', threshold: C.SCOPE_GROWING_RATIO, comparator: '<=', meet: stats.scopeRatio <= C.SCOPE_GROWING_RATIO },
+            { level: 'high',   threshold: 0.7,                    comparator: '<=', meet: stats.scopeRatio <= 0.7 },
+        ],
+        progress: scopeProgress,
+        status: stats.scopeRatio <= 0.7 ? 'good'
+              : stats.scopeRatio <= C.SCOPE_GROWING_RATIO ? 'warn' : 'bad',
+    };
+
+    const metrics = [activeDays, variability, scope];
+
+    // 다음 등급 요건 — 현재 등급에서 한 단계 위
+    const nextRequirements: NextLevelRequirement[] = [];
+
+    if (currentLevel === 'unreliable') {
+        const items = [];
+        if (stats.activeDays < C.MIN_ACTIVE_DAYS_RELIABLE) {
+            items.push({
+                name: '활동 일수',
+                met: false,
+                need: `${C.MIN_ACTIVE_DAYS_RELIABLE - stats.activeDays}일 더 (현재 ${stats.activeDays}/${C.MIN_ACTIVE_DAYS_RELIABLE}일)`,
+            });
+        }
+        if (stats.scopeRatio > C.SCOPE_CRISIS_RATIO) {
+            items.push({
+                name: '백로그 안정화',
+                met: false,
+                need: `유입/완료 비율 ${stats.scopeRatio.toFixed(2)}x → ${C.SCOPE_CRISIS_RATIO} 이하로 (신규 task 차단 또는 인력 보강)`,
+            });
+        }
+        if (items.length === 0) items.push({ name: '데이터 신선도', met: true, need: '조건 충족' });
+        nextRequirements.push({ target: 'low', items, achievable: items.every((i) => i.met) });
+    }
+    if (currentLevel === 'unreliable' || currentLevel === 'low') {
+        const items = [];
+        if (stats.activeDays < 14) {
+            items.push({ name: '활동 일수', met: false, need: `${14 - stats.activeDays}일 더 (현재 ${stats.activeDays}/14일)` });
+        } else {
+            items.push({ name: '활동 일수', met: true, need: `${stats.activeDays}/14일 ✓` });
+        }
+        if (stats.cv > C.LOW_CONFIDENCE_CV) {
+            items.push({ name: '변동성', met: false, need: `CV ${stats.cv.toFixed(2)} → ${C.LOW_CONFIDENCE_CV} 이하 (안정적 처리 패턴 필요)` });
+        } else {
+            items.push({ name: '변동성', met: true, need: `CV ${stats.cv.toFixed(2)} ✓` });
+        }
+        if (stats.scopeRatio > C.SCOPE_CRISIS_RATIO) {
+            items.push({ name: '백로그', met: false, need: '발산 상태 해소 우선' });
+        }
+        nextRequirements.push({ target: 'medium', items, achievable: items.every((i) => i.met) });
+    }
+    if (currentLevel === 'low' || currentLevel === 'medium') {
+        const items = [];
+        if (stats.activeDays < C.HIGH_CONFIDENCE_ACTIVE_DAYS) {
+            items.push({
+                name: '활동 일수',
+                met: false,
+                need: `${C.HIGH_CONFIDENCE_ACTIVE_DAYS - stats.activeDays}일 더 (현재 ${stats.activeDays}/${C.HIGH_CONFIDENCE_ACTIVE_DAYS}일)`,
+            });
+        } else {
+            items.push({ name: '활동 일수', met: true, need: `${stats.activeDays}/${C.HIGH_CONFIDENCE_ACTIVE_DAYS}일 ✓` });
+        }
+        if (stats.cv >= 0.3) {
+            items.push({ name: '변동성', met: false, need: `CV ${stats.cv.toFixed(2)} → 0.3 미만으로 (매우 안정적 처리 패턴)` });
+        } else {
+            items.push({ name: '변동성', met: true, need: `CV ${stats.cv.toFixed(2)} ✓` });
+        }
+        nextRequirements.push({ target: 'high', items, achievable: items.every((i) => i.met) });
+    }
+
+    return { currentLevel, metrics, nextRequirements };
+}

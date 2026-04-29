@@ -4,6 +4,99 @@
 
 ---
 
+## [1.0.16] 진행 추이/예측 — 용어 단순화·일/월 단위·데이터 충족 현황 카드
+
+### 적용 버전
+- 앱 버전: **1.0.16** (package.json 기준)
+- 패치 반영일: 2026년 4월
+
+### 배경
+사용자 피드백:
+1. **인시(man-hour)·인일(man-day) 등 전문용어를 대중적 표현으로** 교체
+2. **시간 단위 제거**, 일과 월 기준으로 표시
+3. 예측 영역의 **기준·임계값을 정밀하게** 분석
+4. **데이터가 어느 정도 쌓여야 표시 가능한지** 시각화
+
+### 1. 용어 단순화 + 일/월 기준
+
+#### `EffortReportCard.tsx`
+- "총 공수 (mid) 인시" → **"추정 작업량 — N일"** + InfoTip에 "1 인일 = 1명 8시간" 명시
+- "인일 환산" → **"월 환산 — N.NN 월"** (1 인월 = 영업일 20일 = 4주 × 5일)
+- 출처 라벨: Worklog → **"작업 기록"**, Story Point → **"SP 점수"**, Cycle time → **"소요시간"** (모두 InfoTip에 영문 병기)
+- "팀 N명 × 가동률 65%" → **"실작업 비율"** + 팀 일수·월수 둘 다 표시
+- 시간 단위 (인시) UI에서 제거 — 내부 계산만 유지
+
+#### `PerIssueEffortTable.tsx`
+- "공수 (인시)" → **"추정 작업 (일)"** — 시간 → 일 환산 (8h = 1일)
+- 0.1일 미만은 소수점 2자리, 그 이상은 1자리
+- 출처 배지: WL → **"기록"**, SP, CT → **"추정"**, 난이도 (한글)
+
+#### `EtaScenarioCard.tsx` + `ForecastGlossaryTip.tsx`
+- "예측 불가" → **"데이터 부족"** (사용자 친화)
+- Monte Carlo, Throughput, P50/P85/P95 등 모든 용어에 한글 + 영문 병기
+- 글로서리 항목 추가: 변동성 (CV), 작업 일수 (인일)
+
+### 2. 데이터 충족 현황 카드 (신규) — `DataReadinessCard.tsx`
+
+**완료 예측 섹션 최상단**에 배치. 다음 항목을 진행 바로 시각화:
+
+```
+📊 데이터 충족 현황                        현재 등급: 낮음
+
+✓ 활동 일수             ▮▮▮▮▮▮▮▮▯▯▯▯  12/30일
+                        ✓ 낮음≥7  ✓ 중간≥14  · 높음≥30
+
+⚠ 처리량 변동성 (CV)    ▮▮▮▮▮▮▮▯▯▯  0.65 (낮을수록 안정)
+                        · 낮음≤0.8  · 중간≤0.5  · 높음≤0.3
+
+✓ 유입/완료 비율        ▮▮▮▯▯▯▯▯▯▯  0.4 (낮을수록 마무리)
+
+🎯 '중간' 등급 가능 조건
+   활동 일수: 2일 더 (현재 12/14일)
+   변동성: CV 0.65 → 0.5 이하 (안정적 처리 패턴 필요)
+```
+
+#### `confidence.ts` 신규 함수 — `computeReadiness(stats)`
+- `metrics: ReadinessMetric[]` — 활동일·CV·scope 3개 진행 바
+- `nextRequirements: NextLevelRequirement[]` — 다음 등급까지 필요한 조건 + "현재 N/M, X 더 필요" 친화 텍스트
+- `currentLevel` 표시 + 임계값 마커
+
+### 3. 임계값 정밀 분석 결과
+
+| 등급 | 활동일 | CV (변동성) | Scope (유입/완료) | UI 분기 |
+|------|--------|-----------|----------------|------|
+| 데이터 부족 | < 7일 OR | — | OR > 1.5x | 단일 ETA / 범위 / 분포 모두 숨김 |
+| 낮음 | ≥ 7일 | > 0.5 OR > 0.8 | ≤ 1.5 | 범위만 표시 |
+| 중간 | ≥ 14일 | ≤ 0.5 | ≤ 1.5 | 단일 ETA + 범위 표시 |
+| 높음 | ≥ 30일 | < 0.3 | ≤ 1.5 | 모든 표시 |
+
+### 데이터 모델 변경
+`BacklogEffortReport` 타입 확장:
+- `totalManDaysLow`, `totalManDaysHigh` — 일 단위 범위
+- `totalManMonthsMid`, `totalManMonthsLow`, `totalManMonthsHigh` — 월 단위 범위
+- `sourceMix[].manDays` — 출처별 일수 (기존 hours 그대로 유지)
+- `teamCapacityAssumption.teamMonthsMid` — 팀 월 환산
+- `BUSINESS_DAYS_PER_MONTH = 20` 상수 export
+
+### 검증
+- vitest 298/298 통과 (변경 없음 — 기존 테스트 유지)
+- TypeScript strict, ESLint 에러 0
+
+### 신규 파일
+- `src/components/progress-trends/DataReadinessCard.tsx`
+
+### 보호된 기존 기능
+- 산식·임계값 (PREDICTION 설정) 변경 없음 — 표시 라벨만 변경
+- 시간(인시) 내부 계산은 그대로 — 재사용 가능
+- Monte Carlo·신뢰도 산정 로직 영향 없음
+
+### 빌드
+```bash
+npm run build          # 1.0.16 .exe + portable 생성
+```
+
+---
+
 ## [1.0.15] 서브담당자 인라인 sub-row + KPI 탭 협업 평가
 
 ### 적용 버전
