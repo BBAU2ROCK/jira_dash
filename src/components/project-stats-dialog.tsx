@@ -14,11 +14,12 @@ import { EpicMappingEditor } from '@/components/epic-mapping-editor';
 import { filterLeafIssues, getStatusCategoryKey } from '@/lib/jira-helpers';
 import {
     BarChart3, CheckCircle2, Clock, AlertTriangle,
-    Layers, X, ChevronRight, User, Trophy, HelpCircle, Pause, CircleSlash, Link2, TrendingUp,
+    Layers, X, ChevronRight, ChevronDown, User, Trophy, HelpCircle, Pause, CircleSlash, Link2, TrendingUp,
 } from 'lucide-react';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
-import { calculateKPI } from '@/services/kpiService';
+import { calculateKPI, calculateWeightedKPI } from '@/services/kpiService';
 import { JIRA_CONFIG } from '@/config/jiraConfig';
+import { buildSubAssigneeMap, SUB_ASSIGNEE_WEIGHT } from '@/lib/sub-assignee-utils';
 import { defectRateToGrade, type DefectKpiDeveloperRow } from '@/lib/defect-kpi-utils';
 import { cn } from '@/lib/utils';
 import { DifficultyMiniPie } from '@/components/ui/difficulty-mini-pie';
@@ -68,6 +69,12 @@ interface AssigneeStats {
     withWorklog: JiraIssue[];
     withoutWorklog: JiraIssue[];
     totalTimeSpent: number; // seconds
+    /** v1.0.14: 본인이 서브담당자로 등록된 leaf task (메인은 다른 사람) */
+    subTasks: JiraIssue[];
+    /** v1.0.14: 메인 담당자별 서브 협업 횟수 */
+    subPartners: Map<string, number>; // mainName → count
+    /** v1.0.14: 같이 서브로 등록된 동료 카운트 */
+    subCoSubs: Map<string, number>; // partnerName → count
 }
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
@@ -91,6 +98,16 @@ export function ProjectStatsDialog({
     const [selectedGroup, setSelectedGroup] = React.useState<IssueGroup | null>(null);
     const [currentTab, setCurrentTab] = React.useState('status');
     const [epicMappingDialogOpen, setEpicMappingDialogOpen] = React.useState(false);
+    /** v1.0.14: 담당자별 행 펼침 상태 (서브 협업 상세 표시) */
+    const [expandedSubRows, setExpandedSubRows] = React.useState<Set<string>>(new Set());
+    const toggleSubRow = React.useCallback((name: string) => {
+        setExpandedSubRows((prev) => {
+            const next = new Set(prev);
+            if (next.has(name)) next.delete(name);
+            else next.add(name);
+            return next;
+        });
+    }, []);
     /** 에픽 매핑 Dialog 열림 — ref는 setState와 동시에 갱신(중첩 Dialog로 부모가 닫히는 현상 방지) */
     const epicMappingOpenRef = React.useRef(false);
     const setEpicMappingOpen = React.useCallback((next: boolean) => {
@@ -161,13 +178,20 @@ export function ProjectStatsDialog({
     const isDoneForAssignee = (issue: JiraIssue) =>
         getStatusCategoryKey(issue) === 'done' || isOnHold(issue) || isCancelled(issue);
 
+    function newStats(name: string): AssigneeStats {
+        return {
+            name,
+            total: [], done: [], inProgress: [], todo: [], delayed: [],
+            earlyDone: [], compliant: [], withWorklog: [], withoutWorklog: [],
+            totalTimeSpent: 0,
+            subTasks: [], subPartners: new Map(), subCoSubs: new Map(),
+        };
+    }
+
     leafIssues.forEach(issue => {
         const name = issue.fields.assignee?.displayName ?? UNASSIGNED_LABEL;
         if (!assigneeMap.has(name)) {
-            assigneeMap.set(name, {
-                name, total: [], done: [], inProgress: [], todo: [], delayed: [],
-                earlyDone: [], compliant: [], withWorklog: [], withoutWorklog: [], totalTimeSpent: 0
-            });
+            assigneeMap.set(name, newStats(name));
         }
         const s = assigneeMap.get(name)!;
         s.total.push(issue);
@@ -224,16 +248,35 @@ export function ProjectStatsDialog({
         if (timeSpent <= 0) return;
         const name = issue.fields.assignee?.displayName ?? UNASSIGNED_LABEL;
         if (!assigneeMap.has(name)) {
-            assigneeMap.set(name, {
-                name, total: [], done: [], inProgress: [], todo: [], delayed: [],
-                earlyDone: [], compliant: [], withWorklog: [], withoutWorklog: [], totalTimeSpent: 0
-            });
+            assigneeMap.set(name, newStats(name));
         }
         assigneeMap.get(name)!.totalTimeSpent += timeSpent;
     });
 
+    // v1.0.14: 서브담당자 매핑 통합
+    //   - 메인 담당자가 없는 인원도 (서브로만 참여) 자동 노출
+    //   - 메인 인원의 stats에 서브 정보 추가
+    const subInvolvementMap = buildSubAssigneeMap(leafIssues);
+    for (const inv of subInvolvementMap.values()) {
+        // 인원 이름이 메인 담당자와 매칭되는지 확인 (displayName 기준)
+        const existingName = inv.displayName;
+        if (!assigneeMap.has(existingName)) {
+            // 메인 0건이지만 서브로만 참여한 인원 — 신규 추가
+            assigneeMap.set(existingName, newStats(existingName));
+        }
+        const stats = assigneeMap.get(existingName)!;
+        stats.subTasks = inv.issues;
+        stats.subPartners = inv.mainPartners;
+        stats.subCoSubs = inv.coSubs;
+    }
+
     const assignees = Array.from(assigneeMap.values())
-        .sort((a, b) => b.total.length - a.total.length);
+        // v1.0.14: 메인 + 서브참여 합계 기준 정렬 (서브만 참여한 인원도 적절한 위치)
+        .sort((a, b) => {
+            const totalA = a.total.length + a.subTasks.length * SUB_ASSIGNEE_WEIGHT;
+            const totalB = b.total.length + b.subTasks.length * SUB_ASSIGNEE_WEIGHT;
+            return totalB - totalA;
+        });
 
     // KPI 성과용 정렬된 담당자 목록 (점수 높은 순)
     const assigneesWithKPI = React.useMemo(() => {
@@ -518,9 +561,11 @@ export function ProjectStatsDialog({
                                     <table className="w-full text-sm">
                                         <thead>
                                             <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 11, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                                <th className="px-4 py-3 text-left w-36">담당자</th>
+                                                <th className="px-1 py-3 w-6"></th>
+                                                <th className="px-4 py-3 text-left w-32">담당자</th>
                                                 <th className="px-3 py-3 text-center w-28">분포</th>
                                                 <th className="px-3 py-3 text-center">전체</th>
+                                                <th className="px-3 py-3 text-center" style={{ color: '#7c3aed' }}>서브참여</th>
                                                 <th className="px-3 py-3 text-center" style={{ color: '#15803d' }}>완료</th>
                                                 <th className="px-3 py-3 text-center" style={{ color: '#1d4ed8' }}>진행</th>
                                                 <th className="px-3 py-3 text-center" style={{ color: '#475569' }}>대기</th>
@@ -538,15 +583,21 @@ export function ProjectStatsDialog({
                                         <tbody>
                                             {assignees.map(a => {
                                                 const t = a.total.length;
+                                                const subN = a.subTasks.length;
                                                 const d = a.done.length;
                                                 const progressRate = t > 0 ? Math.round((d / t) * 100) : 0;
-                                                // K2: KPI 탭과 준수율 산식 통일 — calculateKPI 재사용 (agreed-delay 이중 제외)
-                                                //   이전: a.compliant.length / t * 100 (합의지연 미제외 → KPI 탭과 불일치)
-                                                //   현재: calculateKPI(a.total).complianceRate (합의지연 분모·분자 양쪽 차감)
-                                                const assigneeKpi = calculateKPI(a.total);
-                                                const complianceRate = assigneeKpi.complianceRate;
+                                                // v1.0.14: 가중 KPI 적용 — 메인 + 서브 (가중 0.5) 합산 준수율
+                                                //   메인만이면 기존과 동일, 서브가 있으면 가중 평균
+                                                const weighted = calculateWeightedKPI({
+                                                    mainIssues: a.total,
+                                                    subIssues: a.subTasks,
+                                                    subWeight: SUB_ASSIGNEE_WEIGHT,
+                                                });
+                                                const complianceRate = weighted.complianceRate;
                                                 const delayRate = t > 0 ? Math.round((a.delayed.length / t) * 100) : 0;
                                                 const earlyRate = d > 0 ? Math.round((a.earlyDone.length / d) * 100) : 0;
+                                                const isExpanded = expandedSubRows.has(a.name);
+                                                const hasSub = subN > 0;
 
                                                 const segs = [
                                                     { value: a.done.length, color: '#22c55e', label: '완료' },
@@ -555,15 +606,34 @@ export function ProjectStatsDialog({
                                                 ];
 
                                                 return (
-                                                    <tr key={a.name}
-                                                        style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: '#ffffff', transition: 'background-color 0.15s' }}
-                                                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f8fafc')}
-                                                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#ffffff')}
+                                                    <React.Fragment key={a.name}>
+                                                    <tr
+                                                        style={{ borderBottom: isExpanded ? 'none' : '1px solid #f1f5f9', backgroundColor: isExpanded ? '#faf5ff' : '#ffffff', transition: 'background-color 0.15s' }}
+                                                        onMouseEnter={e => { if (!isExpanded) e.currentTarget.style.backgroundColor = '#f8fafc' }}
+                                                        onMouseLeave={e => { if (!isExpanded) e.currentTarget.style.backgroundColor = '#ffffff' }}
                                                     >
+                                                        <td className="px-1 py-3 text-center">
+                                                            {hasSub ? (
+                                                                <button
+                                                                    onClick={() => toggleSubRow(a.name)}
+                                                                    className="text-violet-500 hover:text-violet-700 hover:bg-violet-100 rounded p-0.5"
+                                                                    title={isExpanded ? '서브 협업 접기' : '서브 협업 펼치기'}
+                                                                >
+                                                                    {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                                                                </button>
+                                                            ) : (
+                                                                <span className="inline-block w-3.5 h-3.5" />
+                                                            )}
+                                                        </td>
                                                         <td className="px-4 py-3">
                                                             <div className="flex items-center gap-2">
                                                                 <User className="w-3.5 h-3.5 shrink-0" style={{ color: '#94a3b8' }} />
                                                                 <span style={{ fontWeight: 500, color: '#1e293b', fontSize: 12 }}>{a.name}</span>
+                                                                {t === 0 && hasSub && (
+                                                                    <span className="text-[9px] text-violet-700 bg-violet-100 border border-violet-200 rounded px-1 py-0.5" title="메인 담당 0건 — 서브로만 협업">
+                                                                        서브 전용
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                         </td>
                                                         <td className="px-3 py-3">
@@ -574,6 +644,20 @@ export function ProjectStatsDialog({
                                                         </td>
                                                         <ClickCell value={t} color="#64748b"
                                                             onClick={() => openGroup(`${a.name} · 전체`, a.total, '#64748b')} />
+                                                        {/* v1.0.14: 서브참여 컬럼 */}
+                                                        <td className="px-3 py-3 text-center">
+                                                            {hasSub ? (
+                                                                <button
+                                                                    onClick={() => openGroup(`${a.name} · 서브로 참여 (${subN}건, 가중 ${(subN * SUB_ASSIGNEE_WEIGHT).toFixed(1)})`, a.subTasks, '#7c3aed')}
+                                                                    className="font-bold text-sm text-violet-700 hover:bg-violet-50 px-2 py-1 rounded transition-colors"
+                                                                    title={`${subN}건 (가중 ${(subN * SUB_ASSIGNEE_WEIGHT).toFixed(1)}점). 클릭 시 이슈 목록.`}
+                                                                >
+                                                                    {subN}
+                                                                </button>
+                                                            ) : (
+                                                                <span className="text-slate-300">—</span>
+                                                            )}
+                                                        </td>
                                                         <ClickCell value={a.done.length} color="#22c55e"
                                                             onClick={() => openGroup(`${a.name} · 완료`, a.done, '#22c55e')} />
                                                         <ClickCell value={a.inProgress.length} color="#3b82f6"
@@ -620,6 +704,49 @@ export function ProjectStatsDialog({
                                                             <RateBadge value={earlyRate} type="early" />
                                                         </td>
                                                     </tr>
+                                                    {isExpanded && hasSub && (
+                                                        <tr style={{ backgroundColor: '#faf5ff', borderBottom: '1px solid #f1f5f9' }}>
+                                                            <td></td>
+                                                            <td colSpan={15} className="px-4 py-3">
+                                                                <div className="text-[11px] space-y-2">
+                                                                    <div className="font-semibold text-violet-800 inline-flex items-center gap-1">
+                                                                        <Link2 className="w-3 h-3" />
+                                                                        서브담당자로 참여한 이슈 {subN}건 (가중 {(subN * SUB_ASSIGNEE_WEIGHT).toFixed(1)}점, weight={SUB_ASSIGNEE_WEIGHT})
+                                                                    </div>
+                                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                                        <div>
+                                                                            <div className="text-slate-600 mb-0.5">▸ 메인 담당자별 협업 횟수</div>
+                                                                            <div className="flex flex-wrap gap-1">
+                                                                                {[...a.subPartners.entries()].sort((x, y) => y[1] - x[1]).map(([mainName, n]) => (
+                                                                                    <span key={mainName} className="inline-flex items-center gap-1 rounded border border-violet-200 bg-white px-1.5 py-0.5 text-[10px]">
+                                                                                        <span className="font-medium text-slate-700">{mainName}</span>
+                                                                                        <span className="font-bold tabular-nums text-violet-700">×{n}</span>
+                                                                                    </span>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                        {a.subCoSubs.size > 0 && (
+                                                                            <div>
+                                                                                <div className="text-slate-600 mb-0.5">▸ 함께 서브로 참여한 동료</div>
+                                                                                <div className="flex flex-wrap gap-1">
+                                                                                    {[...a.subCoSubs.entries()].sort((x, y) => y[1] - x[1]).map(([coName, n]) => (
+                                                                                        <span key={coName} className="inline-flex items-center gap-1 rounded border border-emerald-200 bg-white px-1.5 py-0.5 text-[10px]">
+                                                                                            <span className="font-medium text-slate-700">{coName}</span>
+                                                                                            <span className="font-bold tabular-nums text-emerald-700">×{n}</span>
+                                                                                        </span>
+                                                                                    ))}
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="text-[10px] text-slate-500 pt-1 border-t border-violet-200">
+                                                                        💡 KPI 점수는 메인 담당분(weight 1.0) + 서브 분(weight {SUB_ASSIGNEE_WEIGHT})의 가중 평균입니다. 코칭 도구 — 성과 평가 X.
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                    </React.Fragment>
                                                 );
                                             })}
                                         </tbody>

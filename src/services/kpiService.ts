@@ -240,3 +240,135 @@ export function calculateKPI(issues: JiraIssue[]): KPIMetrics {
         measurable: true,
     };
 }
+
+// ──────────────────────────────────────────────────────────────────
+// v1.0.14: 가중 KPI — 메인 + 서브 협업 반영
+// ──────────────────────────────────────────────────────────────────
+
+export interface WeightedKpiInput {
+    /** 본인이 메인 담당자인 leaf task */
+    mainIssues: JiraIssue[];
+    /** 본인이 서브담당자로 등록된 leaf task (메인은 다른 사람) */
+    subIssues: JiraIssue[];
+    /** 서브 가중치 (default 0.5) */
+    subWeight?: number;
+}
+
+export interface WeightedKpiMetrics extends KPIMetrics {
+    /** 가중 적용 전 — 메인 담당 단독 KPI (참조용) */
+    mainOnly: KPIMetrics;
+    /** 가중 적용 전 — 서브 단독 KPI (참조용) */
+    subOnly: KPIMetrics;
+    /** 적용된 서브 가중치 */
+    appliedSubWeight: number;
+    /** 가중 합산된 분모 (mainTotal + subTotal × weight) */
+    weightedTotalRaw: number;
+    /** 가중 합산된 완료 분자 */
+    weightedCompletedRaw: number;
+}
+
+/**
+ * 메인 + 서브를 가중 합산한 KPI.
+ *
+ * 산식:
+ *   weightedTotal     = main.totalIssues + sub.totalIssues × subWeight
+ *   weightedCompleted = main.completedIssues + sub.completedIssues × subWeight
+ *   ... (compliant/early/agreedDelay 동일 패턴)
+ *
+ *   completionRate = (weightedCompleted - weightedAgreedDelayDone) / (weightedTotal - weightedAgreedDelay) × 100
+ *
+ * 등급·earlyBonus·totalScore는 일반 calculateKPI와 동일하게 산정 (rate 입력만 가중).
+ *
+ * **정직성 원칙**:
+ *   - 메인 담당이 0건이고 서브로만 참여한 인원도 측정 가능 (가중 합산 분모 > 0)
+ *   - 분모(가중) ≤ 0이면 measurable=false
+ *   - mainOnly·subOnly 메트릭도 함께 반환 → UI에서 분해 표시 가능
+ */
+export function calculateWeightedKPI(input: WeightedKpiInput): WeightedKpiMetrics {
+    const subWeight = input.subWeight ?? 0.5;
+    const main = calculateKPI(input.mainIssues);
+    const sub = calculateKPI(input.subIssues);
+
+    // 가중 합산 (raw counts)
+    const totalIssues = main.totalIssues + sub.totalIssues * subWeight;
+    const completedIssues = main.completedIssues + sub.completedIssues * subWeight;
+    const delayedIssues = main.delayedIssues + sub.delayedIssues * subWeight;
+    const earlyIssues = main.earlyIssues + sub.earlyIssues * subWeight;
+    const compliantIssues = main.compliantIssues + sub.compliantIssues * subWeight;
+    const agreedDelayIssues = main.agreedDelayIssues + sub.agreedDelayIssues * subWeight;
+    const noDueDateCount = main.noDueDateCount + sub.noDueDateCount * subWeight;
+
+    const rules = resolveKpiRules();
+
+    // 분자에서 agreed-delay 가중 차감을 직접 계산하기 어려움 (calculateKPI가 내부 카운트를 노출 안 함)
+    // 대신 main / sub 각각의 rate를 가중 평균으로 합산
+    const mkRate = (m: KPIMetrics) => ({
+        completion: m.completionRate,
+        compliance: m.complianceRate,
+        early: m.earlyRate,
+    });
+    const mainRate = mkRate(main);
+    const subRate = mkRate(sub);
+
+    // 가중 평균: ratio = (mainRate × mainKpiTotal + subRate × subKpiTotal × weight)
+    //                  / (mainKpiTotal + subKpiTotal × weight)
+    const mainKpi = main.totalIssues - main.agreedDelayIssues;
+    const subKpi = sub.totalIssues - sub.agreedDelayIssues;
+    const denom = mainKpi + subKpi * subWeight;
+
+    if (denom <= 0) {
+        return {
+            ...ZERO_METRICS,
+            totalIssues,
+            completedIssues,
+            delayedIssues,
+            earlyIssues,
+            compliantIssues,
+            agreedDelayIssues,
+            noDueDateCount,
+            measurable: false,
+            mainOnly: main,
+            subOnly: sub,
+            appliedSubWeight: subWeight,
+            weightedTotalRaw: totalIssues,
+            weightedCompletedRaw: completedIssues,
+        };
+    }
+
+    const blendRate = (mr: number, sr: number) =>
+        Math.min(((mr * mainKpi) + (sr * subKpi * subWeight)) / denom, 100);
+
+    const completionRate = blendRate(mainRate.completion, subRate.completion);
+    const complianceRate = blendRate(mainRate.compliance, subRate.compliance);
+    const earlyRate = blendRate(mainRate.early, subRate.early);
+    const earlyBonus = getEarlyBonusFromRules(earlyRate, rules.earlyBonus);
+
+    const weightedScore = completionRate * rules.weights.completion + complianceRate * rules.weights.compliance;
+    const totalScore = Math.min(Math.round(weightedScore + earlyBonus), 100);
+
+    return {
+        totalIssues,
+        completedIssues,
+        delayedIssues,
+        earlyIssues,
+        compliantIssues,
+        agreedDelayIssues,
+        noDueDateCount,
+        completionRate: Math.round(completionRate),
+        complianceRate: Math.round(complianceRate),
+        earlyRate: Math.round(earlyRate),
+        grades: {
+            completion: getGradeFromRules(completionRate, rules.grades) as KpiGrade,
+            compliance: getGradeFromRules(complianceRate, rules.grades) as KpiGrade,
+            earlyBonus,
+            total: getGradeFromRules(totalScore, rules.grades) as KpiGrade,
+        },
+        totalScore,
+        measurable: true,
+        mainOnly: main,
+        subOnly: sub,
+        appliedSubWeight: subWeight,
+        weightedTotalRaw: totalIssues,
+        weightedCompletedRaw: completedIssues,
+    };
+}

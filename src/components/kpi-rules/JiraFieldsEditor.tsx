@@ -52,6 +52,7 @@ export function JiraFieldsEditor({ labels, statusNames, fields, onLabelsChange, 
                     <FieldRow label="계획 시작" tip="계획 시작일 커스텀 필드 ID." value={fields.plannedStart} onChange={(v) => onFieldsChange({ ...fields, plannedStart: v })} />
                     <FieldRow label="실제 시작" tip="실제 시작일 커스텀 필드 ID." value={fields.actualStart} onChange={(v) => onFieldsChange({ ...fields, actualStart: v })} />
                     <FieldRow label="실제 완료" tip="실제 완료일 커스텀 필드 ID. resolutiondate보다 우선 사용." value={fields.actualDone} onChange={(v) => onFieldsChange({ ...fields, actualDone: v })} />
+                    <FieldRow label="서브담당자" tip="다중 사용자 array 필드. 메인 담당자 외 협업·페어 인원 표시. 빈 값이면 기능 비활성. v1.0.14: 가중치 0.5로 KPI 산정에 반영." value={fields.subAssignee} onChange={(v) => onFieldsChange({ ...fields, subAssignee: v })} />
                 </div>
             </div>
         </div>

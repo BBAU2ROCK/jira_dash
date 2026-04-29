@@ -14,6 +14,11 @@ export const JIRA_CONFIG = {
         ACTUAL_DONE: 'customfield_11485',
         /** 난이도 (커스텀 필드 id는 Jira 인스턴스별로 다를 수 있음. 필요 시 변경) */
         DIFFICULTY: 'customfield_10017',
+        /**
+         * v1.0.14: 서브담당자 (다중 사용자 array). 협업·페어 프로그래밍에서 보조 인원 표시.
+         * IGMU 프로젝트 표준: customfield_11482. 다른 프로젝트는 customfield_11011/10913 가능.
+         */
+        SUB_ASSIGNEE: 'customfield_11482',
     },
     LABELS: {
         AGREED_DELAY: 'agreed-delay', // Label to mark issues as agreed delay

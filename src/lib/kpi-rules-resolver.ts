@@ -98,6 +98,7 @@ export function resolveFields() {
         ACTUAL_START: f?.actualStart ?? JF.ACTUAL_START,
         ACTUAL_DONE: f?.actualDone ?? JF.ACTUAL_DONE,
         DIFFICULTY: f?.difficulty ?? JF.DIFFICULTY,
+        SUB_ASSIGNEE: f?.subAssignee ?? JF.SUB_ASSIGNEE,
     };
 }
 

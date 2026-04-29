@@ -65,6 +65,8 @@ export interface KpiRuleSet {
         actualStart: string;
         actualDone: string;
         difficulty: string;
+        /** v1.0.14: 서브담당자 (다중 사용자 array). 미지정·빈 문자열이면 기능 비활성. */
+        subAssignee: string;
     };
 
     // ── 프로젝트 ──
@@ -113,6 +115,7 @@ function getDefaultRuleSet(): KpiRuleSet {
             actualStart: JIRA_CONFIG.FIELDS.ACTUAL_START,
             actualDone: JIRA_CONFIG.FIELDS.ACTUAL_DONE,
             difficulty: JIRA_CONFIG.FIELDS.DIFFICULTY,
+            subAssignee: JIRA_CONFIG.FIELDS.SUB_ASSIGNEE,
         },
         dashboardProjectKey: JIRA_CONFIG.DASHBOARD.PROJECT_KEY,
         projectKeys: [...JIRA_CONFIG.PROJECT_KEYS],

@@ -33,3 +33,7 @@ jira-proxy-config.json
 
 # Claude Code 로컬 설정 (preview 서버·개인 권한)
 .claude/
+
+# 일회성 작업 결과 (CSV import / dedupe)
+.import-result.json
+.dedupe-result.json

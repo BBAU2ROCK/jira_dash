@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { calculateKPI, getCompletionDate } from '../kpiService';
+import { calculateKPI, calculateWeightedKPI, getCompletionDate } from '../kpiService';
 import type { JiraIssue } from '../../api/jiraClient';
 import { JIRA_CONFIG } from '../../config/jiraConfig';
 import { useKpiRulesStore } from '../../stores/kpiRulesStore';
@@ -348,5 +348,86 @@ describe('getCompletionDate (K1 헬퍼)', () => {
     it('둘 다 없으면 null', () => {
         const issue = makeIssue({ statusKey: 'indeterminate' });
         expect(getCompletionDate(issue)).toBeNull();
+    });
+});
+
+// v1.0.14 — calculateWeightedKPI (서브담당자 가중)
+describe('calculateWeightedKPI (v1.0.14)', () => {
+    it('서브 0건이면 일반 calculateKPI와 동일', () => {
+        const main = [
+            makeIssue({ statusKey: 'done', duedate: '2024-06-30', resolutiondate: '2024-06-25T00:00:00Z' }),
+            makeIssue({ statusKey: 'indeterminate' }),
+        ];
+        const w = calculateWeightedKPI({ mainIssues: main, subIssues: [] });
+        const k = calculateKPI(main);
+        expect(w.completionRate).toBe(k.completionRate);
+        expect(w.complianceRate).toBe(k.complianceRate);
+        expect(w.totalIssues).toBe(k.totalIssues);
+    });
+
+    it('메인 0 + 서브 2건 (1 done, 1 in-progress) → 가중 분모 1, 분자 0.5', () => {
+        const sub = [
+            makeIssue({ statusKey: 'done', duedate: '2024-06-30', resolutiondate: '2024-06-25T00:00:00Z' }),
+            makeIssue({ statusKey: 'indeterminate' }),
+        ];
+        const w = calculateWeightedKPI({ mainIssues: [], subIssues: sub });
+        // sub 단독 KPI 완료율 50% → 가중 적용해도 비율 유지
+        expect(w.completionRate).toBe(50);
+        expect(w.measurable).toBe(true);
+        expect(w.weightedTotalRaw).toBe(2 * 0.5); // = 1
+        expect(w.weightedCompletedRaw).toBe(1 * 0.5);
+    });
+
+    it('메인 100% + 서브 0% 가중 평균 (메인 2건 / 서브 2건, weight=0.5)', () => {
+        const main = [
+            makeIssue({ statusKey: 'done', duedate: '2024-06-30', resolutiondate: '2024-06-25T00:00:00Z' }),
+            makeIssue({ statusKey: 'done', duedate: '2024-06-30', resolutiondate: '2024-06-25T00:00:00Z' }),
+        ];
+        const sub = [
+            makeIssue({ statusKey: 'indeterminate' }),
+            makeIssue({ statusKey: 'indeterminate' }),
+        ];
+        const w = calculateWeightedKPI({ mainIssues: main, subIssues: sub });
+        // 가중 분모: 2 + 2*0.5 = 3
+        // 분자: 2 + 0 = 2 (서브 완료 0)
+        // 가중 평균: (100*2 + 0*2*0.5) / 3 = 200/3 ≈ 67%
+        expect(w.completionRate).toBe(67);
+        expect(w.mainOnly.completionRate).toBe(100);
+        expect(w.subOnly.completionRate).toBe(0);
+    });
+
+    it('subWeight 커스텀 (0.3) 반영', () => {
+        const main = [
+            makeIssue({ statusKey: 'done', duedate: '2024-06-30', resolutiondate: '2024-06-25T00:00:00Z' }),
+        ];
+        const sub = [
+            makeIssue({ statusKey: 'indeterminate' }),
+        ];
+        const w = calculateWeightedKPI({ mainIssues: main, subIssues: sub, subWeight: 0.3 });
+        expect(w.appliedSubWeight).toBe(0.3);
+        // 분모 = 1 + 1*0.3 = 1.3, 분자 = 1 + 0 = 1
+        // 가중 평균 = (100*1 + 0*1*0.3) / 1.3 ≈ 77%
+        expect(w.completionRate).toBe(77);
+    });
+
+    it('메인·서브 모두 0건 → measurable=false', () => {
+        const w = calculateWeightedKPI({ mainIssues: [], subIssues: [] });
+        expect(w.measurable).toBe(false);
+        expect(w.totalIssues).toBe(0);
+    });
+
+    it('mainOnly·subOnly 메트릭이 별도 보존', () => {
+        const main = [
+            makeIssue({ statusKey: 'done', duedate: '2024-06-30', resolutiondate: '2024-06-25T00:00:00Z' }),
+        ];
+        const sub = [
+            makeIssue({ statusKey: 'indeterminate' }),
+            makeIssue({ statusKey: 'indeterminate' }),
+        ];
+        const w = calculateWeightedKPI({ mainIssues: main, subIssues: sub });
+        expect(w.mainOnly.totalIssues).toBe(1);
+        expect(w.mainOnly.completedIssues).toBe(1);
+        expect(w.subOnly.totalIssues).toBe(2);
+        expect(w.subOnly.completedIssues).toBe(0);
     });
 });

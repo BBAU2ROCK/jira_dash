@@ -4,6 +4,83 @@
 
 ---
 
+## [1.0.14] 프로젝트 통계 — 서브담당자 가시화 + 가중 KPI (drill-down UI)
+
+### 적용 버전
+- 앱 버전: **1.0.14** (package.json 기준)
+- 패치 반영일: 2026년 4월
+
+### 배경
+프로젝트 통계의 담당자별 테이블이 메인 담당자 1축만 표현해, 페어/협업 task의 보조 인원이 가시화되지 않았습니다. IGMU 데이터에서 `customfield_11482` (서브담당자) 가 24건 활용 중 (1명 17건, 2명 페어 7건). 사용자 결정에 따라:
+- **A+B 하이브리드 UI**: 메인 행 좌측 ▶ 드릴다운 토글 + "서브참여" 컬럼
+- **가중 KPI (sub weight 0.5)**: 서브 참여도 KPI 점수에 절반 반영
+
+### 데이터 레이어 변경
+
+| 파일 | 변경 |
+|------|------|
+| `src/config/jiraConfig.ts` | `FIELDS.SUB_ASSIGNEE = 'customfield_11482'` 추가 |
+| `src/stores/kpiRulesStore.ts` | `fields.subAssignee` 필드 추가 + default |
+| `src/lib/kpi-rules-resolver.ts` | `resolveFields().SUB_ASSIGNEE` 추가 |
+| `src/api/jiraClient.ts` | `searchIssues` / `getIssuesForEpic` fields에 `customfield_11482` 포함 |
+
+### 신규 모듈
+
+#### `src/lib/sub-assignee-utils.ts`
+- `SUB_ASSIGNEE_WEIGHT = 0.5` 상수 export
+- `extractSubAssignees(issue)` — 다중 사용자 array 안전 평탄화 (BOM·null·중복 처리)
+- `buildSubAssigneeMap(issues)` — `personKey → { issues, mainPartners, coSubs }` 매핑
+
+#### `src/services/kpiService.ts` 확장
+- 신규 `calculateWeightedKPI({ mainIssues, subIssues, subWeight })` 함수
+- 가중 평균 산식: `((mainRate × mainKpi) + (subRate × subKpi × weight)) / (mainKpi + subKpi × weight)`
+- `WeightedKpiMetrics` 타입 — `mainOnly` / `subOnly` / `appliedSubWeight` / `weightedTotalRaw` / `weightedCompletedRaw` 분해 표시
+
+### UI 변경 — `src/components/project-stats-dialog.tsx`
+
+#### 담당자별 테이블
+- **새 컬럼**: ▶/▼ 펼침 토글 (서브 협업 0건이면 비활성)
+- **새 컬럼**: "서브참여" — 보라색 배지로 건수 + 클릭 시 이슈 목록
+- **신규 라벨**: `서브 전용` — 메인 담당 0건이지만 서브로만 참여한 인원
+- **준수율**: 가중 KPI 기반 (메인 1.0 + 서브 0.5)
+- **정렬**: 메인 + 서브×0.5 합계 기준
+
+#### 펼침 영역 (드릴다운)
+```
+서브담당자로 참여한 이슈 N건 (가중 N×0.5점)
+▸ 메인 담당자별 협업 횟수: [이찬웅 ×2] [최준배 ×1] ...
+▸ 함께 서브로 참여한 동료: [강현 ×3] [김태현 ×3] ...
+💡 KPI 점수는 메인(1.0) + 서브(0.5) 가중 평균 — 코칭 도구·성과 평가 X
+```
+
+### 설정 UI — `src/components/kpi-rules/JiraFieldsEditor.tsx`
+- "서브담당자" 필드 ID 입력 추가 (커스텀 필드 ID 섹션)
+- 빈 값이면 기능 비활성. 다른 프로젝트는 `customfield_11011`/`10913` 으로 변경 가능
+
+### 검증
+- **vitest 298/298 통과** (v1.0.13 279 + 신규 19)
+  - `kpiService.test.ts` +6 (calculateWeightedKPI)
+  - `sub-assignee-utils.test.ts` +13 (extract·buildMap·store override)
+- TypeScript strict 통과, ESLint 에러 0
+
+### 신규 파일 (3)
+- `src/lib/sub-assignee-utils.ts`
+- `src/lib/__tests__/sub-assignee-utils.test.ts`
+- (kpiService.ts 확장만으로 처리)
+
+### 보호된 기존 기능
+- `calculateKPI` 단일 함수는 그대로 (가중 KPI는 별도 함수)
+- Zustand persist 키 (`jira-dash-kpi-rules`) — 마이그레이션 없음
+- `subAssignee` 필드 빈 값이면 v1.0.13 동작과 완전 동일 (drop-in 안전)
+- 회고·예측 탭 / KPI 성과 탭 / 결함 KPI 탭 영향 없음
+
+### 빌드
+```bash
+npm run build          # 1.0.14 .exe + portable 생성
+```
+
+---
+
 ## [1.0.13] Hotfix — jiraApi.getEpics가 KPI Rules Store의 dashboardProjectKey를 반영하지 않던 버그 수정
 
 ### 적용 버전

@@ -284,6 +284,8 @@ export const jiraApi = {
                 'summary', 'description', 'status', 'assignee', 'reporter', 'priority', 'issuetype',
                 'parent', 'subtasks', 'customfield_10016',
                 'customfield_11481', 'customfield_11484', 'customfield_11485',
+                // v1.0.14: 서브담당자 (다중 user)
+                JIRA_CONFIG.FIELDS.SUB_ASSIGNEE,
                 'duedate', 'created', 'resolutiondate', 'timespent', 'worklog', 'comment', 'attachment'
             ],
             maxResults: 100
@@ -310,7 +312,10 @@ export const jiraApi = {
             ...new Set([
                 'summary', 'description', 'status', 'assignee', 'reporter', 'priority',
                 'issuetype', 'customfield_10016', 'customfield_11481', 'customfield_11484',
-                'customfield_11485', diffField, 'duedate', 'created', 'resolutiondate',
+                'customfield_11485', diffField,
+                // v1.0.14: 서브담당자 (다중 user)
+                JIRA_CONFIG.FIELDS.SUB_ASSIGNEE,
+                'duedate', 'created', 'resolutiondate',
                 'parent', 'subtasks', 'timespent', 'worklog', 'comment', 'attachment',
                 ...extras,
             ]),
