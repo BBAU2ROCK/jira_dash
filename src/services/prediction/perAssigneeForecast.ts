@@ -67,10 +67,14 @@ function isCancelled(issue: JiraIssue): boolean {
     return issue.fields.status?.name === resolveCancelledStatus();
 }
 
-/** 백로그 정의 (analysis.md §16.1) */
+/** 백로그 정의 (analysis.md §16.1)
+ * v1.0.18: 취소·반려는 처리 완료가 아니라도 백로그에서 제외 (성과 평가 X)
+ */
 export function isInBacklog(issue: JiraIssue): boolean {
     if (isDone(issue)) return false;
     if (isCancelled(issue)) return false;
+    const statusName = issue.fields.status?.name?.trim() ?? '';
+    if (statusName === resolveRejectedStatus()) return false;
     return true;
 }
 

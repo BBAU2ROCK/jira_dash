@@ -81,34 +81,42 @@ export function useBacklogForecast(issues: JiraIssue[], options?: {
         const total = leaf.length;
         const active = leaf.filter(isInBacklog);
         const onHoldName = resolveOnHoldStatus();
+        // v1.0.18: 취소·반려는 모든 "완료" 카운트에서 제외 (KPI 정책과 일치)
+        const cancelledName = resolveCancelledStatus();
+        const rejectedName = resolveRejectedStatus();
+        const isRealDone = (i: JiraIssue) => {
+            if (getStatusCategoryKey(i) !== 'done') return false;
+            const sn = i.fields.status?.name?.trim() ?? '';
+            return sn !== cancelledName && sn !== rejectedName;
+        };
         const actualDoneField = resolveFields().ACTUAL_DONE;
         const onHold = active.filter((i) => i.fields.status?.name === onHoldName);
         const unassigned = active.filter((i) => !i.fields.assignee);
         const since = addDays(now, -90);
         const completed90d = leaf.filter((i) => {
-            if (getStatusCategoryKey(i) !== 'done') return false;
+            if (!isRealDone(i)) return false;
             const d = parseLocalDay(i.fields[actualDoneField] as string | undefined ?? null) ?? parseLocalDay(i.fields.resolutiondate ?? null);
             return d ? d >= since : false;
         });
         const completedToday = leaf.filter((i) => {
-            if (getStatusCategoryKey(i) !== 'done') return false;
+            if (!isRealDone(i)) return false;
             const d = parseLocalDay(i.fields[actualDoneField] as string | undefined ?? null) ?? parseLocalDay(i.fields.resolutiondate ?? null);
             return isToday(d, now);
         });
         const completedThisWeek = leaf.filter((i) => {
-            if (getStatusCategoryKey(i) !== 'done') return false;
+            if (!isRealDone(i)) return false;
             const d = parseLocalDay(i.fields[actualDoneField] as string | undefined ?? null) ?? parseLocalDay(i.fields.resolutiondate ?? null);
             return isThisWeek(d, now);
         });
-        // 미완료 지연 (overdue in progress)
+        // 미완료 지연 (overdue in progress) — active는 이미 isInBacklog로 취소·반려 제외
         const overdueInProgress = active.filter((i) => {
             const due = parseLocalDay(i.fields.duedate ?? null);
             if (!due) return false;
             return due < now;
         });
-        // 완료 지연 (late completion)
+        // 완료 지연 (late completion) — 진짜 완료(취소·반려 X)만 평가
         const lateCompletion = leaf.filter((i) => {
-            if (getStatusCategoryKey(i) !== 'done') return false;
+            if (!isRealDone(i)) return false;
             const due = parseLocalDay(i.fields.duedate ?? null);
             const done = parseLocalDay(i.fields[actualDoneField] as string | undefined ?? null) ?? parseLocalDay(i.fields.resolutiondate ?? null);
             if (!due || !done) return false;
@@ -134,10 +142,15 @@ export function useBacklogForecast(issues: JiraIssue[], options?: {
         if (!issues) return null;
         const leaf = filterLeafIssues(issues);
         const actualDoneField = resolveFields().ACTUAL_DONE;
+        // v1.0.18: 일별 처리량에서도 취소·반려 제외 (예측 입력 데이터 정직성)
+        const cancelledName = resolveCancelledStatus();
+        const rejectedName = resolveRejectedStatus();
         const counts: Record<string, number> = {};
         const since = addDays(now, -historyDays + 1);
         for (const issue of leaf) {
             if (getStatusCategoryKey(issue) !== 'done') continue;
+            const sn = issue.fields.status?.name?.trim() ?? '';
+            if (sn === cancelledName || sn === rejectedName) continue;
             const d = parseLocalDay(issue.fields[actualDoneField] as string | undefined ?? null) ?? parseLocalDay(issue.fields.resolutiondate ?? null);
             if (!d || d < since || d > now) continue;
             const k = dayKey(d);

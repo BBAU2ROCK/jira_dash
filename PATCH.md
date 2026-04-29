@@ -4,6 +4,78 @@
 
 ---
 
+## [1.0.19] 진행 추이/예측 — 취소·반려 일관 적용 (v1.0.18 후속)
+
+### 적용 버전
+- 앱 버전: **1.0.19**
+- 패치 반영일: 2026년 4월
+
+### 배경
+v1.0.18에서 KPI·프로젝트 현황 탭은 취소·반려를 완료에서 제외했지만, **진행 추이/예측 탭의 일부 카운트는 여전히 포함**되고 있던 미완성 상태:
+
+```
+v1.0.18까지 (불일치):
+  KPI 탭          : 취소 제외 ✓
+  프로젝트 현황   : 취소·반려 제외 ✓
+  회고 (epicRetro): isDone에서 제외 ✓
+  cycleTime 통계  : 제외 ✓
+  effort 추정     : 제외 ✓
+  ⚠ counts.completed90d/Today/ThisWeek : 미적용
+  ⚠ dailySeries (일별 추이)              : 미적용
+  ⚠ lateCompletion                        : 미적용
+  ⚠ isInBacklog (rejected만 누락)         : 부분 적용
+```
+
+사용자 의견: "진행 추이/예측에서도 동일한 개념으로 반영해야"
+→ **동의 — 일관성·예측 정확성·회고 정직성** 필요.
+
+### 수정 내용
+
+#### 1. `useBacklogForecast` counts 일관 적용
+- `isRealDone` 헬퍼 도입 (statusCategory='done' AND NOT(취소·반려))
+- 5개 카운트 모두 적용:
+  - `completed90d` — 90일 완료
+  - `completedToday` — 오늘 완료
+  - `completedThisWeek` — 이번주 완료
+  - `lateCompletion` — 완료 지연
+  - `dailySeries` — 일별 처리량 (예측 모델 입력)
+
+#### 2. `isInBacklog` rejected 추가
+- v1.0.18의 isInBacklog가 cancelled만 제외 → rejected 추가
+- 영향: 담당자별 잔여·active 카운트, ETA 산정에서 반려 제외
+
+### 영향 — 사용자에게 보이는 변화
+
+| 카드/차트 | v1.0.18까지 | v1.0.19 |
+|-----------|-----------|--------|
+| **오늘 완료 N건** | 취소·반려 포함 가능 | **실제 완료만** |
+| **이번주 완료 N건** | 동일 | **실제 완료만** |
+| **90일 완료 N건** | 동일 | **실제 완료만** |
+| **완료 지연 N건** | 취소된 task 포함 가능 | **제외** |
+| **일별 처리량 차트** | 취소된 날 막대 부풀림 | **정직한 처리량** |
+| **백로그 active 카운트** | 반려 포함 가능 | **제외** |
+| **Monte Carlo 입력** | 취소·반려 처리량 포함 | **실제 처리량만** → ETA 정직성 향상 |
+
+### 검증
+- vitest 298/298 통과 (변경 없음)
+- TypeScript strict, ESLint 에러 0
+- 진행 추이/예측 탭 전체 일관성 — KPI·프로젝트 현황과 동일 정의
+
+### 영향받는 화면 컴포넌트
+- `BacklogStateCards` — 6 카드 (잔여/활성/보류/미배정/90일완료/마감일미설정)
+- `TodayWeekCards` — 오늘·이번주 완료
+- `DelayCards` — 미완료 지연/완료 지연/마감일 미설정
+- `DailyCompletionChart` — 최근 30일 일별 추이
+- `EtaScenarioCard` — Monte Carlo 입력 데이터 정직성 → ETA 더 정확
+- `PerAssigneeTable` — 담당자별 처리량 (이미 isDone 적용됨)
+
+### 빌드
+```bash
+npm run build          # 1.0.19 .exe + portable 생성
+```
+
+---
+
 ## [1.0.18] 취소·반려 KPI/통계 제외 — 완료 카운트 정직성 강화
 
 ### 적용 버전
