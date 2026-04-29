@@ -16,7 +16,11 @@ export const JIRA_CONFIG = {
         DIFFICULTY: 'customfield_10017',
         /**
          * v1.0.14: 서브담당자 (다중 사용자 array). 협업·페어 프로그래밍에서 보조 인원 표시.
-         * IGMU 프로젝트 표준: customfield_11482. 다른 프로젝트는 customfield_11011/10913 가능.
+         *
+         * Jira UI 필드명: **'서브담당자'** (띄어쓰기 없음, IGMU 프로젝트 표준).
+         * IGMU 프로젝트 = `customfield_11482`.
+         * 동일 이름의 변형 필드: `customfield_11011`(서브담당자), `customfield_10913`(서브 담당자, 띄어쓰기 있음) — 다른 프로젝트에서 사용될 수 있음.
+         * 변경하려면 KPI 규칙 → 커스텀 필드 → "서브담당자" 입력란.
          */
         SUB_ASSIGNEE: 'customfield_11482',
     },

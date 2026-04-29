@@ -104,3 +104,59 @@ export function buildSubAssigneeMap(issues: JiraIssue[]): Map<string, SubInvolve
     }
     return map;
 }
+
+/**
+ * v1.0.15: 메인 담당자 시점에서 본 협업 관계.
+ * 메인 X의 task 중 서브가 등록된 것을 → 서브 인원별로 그룹.
+ *
+ * 셀프 등록(메인=서브)은 무시 (데이터 입력 실수 또는 자기 인증).
+ *
+ * @returns Map<mainKey, Map<subKey, { displayName, sharedIssues }>>
+ *
+ * 사용 예: 프로젝트 통계의 메인 담당자 행 아래에 인라인 sub-row 렌더링.
+ *   "최준배 (메인) → 강현 4건 함께 / 김태현 2건 함께"
+ */
+export interface MainCollaboration {
+    /** 서브 인원의 personKey */
+    subKey: string;
+    /** 서브 인원 displayName */
+    subDisplayName: string;
+    /** 메인 X와 이 서브가 함께한 task 목록 (KPI 산정용) */
+    sharedIssues: JiraIssue[];
+}
+
+export function buildMainCollaborations(issues: JiraIssue[]): Map<string, MainCollaboration[]> {
+    /** mainName → subKey → MainCollaboration */
+    const tmp = new Map<string, Map<string, MainCollaboration>>();
+
+    for (const issue of issues) {
+        const mainName = issue.fields.assignee?.displayName;
+        if (!mainName) continue; // 미배정 메인은 협업 그래프에서 제외
+        const subs = extractSubAssignees(issue);
+        if (subs.length === 0) continue;
+
+        const subMap = tmp.get(mainName) ?? new Map<string, MainCollaboration>();
+        for (const sub of subs) {
+            // 셀프 등록 무시
+            if (sub.label === mainName) continue;
+            const prev = subMap.get(sub.key) ?? {
+                subKey: sub.key,
+                subDisplayName: sub.label,
+                sharedIssues: [] as JiraIssue[],
+            };
+            prev.sharedIssues.push(issue);
+            subMap.set(sub.key, prev);
+        }
+        if (subMap.size > 0) tmp.set(mainName, subMap);
+    }
+
+    // sharedIssues 건수 내림차순 정렬해서 array로
+    const out = new Map<string, MainCollaboration[]>();
+    for (const [main, subMap] of tmp) {
+        const list = [...subMap.values()].sort(
+            (a, b) => b.sharedIssues.length - a.sharedIssues.length
+        );
+        out.set(main, list);
+    }
+    return out;
+}
