@@ -42,9 +42,9 @@ export function ActivityItem({ item, onEditClick }: { item: AnyItem; onEditClick
             <div className="flex justify-between items-start mb-2">
                 <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-foreground">{item.author ?? 'Unknown'}</span>
-                    <Badge variant="outline" className={`text-[9px] px-1 h-3.5 border-none font-normal ${item.type === 'comment' ? 'bg-blue-500/10 text-blue-600' :
-                        item.type === 'worklog' ? 'bg-amber-500/10 text-amber-600' :
-                            'bg-slate-500/10 text-foreground/80'
+                    <Badge variant="outline" className={`text-[9px] px-1 h-3.5 border-none font-normal ${item.type === 'comment' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' :
+                        item.type === 'worklog' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' :
+                            'bg-muted text-muted-foreground'
                         }`}>
                         {item.type === 'comment' ? '댓글' : item.type === 'worklog' ? '업무로그' : '이력'}
                     </Badge>

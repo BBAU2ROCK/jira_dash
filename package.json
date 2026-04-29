@@ -1,7 +1,7 @@
 {
   "name": "01_jira_dash",
   "private": true,
-  "version": "1.0.25",
+  "version": "1.0.26",
   "description": "Jira Dashboard Application",
   "author": "Okestro",
   "type": "module",
@@ -106,7 +106,7 @@
       }
     ],
     "releaseInfo": {
-      "releaseNotes": "v1.0.25 — 담당자별 현황·KPI 성과 표 다크 핫픽스: thead·본 row·sub-row·selectedGroup 패널·GradeCard 모두 inline hex → Tailwind 토큰. 등급별 색 헬퍼(gradeTextClass)로 추출."
+      "releaseNotes": "v1.0.26 — 이슈 상세 드로어 X 중복 제거 + 다크 마감: Sheet 기본 absolute close 제거(헤더 자체 close로 일원화), drawer 헤더 close 토큰화, 탭 트리거 bg-slate-700→bg-primary, status chip hover/focus 토큰, mention chip / activity badge / 이슈 key 다크 variant."
     },
     "win": {
       "target": [

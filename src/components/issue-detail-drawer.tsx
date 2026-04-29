@@ -278,9 +278,10 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                 >
                                     <RefreshCw className={`h-4 w-4 ${detailsLoading ? 'animate-spin' : ''}`} />
                                 </Button>
-                                <SheetClose className="rounded-sm opacity-70 ring-offset-white transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-muted/60 h-8 w-8 flex items-center justify-center">
-                                    <X className="h-5 w-5 text-foreground/80" />
-                                    <span className="sr-only">Close</span>
+                                {/* v1.0.26: 토큰 기반 close — 다크/라이트 자동, focus-visible ring 통일 */}
+                                <SheetClose className="rounded-md h-8 w-8 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none">
+                                    <X className="h-4 w-4" />
+                                    <span className="sr-only">닫기</span>
                                 </SheetClose>
                             </div>
                         </SheetHeader>
@@ -312,13 +313,13 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                 </div>
                                 <div className="min-w-0">
                                     <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                        <span className="text-[11px] font-bold text-blue-600 tracking-wider uppercase">{issue?.key}</span>
+                                        <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 tracking-wider uppercase">{issue?.key}</span>
                                         <Popover open={statusPopoverOpen} onOpenChange={(open) => { setStatusPopoverOpen(open); if (!open) transitionMutation.reset(); }}>
                                             <PopoverTrigger asChild>
                                                 <button
                                                     type="button"
                                                     className={cn(
-                                                        "inline-flex items-center gap-1 rounded text-[10px] px-1.5 h-4 font-medium bg-muted text-foreground/90 border-none cursor-pointer hover:bg-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1",
+                                                        "inline-flex items-center gap-1 rounded text-[10px] px-1.5 h-4 font-medium bg-muted text-foreground/90 border-none cursor-pointer hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
                                                         (transitionMutation.isPending || (transitions?.length === 0)) && "opacity-80"
                                                     )}
                                                     disabled={transitionMutation.isPending}
@@ -589,25 +590,25 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                     <TabsList className="flex gap-1 p-1 rounded-lg h-auto bg-muted/60 border border-border">
                                         <TabsTrigger
                                             value="all"
-                                            className="flex-1 min-w-0 text-xs py-2 rounded-md data-[state=inactive]:bg-transparent data-[state=inactive]:text-muted-foreground data-[state=active]:bg-slate-700 data-[state=active]:text-white data-[state=active]:shadow-sm"
+                                            className="flex-1 min-w-0 text-xs py-2 rounded-md data-[state=inactive]:bg-transparent data-[state=inactive]:text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
                                         >
                                             전체
                                         </TabsTrigger>
                                         <TabsTrigger
                                             value="comments"
-                                            className="flex-1 min-w-0 text-xs py-2 rounded-md data-[state=inactive]:bg-transparent data-[state=inactive]:text-muted-foreground data-[state=active]:bg-slate-700 data-[state=active]:text-white data-[state=active]:shadow-sm"
+                                            className="flex-1 min-w-0 text-xs py-2 rounded-md data-[state=inactive]:bg-transparent data-[state=inactive]:text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
                                         >
                                             댓글 ({comments.length})
                                         </TabsTrigger>
                                         <TabsTrigger
                                             value="history"
-                                            className="flex-1 min-w-0 text-xs py-2 rounded-md data-[state=inactive]:bg-transparent data-[state=inactive]:text-muted-foreground data-[state=active]:bg-slate-700 data-[state=active]:text-white data-[state=active]:shadow-sm"
+                                            className="flex-1 min-w-0 text-xs py-2 rounded-md data-[state=inactive]:bg-transparent data-[state=inactive]:text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
                                         >
                                             기록 ({histories.length})
                                         </TabsTrigger>
                                         <TabsTrigger
                                             value="worklog"
-                                            className="flex-1 min-w-0 text-xs py-2 rounded-md data-[state=inactive]:bg-transparent data-[state=inactive]:text-muted-foreground data-[state=active]:bg-slate-700 data-[state=active]:text-white data-[state=active]:shadow-sm"
+                                            className="flex-1 min-w-0 text-xs py-2 rounded-md data-[state=inactive]:bg-transparent data-[state=inactive]:text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
                                         >
                                             업무로그 ({worklogs.length})
                                         </TabsTrigger>

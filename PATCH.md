@@ -4,6 +4,60 @@
 
 ---
 
+## [1.0.26] 이슈 상세 드로어 — X 중복 제거 + 다크 마감
+
+### 적용 버전
+- 앱 버전: **1.0.26**
+
+### 배경
+사용자 화면 캡처 확인:
+1. **이슈 상세 드로어 헤더에 X 버튼이 두 개** 보임 (Sheet 컴포넌트 기본 absolute close + 헤더 자체 close 중복)
+2. **드로어 안 일부 잔여 hard-code** (`bg-slate-700` 탭 트리거, `hover:bg-slate-300` mention chip, `bg-slate-500/10` activity 배지 등)
+
+→ "왜 닫힘 버튼이 두개야. 하나만 하자. 그리고 슬라이드 팝업에도 모두 적용된거지?"
+
+### 핵심 변경
+
+#### 1. X 버튼 중복 제거 — `src/components/ui/sheet.tsx`
+- `<SheetPrimitive.Close className="absolute right-4 top-4 ..."> <X /> </SheetPrimitive.Close>` 자동 렌더링 블록 제거
+- `import { X }` 도 제거 (미사용)
+- Sheet 사용처(issue-detail-drawer)가 헤더에 자체 close 통합 → 일원화
+
+#### 2. drawer 헤더 close 토큰화
+- `ring-offset-white focus:ring-slate-950` → `text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-visible:ring-ring focus-visible:ring-offset-background`
+- X 아이콘 사이즈 `h-5 w-5` → `h-4 w-4` (헤더 RefreshCw와 통일)
+- `sr-only "Close"` → `"닫기"` (한글)
+
+#### 3. 탭 트리거 토큰화
+- `data-[state=active]:bg-slate-700 data-[state=active]:text-white` → `data-[state=active]:bg-primary data-[state=active]:text-primary-foreground`
+- 4개 트리거(`전체`/`댓글`/`기록`/`업무로그`) 모두 일괄 적용 (replace_all)
+
+#### 4. Status chip & key 잔재 토큰화
+- 이슈 키: `text-blue-600` → `text-blue-600 dark:text-blue-400`
+- Status 변경 chip 버튼: `hover:bg-slate-300 focus:ring-blue-500` → `hover:bg-accent focus-visible:ring-ring focus-visible:ring-offset-background`
+
+#### 5. activity.tsx 배지 다크 variant
+- `bg-blue-500/10 text-blue-600` → 추가 `dark:text-blue-400`
+- `bg-amber-500/10 text-amber-600` → 추가 `dark:text-amber-400`
+- `bg-slate-500/10 text-foreground/80` → `bg-muted text-muted-foreground`
+
+### 영향
+| 영역 | v1.0.25 | v1.0.26 |
+|------|---------|---------|
+| 이슈 상세 헤더 X 버튼 | **2개** (Sheet 기본 + 헤더) | **1개** (헤더만) |
+| 드로어 close 다크 | `ring-offset-white` 등 라이트 hex | **토큰 자동** |
+| 탭 트리거 active | bg-slate-700 (검정) | **bg-primary** (다크 자동 글로우) |
+| Status chip hover | bg-slate-300 | **bg-accent** |
+| Activity 배지(이력) | slate-500/10 (라이트만) | **bg-muted** (다크 자동) |
+| 이슈 키 색 | text-blue-600 (라이트만) | **+dark:text-blue-400** |
+
+### 검증
+- TypeScript strict 빌드 통과
+- ESLint 0 errors
+- vitest 298/298 통과
+
+---
+
 ## [1.0.25] 담당자별 현황·KPI 성과 표 다크 핫픽스
 
 ### 적용 버전
