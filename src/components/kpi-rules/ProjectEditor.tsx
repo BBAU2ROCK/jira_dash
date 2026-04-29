@@ -32,7 +32,7 @@ export function ProjectEditor({ dashboardProjectKey, projectKeys, weekStartsOn, 
     return (
         <div className="space-y-4">
             <div>
-                <div className="text-sm font-semibold text-slate-800 mb-2 flex items-center gap-1">
+                <div className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1">
                     대시보드 프로젝트 키
                     <InfoTip>사이드바 에픽 조회의 기본 프로젝트. 변경 시 에픽 목록이 새로고침됩니다.</InfoTip>
                 </div>
@@ -44,15 +44,15 @@ export function ProjectEditor({ dashboardProjectKey, projectKeys, weekStartsOn, 
                 />
             </div>
             <div>
-                <div className="text-sm font-semibold text-slate-800 mb-2 flex items-center gap-1">
+                <div className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1">
                     프로젝트 키 목록
                     <InfoTip>진행 추이/예측 탭의 프로젝트 선택 드롭다운에 표시될 키 목록.</InfoTip>
                 </div>
                 <div className="flex flex-wrap gap-1.5 mb-2">
                     {projectKeys.map((key) => (
-                        <span key={key} className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-mono">
+                        <span key={key} className="inline-flex items-center gap-1 rounded border border-border bg-muted/40 px-2 py-0.5 text-xs font-mono">
                             {key}
-                            <button type="button" onClick={() => removeKey(key)} className="text-red-500 hover:text-red-700">
+                            <button type="button" onClick={() => removeKey(key)} className="text-red-500 hover:text-red-700 dark:text-red-300">
                                 <Trash2 className="h-3 w-3" />
                             </button>
                         </span>
@@ -73,14 +73,14 @@ export function ProjectEditor({ dashboardProjectKey, projectKeys, weekStartsOn, 
                 </div>
             </div>
             <div>
-                <div className="text-sm font-semibold text-slate-800 mb-2 flex items-center gap-1">
+                <div className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1">
                     주 시작 요일
                     <InfoTip>이번주 완료 카운트의 주 시작 요일. 한국 비즈니스 표준은 월요일(1).</InfoTip>
                 </div>
                 <select
                     value={weekStartsOn}
                     onChange={(e) => onWeekStartsOnChange(parseInt(e.target.value))}
-                    className="h-8 rounded-md border border-slate-300 bg-white px-2 text-sm"
+                    className="h-8 rounded-md border border-border bg-card px-2 text-sm"
                 >
                     {DAYS.map((d, i) => (
                         <option key={i} value={i}>{d}요일 ({i})</option>

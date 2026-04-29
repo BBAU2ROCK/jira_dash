@@ -14,17 +14,17 @@ interface Props {
 const TONE_CLASS: Record<NonNullable<Props['tone']>, { bg: string; border: string; iconBg: string; iconText: string; titleText: string }> = {
     forecast: {
         bg: 'bg-gradient-to-r from-indigo-50 via-blue-50 to-cyan-50',
-        border: 'border-indigo-300',
+        border: 'border-indigo-300 dark:border-indigo-900/60',
         iconBg: 'bg-indigo-500',
         iconText: 'text-white',
-        titleText: 'text-indigo-900',
+        titleText: 'text-indigo-900 dark:text-indigo-300',
     },
     retrospective: {
         bg: 'bg-gradient-to-r from-amber-50 via-orange-50 to-rose-50',
-        border: 'border-amber-300',
+        border: 'border-amber-300 dark:border-amber-900/60',
         iconBg: 'bg-amber-500',
         iconText: 'text-white',
-        titleText: 'text-amber-900',
+        titleText: 'text-amber-900 dark:text-amber-300',
     },
 };
 
@@ -44,7 +44,7 @@ export function SectionDivider({ label, subtitle, icon: Icon, tone = 'forecast' 
                 )}
                 <div className="flex-1">
                     <h2 className={cn('text-lg font-bold tracking-tight', c.titleText)}>{label}</h2>
-                    {subtitle && <p className="text-sm text-slate-600 mt-0.5">{subtitle}</p>}
+                    {subtitle && <p className="text-sm text-foreground/80 mt-0.5">{subtitle}</p>}
                 </div>
             </div>
         </div>

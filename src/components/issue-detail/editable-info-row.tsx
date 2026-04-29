@@ -50,27 +50,27 @@ export function EditableInfoRow({ icon, label, value, type, onSave }: EditableIn
     }, [userQuery]);
 
     return (
-        <div className="flex items-start gap-2 group cursor-pointer min-h-[40px] px-2 py-1 rounded hover:bg-slate-100"
+        <div className="flex items-start gap-2 group cursor-pointer min-h-[40px] px-2 py-1 rounded hover:bg-muted/60"
             onClick={() => !isEditing && setIsEditing(true)}>
             <span className="mt-1">{icon}</span>
             <div className="min-w-0 flex-1">
-                <p className="text-[10px] uppercase font-semibold text-slate-500">{label}</p>
+                <p className="text-[10px] uppercase font-semibold text-muted-foreground">{label}</p>
                 {isEditing ? (
                     <div className="mt-1" onClick={e => e.stopPropagation()}>
                         {type === 'date' ? (
-                            <input type="date" className="w-full text-sm border rounded px-1 h-7 bg-white border-slate-300 text-slate-900"
+                            <input type="date" className="w-full text-sm border rounded px-1 h-7 bg-card border-border text-foreground"
                                 value={localValue} onChange={e => setLocalValue(e.target.value)}
                                 onBlur={handleSave} autoFocus />
                         ) : (
                             <div className="relative">
-                                <input type="text" className="w-full text-sm border rounded px-1 h-7 bg-white border-slate-300 text-slate-900"
+                                <input type="text" className="w-full text-sm border rounded px-1 h-7 bg-card border-border text-foreground"
                                     placeholder="Search user..." value={userQuery}
                                     onChange={e => setUserQuery(e.target.value)} autoFocus />
                                 {userQuery.length >= 2 && (
-                                    <div className="absolute top-full left-0 w-full mt-1 bg-white border border-slate-200 rounded shadow-lg z-50 max-h-48 overflow-y-auto">
-                                        {isSearching ? <div className="p-2 text-xs text-center text-slate-500">Searching...</div> :
+                                    <div className="absolute top-full left-0 w-full mt-1 bg-card border border-border rounded shadow-lg z-50 max-h-48 overflow-y-auto">
+                                        {isSearching ? <div className="p-2 text-xs text-center text-muted-foreground">Searching...</div> :
                                             searchResults.map(user => (
-                                                <div key={user.accountId} className="px-2 py-1.5 text-xs hover:bg-slate-100 cursor-pointer flex items-center gap-2 text-slate-800"
+                                                <div key={user.accountId} className="px-2 py-1.5 text-xs hover:bg-muted/60 cursor-pointer flex items-center gap-2 text-foreground"
                                                     onClick={() => { onSave(user.accountId); setIsEditing(false); setUserQuery(''); }}>
                                                     {user.avatarUrls?.['16x16'] && (
                                                         <img src={user.avatarUrls['16x16']} className="w-4 h-4 rounded-full" alt="" />
@@ -84,7 +84,7 @@ export function EditableInfoRow({ icon, label, value, type, onSave }: EditableIn
                         )}
                     </div>
                 ) : (
-                    <p className={cn("text-sm font-medium truncate", value ? "text-slate-800" : "text-slate-500 italic")}>
+                    <p className={cn("text-sm font-medium truncate", value ? "text-foreground" : "text-muted-foreground italic")}>
                         {type === 'date' && value ? format(new Date(value), 'yyyy.MM.dd') : (value || '-')}
                     </p>
                 )}

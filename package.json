@@ -1,7 +1,7 @@
 {
   "name": "01_jira_dash",
   "private": true,
-  "version": "1.0.22",
+  "version": "1.0.23",
   "description": "Jira Dashboard Application",
   "author": "Okestro",
   "type": "module",
@@ -106,7 +106,7 @@
       }
     ],
     "releaseInfo": {
-      "releaseNotes": "v1.0.22 — 다크모드 가독성 핫픽스 + 프리미엄 마감: Sidebar 카드 토큰화·선택 ring·glow, 헤더 glassmorphism, 메인 Hero EmptyState (일러스트 + CTA), radial gradient 배경, 다크 토큰 대비 강화."
+      "releaseNotes": "v1.0.23 — 다크모드 일관성 완성: 메인 헤더 ThemeToggle, IssueList·FilterBar·project-stats-dialog 등 35개 파일 700+ 위치 토큰 일괄 마이그레이션, 의미색 dark variant 자동 추가, 사이드바 collapse 버튼 강화, 강제 dark 캘린더 제거."
     },
     "win": {
       "target": [

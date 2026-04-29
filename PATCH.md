@@ -4,6 +4,95 @@
 
 ---
 
+## [1.0.23] 다크모드 일관성 완성 — 전체 화면 토큰 마이그레이션
+
+### 적용 버전
+- 앱 버전: **1.0.23**
+- 패치 반영일: 2026년 4월
+
+### 배경
+v1.0.22에서 사이드바·헤더·다크 토큰을 정련했지만 사용자 화면 캡처 확인 결과:
+- **메인 IssueList 색감 박살** — `text-slate-700`, `bg-white`, `border-slate-200` 그대로 → 다크에서 안 보임
+- **다크모드 토글이 진행 추이/예측 탭 안에만 존재** → 메인 화면에서 접근 불가
+- **사이드바 collapse 버튼 식별 불가** — 단순 ChevronLeft만, 클릭 영역 작음
+- **project-stats-dialog 95개 hard-code 잔존** → KPI/현황 탭 다크 미반영
+
+→ 전체 컴포넌트 토큰 일괄 마이그레이션 + UX 개선.
+
+### 핵심 변경
+
+#### 1. 메인 헤더 다크모드 토글
+- `Dashboard` 헤더에 `<ThemeToggle>` 배치 + 구분선 (`bg-border`)
+- 어디서든 light/dark/system 순환 가능 — 더 이상 진행 추이/예측 탭에 들어갈 필요 없음
+
+#### 2. 사이드바 collapse 버튼 강화
+- 단순 ghost button → 명시적 outlined 버튼 (`h-7 w-7 border border-border bg-background/80 shadow-sm`)
+- title + aria-label 명확화: "사이드바 접기"
+- ChevronLeft 사이즈 통일 (h-3.5 w-3.5)
+
+#### 3. IssueList 토큰화
+- 행 배경: `bg-blue-50` → `bg-primary/[0.04] dark:bg-primary/[0.06]` (subtask), `bg-slate-50` → `bg-muted/30` (parent), `bg-white` → `bg-card`
+- hover: `hover:bg-muted/50` → `hover:bg-accent/40`
+- 제목 텍스트: `text-slate-800` → `text-foreground`, hover `text-blue-600` → `text-primary`
+- ChevronRight/Down: `text-blue-600` → `text-primary`
+- Status badges: `bg-green-50/text-green-700/border-green-200` → 추가 `dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/60`
+- "검색 결과 N건" 박지: `bg-blue-50/50 text-blue-600` → `bg-primary/10 text-primary` 토큰
+- focus banner: `bg-slate-100 border-slate-200` → `bg-muted/40 border-border`
+
+#### 4. IssueFilterBar 전면 리뉴얼
+- 검색 input/Popover trigger: `bg-white text-slate-900` → `bg-card text-foreground` 자동
+- 다중 선택 체크박스: `bg-blue-500 border-blue-500` → `bg-primary border-primary` + `Check` 아이콘
+- 선택된 항목: `bg-blue-50 text-blue-600` → `bg-primary/10 text-primary`
+- **강제 dark 캘린더 제거** — `<div className="dark"><Calendar className="bg-black text-white border-zinc-800" /></div>` → 토큰 기반 자동 (라이트/다크 모두 정상)
+- 지연/지연완료 토글: 의미 색(red/orange) 유지하되 `dark:bg-{color}-950/40 dark:text-{color}-300 dark:border-{color}-900/60` 추가
+
+#### 5. project-stats-dialog · 기타 35개 파일 일괄 토큰 마이그레이션
+- `scripts/migrate-colors.cjs` 신규 — 일회성 자동화 스크립트
+  - text-{slate|gray}-{50~900} → semantic 토큰 (foreground/muted-foreground/foreground/80/90)
+  - bg-white → bg-card
+  - bg-{slate|gray}-{50,100,200} → bg-muted/{40,60,주}
+  - border-{slate|gray}-{100,200,300} → border-border/{50,주}
+  - hover:bg-, hover:text-, divide- 모두 처리
+- 총 **537 위치 / 34 파일** 자동 마이그레이션 (project-stats-dialog 114, EpicDefectCard 34, MultiEpicCompare 23, EpicRetroCard 20 등)
+
+#### 6. 의미색 dark variant 자동 추가
+- `scripts/migrate-semantic-dark.cjs` 신규
+  - `bg-{color}-50` → `+ dark:bg-{color}-950/30`
+  - `bg-{color}-50/50` → `+ dark:bg-{color}-950/20`
+  - `text-{color}-{700,800,900}` → `+ dark:text-{color}-300`
+  - `border-{color}-{200,300}` → `+ dark:border-{color}-900/60`
+- 총 **341 위치 / 35 파일** (DefectPatternCard 38, EpicDefectCard 36, project-stats-dialog 25, ConfidenceBadge 12 등)
+
+#### 7. BacklogStateCards 명시적 dark variant
+- `bg-blue-50 text-blue-700 text-blue-500` → 추가 `dark:bg-blue-950/30 dark:text-blue-300 dark:text-blue-400`
+- 5개 의미 색 (blue/cyan/purple/amber/green) 모두 동일 패턴
+- slate는 이미 토큰 기반 (`bg-muted/40 text-foreground/90`)
+
+### 영향 — 사용자 체감 변화
+
+| 영역 | v1.0.22 | v1.0.23 |
+|------|---------|---------|
+| 메인 IssueList 가독성 | 다크에서 텍스트 묻힘 | **모든 텍스트 또렷** (text-foreground/90) |
+| 헤더 테마 토글 | 진행 추이/예측 탭에만 | **메인 헤더에서 접근** |
+| 사이드바 접기 버튼 | ChevronLeft 단독 | **테두리 + 그림자 명확** |
+| 검색·필터 다크 대응 | bg-white 그대로 | **bg-card 자동 대응** |
+| 캘린더 다크 강제 | 라이트 모드도 검정 | **테마 따라 자동** |
+| 통계 다이얼로그 | 95개 hard-code | **모두 토큰** |
+| KPI 카드 의미색 | 라이트만 | **dark variant 자동** |
+
+### 신규 스크립트
+- `scripts/migrate-colors.cjs` — 일반 색 → 토큰 자동 마이그레이션
+- `scripts/migrate-semantic-dark.cjs` — 의미색에 dark variant 자동 추가
+
+(일회성 도구, 향후 다른 프로젝트 적용 시 재사용 가능)
+
+### 검증
+- TypeScript strict 빌드 통과
+- ESLint **0 errors** (13 기존 warnings)
+- vitest **298/298 통과**
+
+---
+
 ## [1.0.22] 다크모드 가독성 핫픽스 + 프리미엄 마감
 
 ### 적용 버전

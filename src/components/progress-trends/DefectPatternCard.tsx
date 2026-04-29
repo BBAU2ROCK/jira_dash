@@ -15,20 +15,20 @@ import {
 } from '@/services/retrospective/developerInsights';
 
 const GRADE_COLOR: Record<DefectKpiDeveloperRow['grade'], string> = {
-    S: 'bg-purple-100 text-purple-800 border-purple-300',
-    A: 'bg-green-100 text-green-800 border-green-300',
-    B: 'bg-blue-100 text-blue-800 border-blue-300',
-    C: 'bg-amber-100 text-amber-800 border-amber-300',
-    D: 'bg-red-100 text-red-800 border-red-300',
-    '—': 'bg-slate-100 text-slate-600 border-slate-300',
+    S: 'bg-purple-100 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-900/60',
+    A: 'bg-green-100 text-green-800 dark:text-green-300 border-green-300 dark:border-green-900/60',
+    B: 'bg-blue-100 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-900/60',
+    C: 'bg-amber-100 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-900/60',
+    D: 'bg-red-100 text-red-800 dark:text-red-300 border-red-300 dark:border-red-900/60',
+    '—': 'bg-muted/60 text-foreground/80 border-border',
 };
 
 const PROFILE_COLOR: Record<DeveloperProfile, string> = {
-    mentor: 'bg-purple-100 text-purple-800 border-purple-300',
-    balanced: 'bg-blue-100 text-blue-800 border-blue-300',
-    specialized: 'bg-green-100 text-green-800 border-green-300',
-    'needs-support': 'bg-amber-100 text-amber-800 border-amber-300',
-    'new-joiner': 'bg-slate-100 text-slate-600 border-slate-300',
+    mentor: 'bg-purple-100 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-900/60',
+    balanced: 'bg-blue-100 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-900/60',
+    specialized: 'bg-green-100 text-green-800 dark:text-green-300 border-green-300 dark:border-green-900/60',
+    'needs-support': 'bg-amber-100 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-900/60',
+    'new-joiner': 'bg-muted/60 text-foreground/80 border-border',
 };
 
 interface Props {
@@ -79,7 +79,7 @@ export function DefectPatternCard({ rows, isLoading, mappingCount, workerFieldRe
 
     if (mappingCount === 0) {
         return (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 flex items-start gap-2">
+            <div className="rounded-lg border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 p-4 text-sm text-amber-900 dark:text-amber-300 flex items-start gap-2">
                 <AlertCircle className="h-5 w-5 shrink-0" />
                 <div>
                     <p className="font-semibold">결함 매핑 미등록</p>
@@ -94,7 +94,7 @@ export function DefectPatternCard({ rows, isLoading, mappingCount, workerFieldRe
 
     if (!workerFieldResolved && !isLoading) {
         return (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            <div className="rounded-lg border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 p-4 text-sm text-red-800 dark:text-red-300">
                 Jira에 「작업자」 필드를 찾지 못했습니다. defectKpiConfig.ts의 WORKER_FIELD_NAMES 확인 필요.
             </div>
         );
@@ -102,7 +102,7 @@ export function DefectPatternCard({ rows, isLoading, mappingCount, workerFieldRe
 
     if (isLoading) {
         return (
-            <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-500">
+            <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">
                 결함 데이터 분석 중...
             </div>
         );
@@ -110,43 +110,43 @@ export function DefectPatternCard({ rows, isLoading, mappingCount, workerFieldRe
 
     if (rows.length === 0) {
         return (
-            <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-500">
+            <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">
                 매핑된 에픽에 결함 데이터가 없습니다.
             </div>
         );
     }
 
     return (
-        <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
-            <div className="px-3 py-2 border-b border-slate-200 flex items-center gap-2">
+        <div className="rounded-lg border border-border bg-card overflow-hidden">
+            <div className="px-3 py-2 border-b border-border flex items-center gap-2">
                 <Bug className="h-4 w-4 text-red-500" />
-                <h3 className="text-sm font-semibold text-slate-800">담당자별 결함 패턴 + 개인 인사이트</h3>
+                <h3 className="text-sm font-semibold text-foreground">담당자별 결함 패턴 + 개인 인사이트</h3>
                 <InfoTip size="sm">
                     행을 클릭하면 강점·개선 포인트·페르소나가 펼쳐집니다.
                     팀 중앙값({baseline.medianDefectRate.toFixed(1)}% defect rate, {baseline.medianCycleTime.toFixed(1)}d cycle) 기준으로 비교.
                 </InfoTip>
-                <span className="text-[11px] text-slate-500 ml-auto">{rows.length}명</span>
+                <span className="text-[11px] text-muted-foreground ml-auto">{rows.length}명</span>
             </div>
             <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                    <thead className="bg-slate-50 border-b border-slate-200">
+                    <thead className="bg-muted/40 border-b border-border">
                         <tr>
-                            <th scope="col" className="px-2 py-2 text-xs font-medium text-slate-600 text-left w-6"></th>
-                            <th scope="col" className="px-2 py-2 text-xs font-medium text-slate-600 text-left">담당자</th>
-                            <th scope="col" className="px-2 py-2 text-xs font-medium text-slate-600 text-right">담당 task</th>
-                            <th scope="col" className="px-2 py-2 text-xs font-medium text-slate-600 text-right">결함</th>
-                            <th scope="col" className="px-2 py-2 text-xs font-medium text-slate-600 text-right">
+                            <th scope="col" className="px-2 py-2 text-xs font-medium text-foreground/80 text-left w-6"></th>
+                            <th scope="col" className="px-2 py-2 text-xs font-medium text-foreground/80 text-left">담당자</th>
+                            <th scope="col" className="px-2 py-2 text-xs font-medium text-foreground/80 text-right">담당 task</th>
+                            <th scope="col" className="px-2 py-2 text-xs font-medium text-foreground/80 text-right">결함</th>
+                            <th scope="col" className="px-2 py-2 text-xs font-medium text-foreground/80 text-right">
                                 <span className="inline-flex items-center gap-1 justify-end">
                                     비율
                                     <InfoTip size="sm">Defect Density = 결함 ÷ 담당 × 100</InfoTip>
                                 </span>
                             </th>
-                            <th scope="col" className="px-2 py-2 text-xs font-medium text-slate-600 text-left">심각도</th>
-                            <th scope="col" className="px-2 py-2 text-xs font-medium text-slate-600 text-center">프로파일</th>
-                            <th scope="col" className="px-2 py-2 text-xs font-medium text-slate-600 text-center">등급</th>
+                            <th scope="col" className="px-2 py-2 text-xs font-medium text-foreground/80 text-left">심각도</th>
+                            <th scope="col" className="px-2 py-2 text-xs font-medium text-foreground/80 text-center">프로파일</th>
+                            <th scope="col" className="px-2 py-2 text-xs font-medium text-foreground/80 text-center">등급</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-border/50">
                         {rows.map((r) => {
                             const displayName = maybeAnonymize(r.displayName, anonMap, anonymizeMode);
                             const gradeColor = GRADE_COLOR[r.grade];
@@ -157,17 +157,17 @@ export function DefectPatternCard({ rows, isLoading, mappingCount, workerFieldRe
                             return (
                                 <React.Fragment key={r.key}>
                                     <tr
-                                        className={cn('cursor-pointer hover:bg-slate-50', isExpanded && 'bg-blue-50/40')}
+                                        className={cn('cursor-pointer hover:bg-muted/40', isExpanded && 'bg-blue-50 dark:bg-blue-950/30/40')}
                                         onClick={() => toggle(r.key)}
                                     >
-                                        <td className="px-2 py-1.5 text-slate-400">
+                                        <td className="px-2 py-1.5 text-muted-foreground">
                                             {isExpanded ? (
                                                 <ChevronDown className="h-3.5 w-3.5" />
                                             ) : (
                                                 <ChevronRight className="h-3.5 w-3.5" />
                                             )}
                                         </td>
-                                        <td className="px-2 py-1.5 text-slate-800 font-medium">{displayName}</td>
+                                        <td className="px-2 py-1.5 text-foreground font-medium">{displayName}</td>
                                         <td className="px-2 py-1.5 text-right tabular-nums">{r.devIssueCount}</td>
                                         <td className="px-2 py-1.5 text-right tabular-nums text-red-600 font-medium">{r.defectCount}</td>
                                         <td className="px-2 py-1.5 text-right tabular-nums">
@@ -175,7 +175,7 @@ export function DefectPatternCard({ rows, isLoading, mappingCount, workerFieldRe
                                         </td>
                                         <td className="px-2 py-1.5 align-top">
                                             {r.severityBreakdown.length === 0 ? (
-                                                <span className="text-slate-400 text-xs">—</span>
+                                                <span className="text-muted-foreground text-xs">—</span>
                                             ) : (
                                                 <div className="flex flex-wrap gap-1">
                                                     {r.severityBreakdown.slice(0, 4).map((s) => (
@@ -192,7 +192,7 @@ export function DefectPatternCard({ rows, isLoading, mappingCount, workerFieldRe
                                                         </span>
                                                     ))}
                                                     {r.severityBreakdown.length > 4 && (
-                                                        <span className="text-[10px] text-slate-400 self-center">+{r.severityBreakdown.length - 4}</span>
+                                                        <span className="text-[10px] text-muted-foreground self-center">+{r.severityBreakdown.length - 4}</span>
                                                     )}
                                                 </div>
                                             )}
@@ -214,46 +214,46 @@ export function DefectPatternCard({ rows, isLoading, mappingCount, workerFieldRe
 
                                     {/* 펼침 — 인사이트 상세 */}
                                     {isExpanded && insight && (
-                                        <tr className="bg-slate-50/60">
+                                        <tr className="bg-muted/40/60">
                                             <td></td>
-                                            <td colSpan={7} className="px-3 py-3 border-t border-slate-200">
+                                            <td colSpan={7} className="px-3 py-3 border-t border-border">
                                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
                                                     {/* 팀 위치 */}
-                                                    <div className="rounded border border-slate-200 bg-white p-2.5">
-                                                        <div className="text-[11px] font-semibold text-slate-600 mb-1.5 inline-flex items-center gap-1">
+                                                    <div className="rounded border border-border bg-card p-2.5">
+                                                        <div className="text-[11px] font-semibold text-foreground/80 mb-1.5 inline-flex items-center gap-1">
                                                             <Target className="h-3.5 w-3.5 text-blue-500" />
                                                             팀 내 위치
                                                         </div>
                                                         {insight.defectRatePercentile != null ? (
                                                             <div>
-                                                                <div className="text-xs text-slate-700">
-                                                                    결함율 상위 <span className="font-bold text-blue-700">{insight.defectRatePercentile}%</span>
-                                                                    <span className="text-slate-500"> (낮을수록 좋음)</span>
+                                                                <div className="text-xs text-foreground/90">
+                                                                    결함율 상위 <span className="font-bold text-blue-700 dark:text-blue-300">{insight.defectRatePercentile}%</span>
+                                                                    <span className="text-muted-foreground"> (낮을수록 좋음)</span>
                                                                 </div>
                                                                 {insight.primaryIssueType && (
-                                                                    <div className="text-[11px] text-slate-500 mt-0.5">
-                                                                        주력 타입: <span className="text-slate-700">{insight.primaryIssueType}</span>
+                                                                    <div className="text-[11px] text-muted-foreground mt-0.5">
+                                                                        주력 타입: <span className="text-foreground/90">{insight.primaryIssueType}</span>
                                                                     </div>
                                                                 )}
-                                                                <div className="text-[11px] text-slate-500 mt-0.5">
-                                                                    심각도 가중: <span className="font-bold text-slate-700">{insight.severityWeightedScore}</span>
+                                                                <div className="text-[11px] text-muted-foreground mt-0.5">
+                                                                    심각도 가중: <span className="font-bold text-foreground/90">{insight.severityWeightedScore}</span>
                                                                 </div>
                                                             </div>
                                                         ) : (
-                                                            <div className="text-[11px] text-slate-400 italic">표본 부족 — 백분위 계산 불가</div>
+                                                            <div className="text-[11px] text-muted-foreground italic">표본 부족 — 백분위 계산 불가</div>
                                                         )}
                                                     </div>
 
                                                     {/* 강점 */}
-                                                    <div className="rounded border border-green-200 bg-green-50/50 p-2.5">
-                                                        <div className="text-[11px] font-semibold text-green-800 mb-1.5 inline-flex items-center gap-1">
+                                                    <div className="rounded border border-green-200 dark:border-green-900/60 bg-green-50 dark:bg-green-950/30/50 dark:bg-green-950/20 p-2.5">
+                                                        <div className="text-[11px] font-semibold text-green-800 dark:text-green-300 mb-1.5 inline-flex items-center gap-1">
                                                             <Award className="h-3.5 w-3.5" />
                                                             강점
                                                         </div>
                                                         {insight.strengths.length === 0 ? (
-                                                            <div className="text-[11px] text-slate-500 italic">눈에 띄는 강점 지표 없음 (데이터 부족 가능)</div>
+                                                            <div className="text-[11px] text-muted-foreground italic">눈에 띄는 강점 지표 없음 (데이터 부족 가능)</div>
                                                         ) : (
-                                                            <ul className="space-y-1 text-[11px] text-green-900 list-disc list-inside">
+                                                            <ul className="space-y-1 text-[11px] text-green-900 dark:text-green-300 list-disc list-inside">
                                                                 {insight.strengths.map((s, i) => (
                                                                     <li key={i}>{s}</li>
                                                                 ))}
@@ -262,15 +262,15 @@ export function DefectPatternCard({ rows, isLoading, mappingCount, workerFieldRe
                                                     </div>
 
                                                     {/* 개선 포인트 */}
-                                                    <div className="rounded border border-amber-200 bg-amber-50/50 p-2.5">
-                                                        <div className="text-[11px] font-semibold text-amber-900 mb-1.5 inline-flex items-center gap-1">
+                                                    <div className="rounded border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30/50 dark:bg-amber-950/20 p-2.5">
+                                                        <div className="text-[11px] font-semibold text-amber-900 dark:text-amber-300 mb-1.5 inline-flex items-center gap-1">
                                                             <TrendingUp className="h-3.5 w-3.5" />
                                                             개선·지원 기회
                                                         </div>
                                                         {insight.improvements.length === 0 ? (
-                                                            <div className="text-[11px] text-slate-500 italic">지금 좋은 성과 — 유지 권장</div>
+                                                            <div className="text-[11px] text-muted-foreground italic">지금 좋은 성과 — 유지 권장</div>
                                                         ) : (
-                                                            <ul className="space-y-1 text-[11px] text-amber-900 list-disc list-inside">
+                                                            <ul className="space-y-1 text-[11px] text-amber-900 dark:text-amber-300 list-disc list-inside">
                                                                 {insight.improvements.map((s, i) => (
                                                                     <li key={i}>{s}</li>
                                                                 ))}
@@ -279,9 +279,9 @@ export function DefectPatternCard({ rows, isLoading, mappingCount, workerFieldRe
                                                     </div>
                                                 </div>
 
-                                                <div className="mt-2 text-[10px] text-slate-500">
+                                                <div className="mt-2 text-[10px] text-muted-foreground">
                                                     <span className="font-medium">프로파일 설명:</span> {pMeta.description}
-                                                    <span className="text-amber-700 font-medium ml-2">— 코칭 도구 · 성과 평가 X</span>
+                                                    <span className="text-amber-700 dark:text-amber-300 font-medium ml-2">— 코칭 도구 · 성과 평가 X</span>
                                                 </div>
                                             </td>
                                         </tr>
@@ -292,9 +292,9 @@ export function DefectPatternCard({ rows, isLoading, mappingCount, workerFieldRe
                     </tbody>
                 </table>
             </div>
-            <p className="px-3 py-2 text-[11px] text-slate-500 bg-slate-50 border-t border-slate-100">
+            <p className="px-3 py-2 text-[11px] text-muted-foreground bg-muted/40 border-t border-border/50">
                 * 산식: 결함 ÷ 담당 task × 100. 등급: S ≤5%, A ≤10%, B ≤15%, C ≤20%, D 그 외. 팀 baseline (중앙값): 결함율 {baseline.medianDefectRate.toFixed(1)}% · cycle {baseline.medianCycleTime.toFixed(1)}d.{' '}
-                <strong className="text-amber-700">코칭 참고용 — 성과 평가 X.</strong>
+                <strong className="text-amber-700 dark:text-amber-300">코칭 참고용 — 성과 평가 X.</strong>
             </p>
         </div>
     );

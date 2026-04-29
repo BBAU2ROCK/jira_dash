@@ -257,11 +257,18 @@ export function Sidebar({
                             </Badge>
                         )}
                         <button
-                            className="ml-1 rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                            type="button"
+                            className={cn(
+                                "ml-1 inline-flex items-center justify-center rounded-md",
+                                "h-7 w-7 border border-border bg-background/80",
+                                "text-muted-foreground hover:text-foreground hover:bg-accent hover:border-accent-foreground/20",
+                                "transition-colors shadow-sm"
+                            )}
                             onClick={onToggleCollapse}
-                            title="접기"
+                            title="사이드바 접기"
+                            aria-label="사이드바 접기"
                         >
-                            <ChevronLeft className="h-4 w-4" />
+                            <ChevronLeft className="h-3.5 w-3.5" />
                         </button>
                     </div>
                     <EpicList

@@ -19,13 +19,13 @@ export function WeightEditor({ weights, onChange }: Props) {
 
     return (
         <div>
-            <div className="text-sm font-semibold text-slate-800 mb-2 flex items-center gap-1">
+            <div className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1">
                 KPI 가중치
                 <InfoTip>총점 = 완료율 × 가중치 + 준수율 × 가중치 + 조기 보너스. 합이 100%여야 합니다.</InfoTip>
             </div>
             <div className="grid grid-cols-3 gap-2 items-end">
                 <div>
-                    <label className="text-xs text-slate-600 block mb-1">완료율</label>
+                    <label className="text-xs text-foreground/80 block mb-1">완료율</label>
                     <div className="flex items-center gap-1">
                         <Input
                             type="number"
@@ -36,11 +36,11 @@ export function WeightEditor({ weights, onChange }: Props) {
                             max={100}
                             step={5}
                         />
-                        <span className="text-xs text-slate-500">%</span>
+                        <span className="text-xs text-muted-foreground">%</span>
                     </div>
                 </div>
                 <div>
-                    <label className="text-xs text-slate-600 block mb-1">준수율</label>
+                    <label className="text-xs text-foreground/80 block mb-1">준수율</label>
                     <div className="flex items-center gap-1">
                         <Input
                             type="number"
@@ -51,11 +51,11 @@ export function WeightEditor({ weights, onChange }: Props) {
                             max={100}
                             step={5}
                         />
-                        <span className="text-xs text-slate-500">%</span>
+                        <span className="text-xs text-muted-foreground">%</span>
                     </div>
                 </div>
                 <div className="text-center pb-1">
-                    <span className={`text-sm font-bold ${isValid ? 'text-green-700' : 'text-red-600'}`}>
+                    <span className={`text-sm font-bold ${isValid ? 'text-green-700 dark:text-green-300' : 'text-red-600'}`}>
                         합계 {sum}%
                     </span>
                     {!isValid && <div className="text-[10px] text-red-500">100% 필요</div>}

@@ -9,14 +9,14 @@ export function EtaEffortConsistency({ validation }: Props) {
     if (!validation) return null;
     if (!validation.available) {
         return (
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+            <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-foreground/80">
                 ETA-공수 비교 불가 ({validation.reason ?? '데이터 부족'})
             </div>
         );
     }
     if (validation.interpretation === 'aligned') {
         return (
-            <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-xs text-green-900 flex items-start gap-2">
+            <div className="rounded-lg border border-green-200 dark:border-green-900/60 bg-green-50 dark:bg-green-950/30 p-3 text-xs text-green-900 dark:text-green-300 flex items-start gap-2">
                 <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-green-600" />
                 <div>
                     <div className="font-semibold">ETA-공수 일관 ({validation.gapPct}% 격차)</div>
@@ -29,7 +29,7 @@ export function EtaEffortConsistency({ validation }: Props) {
         );
     }
     return (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 flex items-start gap-2">
+        <div className="rounded-lg border border-amber-300 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 p-3 text-xs text-amber-900 dark:text-amber-300 flex items-start gap-2">
             <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />
             <div>
                 <div className="font-semibold">

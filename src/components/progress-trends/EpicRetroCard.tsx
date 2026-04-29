@@ -9,12 +9,12 @@ import type { EpicRetroSummary } from '@/services/retrospective/types';
 const JIRA_BASE = 'https://okestro.atlassian.net/browse';
 
 const GRADE_COLOR: Record<EpicRetroSummary['kpiGrade'], string> = {
-    S: 'text-purple-700 bg-purple-100 border-purple-300',
-    A: 'text-green-700 bg-green-100 border-green-300',
-    B: 'text-blue-700 bg-blue-100 border-blue-300',
-    C: 'text-amber-700 bg-amber-100 border-amber-300',
-    D: 'text-red-700 bg-red-100 border-red-300',
-    '—': 'text-slate-700 bg-slate-100 border-slate-300',
+    S: 'text-purple-700 dark:text-purple-300 bg-purple-100 border-purple-300 dark:border-purple-900/60',
+    A: 'text-green-700 dark:text-green-300 bg-green-100 border-green-300 dark:border-green-900/60',
+    B: 'text-blue-700 dark:text-blue-300 bg-blue-100 border-blue-300 dark:border-blue-900/60',
+    C: 'text-amber-700 dark:text-amber-300 bg-amber-100 border-amber-300 dark:border-amber-900/60',
+    D: 'text-red-700 dark:text-red-300 bg-red-100 border-red-300 dark:border-red-900/60',
+    '—': 'text-foreground/90 bg-muted/60 border-border',
 };
 
 const STATUS_LABEL: Record<EpicRetroSummary['epicStatus'], string> = {
@@ -37,7 +37,7 @@ export function EpicRetroCard({ summary }: Props) {
     const gradeColor = GRADE_COLOR[summary.kpiGrade];
 
     return (
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="rounded-lg border border-border bg-card p-4">
             {/* Header */}
             <div className="flex items-start justify-between gap-2 mb-3">
                 <div className="min-w-0">
@@ -50,10 +50,10 @@ export function EpicRetroCard({ summary }: Props) {
                         {summary.epicKey}
                         <ExternalLink className="h-3 w-3" />
                     </a>
-                    <h3 className="text-sm font-semibold text-slate-800 mt-0.5 truncate" title={summary.epicSummary}>
+                    <h3 className="text-sm font-semibold text-foreground mt-0.5 truncate" title={summary.epicSummary}>
                         {summary.epicSummary}
                     </h3>
-                    <span className="text-[11px] text-slate-500">{STATUS_LABEL[summary.epicStatus]}</span>
+                    <span className="text-[11px] text-muted-foreground">{STATUS_LABEL[summary.epicStatus]}</span>
                 </div>
                 <div className={cn('flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-bold shrink-0', gradeColor)}>
                     <Trophy className="h-3 w-3" />
@@ -75,7 +75,7 @@ export function EpicRetroCard({ summary }: Props) {
                         <div className="overflow-x-auto">
                             <table className="w-full text-[11px]">
                                 <thead>
-                                    <tr className="text-slate-500">
+                                    <tr className="text-muted-foreground">
                                         <th className="text-left py-1 pr-2 font-medium">
                                             <span className="inline-flex items-center gap-1">
                                                 담당자 ({summary.contributors.length}명)
@@ -86,25 +86,25 @@ export function EpicRetroCard({ summary }: Props) {
                                                 </InfoTip>
                                             </span>
                                         </th>
-                                        <th className="py-1 px-1 font-medium text-center text-slate-600">
+                                        <th className="py-1 px-1 font-medium text-center text-foreground/80">
                                             <span className="inline-flex items-center gap-1 justify-center">
                                                 전체
                                                 <InfoTip size="sm">담당자의 leaf task 총 수 (부모 작업 제외).</InfoTip>
                                             </span>
                                         </th>
-                                        <th className="py-1 px-1 font-medium text-center text-green-700">
+                                        <th className="py-1 px-1 font-medium text-center text-green-700 dark:text-green-300">
                                             <span className="inline-flex items-center gap-1 justify-center">
                                                 완료
                                                 <InfoTip size="sm">statusCategory가 'done'인 task. Jira의 완료 분류 기준.</InfoTip>
                                             </span>
                                         </th>
-                                        <th className="py-1 px-1 font-medium text-center text-blue-700">
+                                        <th className="py-1 px-1 font-medium text-center text-blue-700 dark:text-blue-300">
                                             <span className="inline-flex items-center gap-1 justify-center">
                                                 진행
                                                 <InfoTip size="sm">statusCategory가 'indeterminate' (진행 중, 리뷰 등) task.</InfoTip>
                                             </span>
                                         </th>
-                                        <th className="py-1 px-1 font-medium text-center text-slate-500">
+                                        <th className="py-1 px-1 font-medium text-center text-muted-foreground">
                                             <span className="inline-flex items-center gap-1 justify-center">
                                                 대기
                                                 <InfoTip size="sm">statusCategory가 'new' (To Do, Backlog 등) — 아직 착수하지 않은 task.</InfoTip>
@@ -122,20 +122,20 @@ export function EpicRetroCard({ summary }: Props) {
                                     {summary.contributors.slice(0, 7).map((c) => {
                                         const aliasName = maybeAnonymize(c.displayName, anonMap, anonymizeMode);
                                         return (
-                                            <tr key={c.key} className="border-t border-slate-100">
-                                                <td className="py-1 pr-2 text-slate-800 truncate max-w-[100px]" title={aliasName}>
+                                            <tr key={c.key} className="border-t border-border/50">
+                                                <td className="py-1 pr-2 text-foreground truncate max-w-[100px]" title={aliasName}>
                                                     {aliasName}
                                                 </td>
-                                                <td className="py-1 px-1 text-center tabular-nums font-semibold text-slate-700">{c.taskCount}</td>
-                                                <td className="py-1 px-1 text-center tabular-nums text-green-700">{c.completedCount}</td>
-                                                <td className="py-1 px-1 text-center tabular-nums text-blue-700">{c.inProgressCount || '-'}</td>
-                                                <td className="py-1 px-1 text-center tabular-nums text-slate-500">{c.todoCount || '-'}</td>
+                                                <td className="py-1 px-1 text-center tabular-nums font-semibold text-foreground/90">{c.taskCount}</td>
+                                                <td className="py-1 px-1 text-center tabular-nums text-green-700 dark:text-green-300">{c.completedCount}</td>
+                                                <td className="py-1 px-1 text-center tabular-nums text-blue-700 dark:text-blue-300">{c.inProgressCount || '-'}</td>
+                                                <td className="py-1 px-1 text-center tabular-nums text-muted-foreground">{c.todoCount || '-'}</td>
                                                 <td className="py-1 px-1 text-center tabular-nums text-red-600">{c.delayedCount || '-'}</td>
                                             </tr>
                                         );
                                     })}
                                     {summary.contributors.length > 7 && (
-                                        <tr><td colSpan={6} className="py-1 text-center text-slate-400">+ {summary.contributors.length - 7}명</td></tr>
+                                        <tr><td colSpan={6} className="py-1 text-center text-muted-foreground">+ {summary.contributors.length - 7}명</td></tr>
                                     )}
                                 </tbody>
                             </table>
@@ -154,16 +154,16 @@ function Metric({ label, value, sub, accent, icon: Icon, tip }: {
     tip?: string;
     icon?: React.ElementType;
 }) {
-    const accentClass = accent === 'good' ? 'text-green-700' : accent === 'bad' ? 'text-red-700' : 'text-slate-800';
+    const accentClass = accent === 'good' ? 'text-green-700 dark:text-green-300' : accent === 'bad' ? 'text-red-700 dark:text-red-300' : 'text-foreground';
     return (
-        <div className="rounded border border-slate-200 bg-slate-50 p-2">
-            <div className="flex items-center gap-1 text-[10px] text-slate-500">
+        <div className="rounded border border-border bg-muted/40 p-2">
+            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
                 {Icon && <Icon className="h-3 w-3" />}
                 {label}
                 {tip && <InfoTip size="sm">{tip}</InfoTip>}
             </div>
             <div className={cn('text-base font-bold tabular-nums', accentClass)}>{value}</div>
-            {sub && <div className="text-[10px] text-slate-500">{sub}</div>}
+            {sub && <div className="text-[10px] text-muted-foreground">{sub}</div>}
         </div>
     );
 }

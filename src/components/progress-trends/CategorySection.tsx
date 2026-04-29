@@ -34,14 +34,14 @@ interface AccentStyle {
 }
 
 const ACCENT_STYLE: Record<NonNullable<CategorySectionProps['accent']>, AccentStyle> = {
-    blue:    { strip: 'bg-blue-500',    iconBg: 'bg-blue-100 dark:bg-blue-950/40',     iconText: 'text-blue-600 dark:text-blue-400',     titleText: 'text-slate-900 dark:text-slate-100' },
-    cyan:    { strip: 'bg-cyan-500',    iconBg: 'bg-cyan-100 dark:bg-cyan-950/40',     iconText: 'text-cyan-600 dark:text-cyan-400',     titleText: 'text-slate-900 dark:text-slate-100' },
-    orange:  { strip: 'bg-orange-500',  iconBg: 'bg-orange-100 dark:bg-orange-950/40', iconText: 'text-orange-600 dark:text-orange-400', titleText: 'text-slate-900 dark:text-slate-100' },
-    indigo:  { strip: 'bg-indigo-500',  iconBg: 'bg-indigo-100 dark:bg-indigo-950/40', iconText: 'text-indigo-600 dark:text-indigo-400', titleText: 'text-slate-900 dark:text-slate-100' },
-    purple:  { strip: 'bg-purple-500',  iconBg: 'bg-purple-100 dark:bg-purple-950/40', iconText: 'text-purple-600 dark:text-purple-400', titleText: 'text-slate-900 dark:text-slate-100' },
-    slate:   { strip: 'bg-slate-400',   iconBg: 'bg-slate-100 dark:bg-slate-800',      iconText: 'text-slate-600 dark:text-slate-400',   titleText: 'text-slate-900 dark:text-slate-100' },
-    emerald: { strip: 'bg-emerald-500', iconBg: 'bg-emerald-100 dark:bg-emerald-950/40', iconText: 'text-emerald-600 dark:text-emerald-400', titleText: 'text-slate-900 dark:text-slate-100' },
-    rose:    { strip: 'bg-rose-500',    iconBg: 'bg-rose-100 dark:bg-rose-950/40',     iconText: 'text-rose-600 dark:text-rose-400',     titleText: 'text-slate-900 dark:text-slate-100' },
+    blue:    { strip: 'bg-blue-500',    iconBg: 'bg-blue-100 dark:bg-blue-950/40',     iconText: 'text-blue-600 dark:text-blue-400',     titleText: 'text-foreground dark:text-foreground' },
+    cyan:    { strip: 'bg-cyan-500',    iconBg: 'bg-cyan-100 dark:bg-cyan-950/40',     iconText: 'text-cyan-600 dark:text-cyan-400',     titleText: 'text-foreground dark:text-foreground' },
+    orange:  { strip: 'bg-orange-500',  iconBg: 'bg-orange-100 dark:bg-orange-950/40', iconText: 'text-orange-600 dark:text-orange-400', titleText: 'text-foreground dark:text-foreground' },
+    indigo:  { strip: 'bg-indigo-500',  iconBg: 'bg-indigo-100 dark:bg-indigo-950/40', iconText: 'text-indigo-600 dark:text-indigo-400', titleText: 'text-foreground dark:text-foreground' },
+    purple:  { strip: 'bg-purple-500',  iconBg: 'bg-purple-100 dark:bg-purple-950/40', iconText: 'text-purple-600 dark:text-purple-400', titleText: 'text-foreground dark:text-foreground' },
+    slate:   { strip: 'bg-slate-400',   iconBg: 'bg-muted/60 dark:bg-slate-800',      iconText: 'text-foreground/80 dark:text-muted-foreground',   titleText: 'text-foreground dark:text-foreground' },
+    emerald: { strip: 'bg-emerald-500', iconBg: 'bg-emerald-100 dark:bg-emerald-950/40', iconText: 'text-emerald-600 dark:text-emerald-400', titleText: 'text-foreground dark:text-foreground' },
+    rose:    { strip: 'bg-rose-500',    iconBg: 'bg-rose-100 dark:bg-rose-950/40',     iconText: 'text-rose-600 dark:text-rose-400',     titleText: 'text-foreground dark:text-foreground' },
 };
 
 export function CategorySection({ icon: Icon, title, subtitle, accent = 'slate', children, headerRight, titleAfter }: CategorySectionProps) {

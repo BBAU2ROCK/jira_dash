@@ -10,10 +10,10 @@ import { useDisplayPreferenceStore } from '@/stores/displayPreferenceStore';
 import { buildAnonymizeMap, maybeAnonymize } from '@/lib/anonymize';
 
 const CONFIDENCE_BADGE: Record<ConfidenceLevel, { label: string; color: string }> = {
-    high:        { label: '높음',        color: 'bg-green-100 text-green-800 border-green-200' },
-    medium:      { label: '중간',        color: 'bg-blue-100 text-blue-800 border-blue-200' },
-    low:         { label: '낮음',        color: 'bg-amber-100 text-amber-800 border-amber-200' },
-    unreliable:  { label: '데이터 부족',  color: 'bg-red-100 text-red-800 border-red-200' },
+    high:        { label: '높음',        color: 'bg-green-100 text-green-800 dark:text-green-300 border-green-200 dark:border-green-900/60' },
+    medium:      { label: '중간',        color: 'bg-blue-100 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-900/60' },
+    low:         { label: '낮음',        color: 'bg-amber-100 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-900/60' },
+    unreliable:  { label: '데이터 부족',  color: 'bg-red-100 text-red-800 dark:text-red-300 border-red-200 dark:border-red-900/60' },
 };
 
 function formatDateRange(d?: Date) {
@@ -32,13 +32,13 @@ function ScenarioRow({ label, labelTip, days, date, icon: Icon, accent, note, gu
     guidance: ReturnType<typeof confidenceGuidance>;
 }) {
     const accentClass = {
-        blue: 'text-blue-700',
-        green: 'text-green-700',
-        red: 'text-red-700',
+        blue: 'text-blue-700 dark:text-blue-300',
+        green: 'text-green-700 dark:text-green-300',
+        red: 'text-red-700 dark:text-red-300',
     }[accent];
 
     const labelEl = (
-        <span className="text-sm font-medium text-slate-700 w-32 inline-flex items-center gap-1">
+        <span className="text-sm font-medium text-foreground/90 w-32 inline-flex items-center gap-1">
             {label}
             {labelTip && <InfoTip size="sm">{labelTip}</InfoTip>}
         </span>
@@ -46,16 +46,16 @@ function ScenarioRow({ label, labelTip, days, date, icon: Icon, accent, note, gu
 
     if (!guidance.showRange && !guidance.showSingleEta) {
         return (
-            <div className="flex items-center gap-3 py-2 border-b border-slate-100 last:border-0">
+            <div className="flex items-center gap-3 py-2 border-b border-border/50 last:border-0">
                 <Icon className={cn('h-4 w-4 shrink-0', accentClass)} />
                 {labelEl}
-                <span className="text-sm text-slate-400 italic">예측 불가 — 진단 정보 참조</span>
+                <span className="text-sm text-muted-foreground italic">예측 불가 — 진단 정보 참조</span>
             </div>
         );
     }
 
     return (
-        <div className="flex items-center gap-3 py-2 border-b border-slate-100 last:border-0">
+        <div className="flex items-center gap-3 py-2 border-b border-border/50 last:border-0">
             <Icon className={cn('h-4 w-4 shrink-0', accentClass)} />
             {labelEl}
             <div className="flex-1 min-w-0">
@@ -65,17 +65,17 @@ function ScenarioRow({ label, labelTip, days, date, icon: Icon, accent, note, gu
                             {formatDateRange(date)}
                         </span>
                     ) : (
-                        <span className="text-sm text-slate-500">단일 날짜 표시 안함 (신뢰도 낮음)</span>
+                        <span className="text-sm text-muted-foreground">단일 날짜 표시 안함 (신뢰도 낮음)</span>
                     )}
                     {days > 0 && (
-                        <span className="text-xs text-slate-500 inline-flex items-center gap-1">
+                        <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
                             ({days} 영업일
                             <InfoTip size="sm">주말 + 한국 공휴일 제외 기준. 휴가·병가는 미반영 — 참고값.</InfoTip>
                             )
                         </span>
                     )}
                 </div>
-                {note && <div className="text-[11px] text-slate-500 mt-0.5">{note}</div>}
+                {note && <div className="text-[11px] text-muted-foreground mt-0.5">{note}</div>}
             </div>
         </div>
     );
@@ -93,7 +93,7 @@ export function EtaScenarioCard({ team }: Props) {
     );
 
     if (!team) {
-        return <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-500">데이터 로딩 중...</div>;
+        return <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">데이터 로딩 중...</div>;
     }
     const guidance = confidenceGuidance(team.realistic.confidence);
     const badge = CONFIDENCE_BADGE[team.realistic.confidence];
@@ -102,9 +102,9 @@ export function EtaScenarioCard({ team }: Props) {
         : null;
 
     return (
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="rounded-lg border border-border bg-card p-4">
             <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-slate-800 inline-flex items-center gap-1.5">
+                <h3 className="text-sm font-semibold text-foreground inline-flex items-center gap-1.5">
                     팀 ETA — 3 시나리오
                     <InfoTip size="sm">
                         ETA (Estimated Time of Arrival) = 예상 완료일.
@@ -156,7 +156,7 @@ export function EtaScenarioCard({ team }: Props) {
             </div>
 
             {team.realistic.warnings.length > 0 && (
-                <div className="mt-3 rounded-md bg-amber-50 border border-amber-200 p-2 text-xs text-amber-900">
+                <div className="mt-3 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 p-2 text-xs text-amber-900 dark:text-amber-300">
                     <div className="flex items-start gap-1.5">
                         <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                         <ul className="space-y-0.5 list-disc list-inside">

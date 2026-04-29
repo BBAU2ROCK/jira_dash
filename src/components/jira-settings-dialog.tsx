@@ -200,17 +200,17 @@ export function JiraSettingsDialog({ open, onClose, initialConfig }: JiraSetting
                     <TabsContent value="connection" className="flex-1 overflow-y-auto mt-4">
 
                 {isWebMode && webStatus && (
-                    <div className="rounded-md border bg-slate-50 p-2 text-xs text-slate-700">
+                    <div className="rounded-md border bg-muted/40 p-2 text-xs text-foreground/90">
                         현재 프록시 자격증명:{' '}
                         {webStatus.configured ? (
                             <>
                                 <span className="font-mono">{webStatus.email || '(미상)'}</span>
                                 {webStatus.source && (
-                                    <span className="text-slate-500"> · {webStatus.source}</span>
+                                    <span className="text-muted-foreground"> · {webStatus.source}</span>
                                 )}
                             </>
                         ) : (
-                            <span className="text-amber-700">설정되지 않음</span>
+                            <span className="text-amber-700 dark:text-amber-300">설정되지 않음</span>
                         )}
                     </div>
                 )}
@@ -247,7 +247,7 @@ export function JiraSettingsDialog({ open, onClose, initialConfig }: JiraSetting
                     {testResult && (
                         <div
                             className={`flex items-start gap-2 rounded-md p-3 text-sm ${
-                                testResult.ok ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'
+                                testResult.ok ? 'bg-green-50 dark:bg-green-950/30 text-green-800 dark:text-green-300 border border-green-200 dark:border-green-900/60' : 'bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-900/60'
                             }`}
                         >
                             {testResult.ok ? (

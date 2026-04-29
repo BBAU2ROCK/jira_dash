@@ -14,7 +14,7 @@ interface Props {
 function FieldRow({ label, tip, value, onChange }: { label: string; tip: string; value: string; onChange: (v: string) => void }) {
     return (
         <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
-            <label className="text-xs text-slate-600 flex items-center gap-1">
+            <label className="text-xs text-foreground/80 flex items-center gap-1">
                 {label}
                 <InfoTip>{tip}</InfoTip>
             </label>
@@ -31,14 +31,14 @@ export function JiraFieldsEditor({ labels, statusNames, fields, onLabelsChange, 
     return (
         <div className="space-y-4">
             <div>
-                <div className="text-sm font-semibold text-slate-800 mb-2">Jira 라벨</div>
+                <div className="text-sm font-semibold text-foreground mb-2">Jira 라벨</div>
                 <div className="space-y-1.5">
                     <FieldRow label="합의지연" tip="이 라벨이 있는 이슈는 KPI 분모/분자에서 제외." value={labels.agreedDelay} onChange={(v) => onLabelsChange({ ...labels, agreedDelay: v })} />
                     <FieldRow label="검증지연" tip="이 라벨이 있으면 지연이어도 준수로 흡수." value={labels.verificationDelay} onChange={(v) => onLabelsChange({ ...labels, verificationDelay: v })} />
                 </div>
             </div>
             <div>
-                <div className="text-sm font-semibold text-slate-800 mb-2">Jira 상태 이름</div>
+                <div className="text-sm font-semibold text-foreground mb-2">Jira 상태 이름</div>
                 <div className="space-y-1.5">
                     <FieldRow label="보류" tip="이 status name의 이슈는 '보류'로 분류. ETA에서 제외." value={statusNames.onHold} onChange={(v) => onStatusNamesChange({ ...statusNames, onHold: v })} />
                     <FieldRow label="취소" tip="이 status name의 이슈는 '취소'로 분류. KPI 분모·분자에서 제외 (성과 평가 X)." value={statusNames.cancelled} onChange={(v) => onStatusNamesChange({ ...statusNames, cancelled: v })} />
@@ -46,7 +46,7 @@ export function JiraFieldsEditor({ labels, statusNames, fields, onLabelsChange, 
                 </div>
             </div>
             <div>
-                <div className="text-sm font-semibold text-slate-800 mb-2">커스텀 필드 ID</div>
+                <div className="text-sm font-semibold text-foreground mb-2">커스텀 필드 ID</div>
                 <div className="space-y-1.5">
                     <FieldRow label="Story Point" tip="Jira의 SP 커스텀 필드 ID." value={fields.storyPoint} onChange={(v) => onFieldsChange({ ...fields, storyPoint: v })} />
                     <FieldRow label="난이도" tip="이슈 난이도 (상/중/하) 커스텀 필드 ID." value={fields.difficulty} onChange={(v) => onFieldsChange({ ...fields, difficulty: v })} />

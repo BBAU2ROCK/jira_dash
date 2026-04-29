@@ -24,16 +24,16 @@ interface EmptyStateProps {
 }
 
 const VARIANT_STYLES: Record<EmptyStateVariant, string> = {
-    info: 'border-slate-200 bg-slate-50 text-slate-700',
-    success: 'border-green-200 bg-green-50 text-green-800',
-    warning: 'border-amber-200 bg-amber-50 text-amber-800',
-    minimal: 'text-slate-500 italic',
+    info: 'border-border bg-muted/40 text-foreground/90',
+    success: 'border-green-200 dark:border-green-900/60 bg-green-50 dark:bg-green-950/30 text-green-800 dark:text-green-300',
+    warning: 'border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300',
+    minimal: 'text-muted-foreground italic',
 };
 
 export function EmptyState({ title, description, icon, variant = 'info', className }: EmptyStateProps) {
     if (variant === 'minimal') {
         return (
-            <div className={cn('text-sm text-slate-500 italic px-2 py-1', className)}>
+            <div className={cn('text-sm text-muted-foreground italic px-2 py-1', className)}>
                 {title}
             </div>
         );

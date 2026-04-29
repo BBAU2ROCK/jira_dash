@@ -189,8 +189,12 @@ export function IssueList({ issues, isLoading, focusIssueKeys, onClearFocusIssue
             <React.Fragment key={issue.id}>
                 <TableRow
                     className={cn(
-                        "cursor-pointer hover:bg-muted/50 transition-colors",
-                        isSubtask ? "bg-blue-50" : hasSubtasks ? "bg-slate-50" : "bg-white"
+                        "cursor-pointer hover:bg-accent/40 transition-colors border-b border-border/50",
+                        isSubtask
+                            ? "bg-primary/[0.04] dark:bg-primary/[0.06]"
+                            : hasSubtasks
+                                ? "bg-muted/30"
+                                : "bg-card"
                     )}
                     onClick={() => onIssueClick?.(issue)}
                 >
@@ -202,7 +206,7 @@ export function IssueList({ issues, isLoading, focusIssueKeys, onClearFocusIssue
                     {/* Title - Clickable for expand/collapse */}
                     <TableCell className="font-medium">
                         <div
-                            className="flex items-center gap-2 cursor-pointer hover:text-blue-600 transition-colors"
+                            className="flex items-center gap-2 cursor-pointer hover:text-primary transition-colors"
                             style={{ paddingLeft: `${level * 24}px` }}
                             onClick={(e) => {
                                 if (hasSubtasks) {
@@ -214,9 +218,9 @@ export function IssueList({ issues, isLoading, focusIssueKeys, onClearFocusIssue
                             {hasSubtasks && (
                                 <span className="flex-shrink-0">
                                     {isExpanded ? (
-                                        <ChevronDown className="h-4 w-4 text-blue-600" />
+                                        <ChevronDown className="h-4 w-4 text-primary" />
                                     ) : (
-                                        <ChevronRight className="h-4 w-4 text-blue-600" />
+                                        <ChevronRight className="h-4 w-4 text-primary" />
                                     )}
                                 </span>
                             )}
@@ -231,13 +235,13 @@ export function IssueList({ issues, isLoading, focusIssueKeys, onClearFocusIssue
                                 />
                             )}
                             <span className={cn(
-                                "truncate max-w-[400px]",
+                                "truncate max-w-[400px] text-foreground/90",
                                 isSubtask && "text-sm",
-                                hasSubtasks && "font-semibold text-slate-800"
+                                hasSubtasks && "font-semibold text-foreground"
                             )}>
                                 {issue.fields.summary}
                                 {hasSubtasks && (
-                                    <span className="ml-2 text-xs text-muted-foreground font-normal">
+                                    <span className="ml-2 text-xs text-muted-foreground font-normal tabular-nums">
                                         ({children.length}개)
                                     </span>
                                 )}
@@ -248,7 +252,7 @@ export function IssueList({ issues, isLoading, focusIssueKeys, onClearFocusIssue
                     {/* Assignee */}
                     <TableCell className="text-sm">
                         {issue.fields.assignee ? (
-                            <span className="text-slate-700">{issue.fields.assignee.displayName}</span>
+                            <span className="text-foreground/90">{issue.fields.assignee.displayName}</span>
                         ) : (
                             <span className="text-muted-foreground text-xs">{UNASSIGNED_LABEL}</span>
                         )}
@@ -291,9 +295,11 @@ export function IssueList({ issues, isLoading, focusIssueKeys, onClearFocusIssue
                             variant="outline"
                             className={cn(
                                 "whitespace-nowrap font-normal text-xs",
-                                isDone ? "bg-green-50 text-green-700 border-green-200" :
-                                    getStatusCategoryKey(issue) === 'indeterminate' ? "bg-blue-50 text-blue-700 border-blue-200" :
-                                        "bg-slate-50 text-slate-700 border-slate-200"
+                                isDone
+                                    ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/60"
+                                    : getStatusCategoryKey(issue) === 'indeterminate'
+                                        ? "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/60"
+                                        : "bg-muted/40 text-foreground/80 border-border"
                             )}
                         >
                             {issue.fields.status?.name ?? '—'}
@@ -323,7 +329,7 @@ export function IssueList({ issues, isLoading, focusIssueKeys, onClearFocusIssue
                         variant="ghost"
                         size="sm"
                         onClick={toggleExpandAll}
-                        className="text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                        className="text-primary hover:bg-primary/10 hover:text-primary"
                     >
                         {expandAll ? (
                             <>
@@ -339,21 +345,21 @@ export function IssueList({ issues, isLoading, focusIssueKeys, onClearFocusIssue
                     </Button>
                 )}
                 {/* Search Count Display */}
-                <div className="flex items-center px-2 py-1 bg-blue-50/50 rounded-full border border-blue-100 shadow-sm">
-                    <span className="text-xs font-semibold text-blue-600 mr-1.5">검색 결과</span>
-                    <span className="text-sm font-bold text-blue-700 bg-white px-1.5 py-0.5 rounded shadow-inner border border-blue-50">
+                <div className="flex items-center px-2 py-1 bg-primary/10 rounded-full border border-primary/20 shadow-sm">
+                    <span className="text-xs font-semibold text-primary mr-1.5">검색 결과</span>
+                    <span className="text-sm font-bold text-primary bg-card px-1.5 py-0.5 rounded shadow-inner border border-primary/15 tabular-nums">
                         {matchCount}
                     </span>
-                    <span className="text-xs font-medium text-blue-500 ml-1">건</span>
+                    <span className="text-xs font-medium text-primary/80 ml-1">건</span>
                 </div>
             </IssueFilterBar>
 
             {focusIssueKeys && focusIssueKeys.length > 0 && onClearFocusIssueKeys && (
-                <div className="flex items-center justify-between gap-2 px-4 py-2 bg-slate-100 border-b border-slate-200">
-                    <span className="text-sm text-slate-600">
-                        통계에서 선택: <strong>{focusIssueKeys.length}</strong>건
+                <div className="flex items-center justify-between gap-2 px-4 py-2 bg-muted/40 border-b border-border">
+                    <span className="text-sm text-foreground/80">
+                        통계에서 선택: <strong className="text-foreground tabular-nums">{focusIssueKeys.length}</strong>건
                     </span>
-                    <Button variant="ghost" size="sm" onClick={onClearFocusIssueKeys} className="text-blue-600 hover:bg-blue-50">
+                    <Button variant="ghost" size="sm" onClick={onClearFocusIssueKeys} className="text-primary hover:bg-primary/10">
                         전체 보기
                     </Button>
                 </div>

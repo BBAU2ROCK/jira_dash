@@ -10,6 +10,7 @@ import { ProjectStatsDialog } from '@/components/project-stats-dialog';
 import { JiraSettingsDialog, type JiraConfig } from '@/components/jira-settings-dialog';
 import { useKpiRulesStore } from '@/stores/kpiRulesStore';
 import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { BarChart3, RefreshCw, AlertCircle, Settings, Bug, Layers, Sparkles, MousePointerClick } from 'lucide-react';
 import { useEpicMappingStore } from '@/stores/epicMappingStore';
 import { DefectKpiDashboard } from '@/components/defect-kpi-dashboard';
@@ -189,6 +190,9 @@ export function Dashboard() {
                         )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0 justify-self-end">
+                        {/* v1.0.23: 메인 헤더 다크모드 토글 — 어디서든 접근 가능 */}
+                        <ThemeToggle />
+                        <span className="h-5 w-px bg-border" aria-hidden />
                         <Button
                             variant="ghost"
                             size="sm"

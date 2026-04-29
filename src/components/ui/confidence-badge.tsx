@@ -20,25 +20,25 @@ interface Props {
 const LEVEL_CONFIG: Record<ConfidenceLevel, { label: string; color: string; Icon: typeof Shield; tip: string }> = {
     high: {
         label: '높음',
-        color: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+        color: 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/60 text-emerald-700 dark:text-emerald-300',
         Icon: ShieldCheck,
         tip: '데이터 충분 — 예측 결과 신뢰 가능',
     },
     medium: {
         label: '보통',
-        color: 'bg-blue-50 border-blue-200 text-blue-700',
+        color: 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900/60 text-blue-700 dark:text-blue-300',
         Icon: Shield,
         tip: '데이터 양호 — 일반 사용 가능',
     },
     low: {
         label: '낮음',
-        color: 'bg-amber-50 border-amber-200 text-amber-700',
+        color: 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/60 text-amber-700 dark:text-amber-300',
         Icon: ShieldAlert,
         tip: '데이터 부족 — 참고용으로만 사용',
     },
     unreliable: {
         label: '신뢰 X',
-        color: 'bg-rose-50 border-rose-200 text-rose-700',
+        color: 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/60 text-rose-700 dark:text-rose-300',
         Icon: ShieldX,
         tip: '데이터 매우 부족 — 단일 ETA 표기 비활성',
     },

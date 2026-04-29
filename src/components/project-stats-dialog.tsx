@@ -416,7 +416,7 @@ export function ProjectStatsDialog({
                 </DialogHeader>
 
                 <Tabs value={currentTab} onValueChange={setCurrentTab} className="flex-1 flex flex-col overflow-hidden">
-                    <div className="px-6 pt-4 pb-0 bg-slate-50/50 border-b border-slate-200">
+                    <div className="px-6 pt-4 pb-0 bg-muted/30 border-b border-border">
                         <div className="flex w-full justify-start gap-2 h-10 translate-y-[1px]">
                             <div
                                 role="button"
@@ -424,8 +424,8 @@ export function ProjectStatsDialog({
                                 onClick={() => setCurrentTab('status')}
                                 onKeyDown={(e) => e.key === 'Enter' && setCurrentTab('status')}
                                 className={`flex items-center justify-center rounded-t-lg border-x border-t px-5 py-2 text-sm font-bold transition-all cursor-pointer select-none ${currentTab === 'status'
-                                    ? 'bg-white border-slate-200 border-b-transparent text-blue-600 shadow-[0_-1px_2px_rgba(0,0,0,0.05)] z-10'
-                                    : 'bg-transparent border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100/50 border-b-transparent'
+                                    ? 'bg-card border-border border-b-transparent text-blue-600 shadow-[0_-1px_2px_rgba(0,0,0,0.05)] z-10'
+                                    : 'bg-transparent border-transparent text-muted-foreground hover:text-foreground/90 hover:bg-muted/40 border-b-transparent'
                                     }`}
                             >
                                 <Layers className="w-4 h-4 mr-2" />
@@ -437,8 +437,8 @@ export function ProjectStatsDialog({
                                 onClick={() => setCurrentTab('kpi')}
                                 onKeyDown={(e) => e.key === 'Enter' && setCurrentTab('kpi')}
                                 className={`flex items-center justify-center rounded-t-lg border-x border-t px-5 py-2 text-sm font-bold transition-all cursor-pointer select-none ${currentTab === 'kpi'
-                                    ? 'bg-white border-slate-200 border-b-transparent text-blue-600 shadow-[0_-1px_2px_rgba(0,0,0,0.05)] z-10'
-                                    : 'bg-transparent border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100/50 border-b-transparent'
+                                    ? 'bg-card border-border border-b-transparent text-blue-600 shadow-[0_-1px_2px_rgba(0,0,0,0.05)] z-10'
+                                    : 'bg-transparent border-transparent text-muted-foreground hover:text-foreground/90 hover:bg-muted/40 border-b-transparent'
                                     }`}
                             >
                                 <Trophy className="w-4 h-4 mr-2" />
@@ -450,8 +450,8 @@ export function ProjectStatsDialog({
                                 onClick={() => setCurrentTab('trends')}
                                 onKeyDown={(e) => e.key === 'Enter' && setCurrentTab('trends')}
                                 className={`flex items-center justify-center rounded-t-lg border-x border-t px-5 py-2 text-sm font-bold transition-all cursor-pointer select-none ${currentTab === 'trends'
-                                    ? 'bg-white border-slate-200 border-b-transparent text-blue-600 shadow-[0_-1px_2px_rgba(0,0,0,0.05)] z-10'
-                                    : 'bg-transparent border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100/50 border-b-transparent'
+                                    ? 'bg-card border-border border-b-transparent text-blue-600 shadow-[0_-1px_2px_rgba(0,0,0,0.05)] z-10'
+                                    : 'bg-transparent border-transparent text-muted-foreground hover:text-foreground/90 hover:bg-muted/40 border-b-transparent'
                                     }`}
                             >
                                 <TrendingUp className="w-4 h-4 mr-2" />
@@ -480,10 +480,10 @@ export function ProjectStatsDialog({
                                     <StatCard icon={<AlertTriangle className="w-4 h-4 text-red-500" />}
                                         label="지연" value={delayed.length} sub="개" color="red"
                                         onClick={() => openGroup('지연 이슈', delayed, '#ef4444')} />
-                                    <StatCard icon={<Pause className="w-4 h-4 text-slate-500" />}
+                                    <StatCard icon={<Pause className="w-4 h-4 text-muted-foreground" />}
                                         label="보류" value={onHold.length} sub="개" color="slate"
                                         onClick={() => openGroup('보류 이슈', onHold, '#94a3b8')} />
-                                    <StatCard icon={<CircleSlash className="w-4 h-4 text-slate-600" />}
+                                    <StatCard icon={<CircleSlash className="w-4 h-4 text-foreground/80" />}
                                         label="취소" value={cancelled.length} sub="개" color="slate"
                                         onClick={() => openGroup('취소 이슈', cancelled, '#64748b')} />
                                     {/* v1.0.18: 반려 카드 — KPI에서 제외 */}
@@ -496,7 +496,7 @@ export function ProjectStatsDialog({
                                 <div className="grid grid-cols-3 gap-6 items-center">
                                     {/* 파이차트 */}
                                     <div className="flex flex-col items-center gap-3">
-                                        <p className="text-xs font-semibold text-slate-600">이슈 분포</p>
+                                        <p className="text-xs font-semibold text-foreground/80">이슈 분포</p>
                                         <PieChart segments={overallSegments} size={160} centerLabel={`${completionRate}%`} />
                                         <div className="flex flex-wrap justify-center gap-2 mt-3">
                                             {overallSegments.map(seg => (
@@ -625,24 +625,24 @@ export function ProjectStatsDialog({
                                                             <div className="flex flex-col items-center">
                                                                 <button onClick={() => openGroup(`${a.name} · 로그 있음`, a.withWorklog, '#2563eb')}
                                                                     disabled={a.withWorklog.length === 0}
-                                                                    className={`font-bold text-sm ${a.withWorklog.length === 0 ? 'text-slate-300 cursor-not-allowed' : 'text-blue-600 hover:bg-blue-50 px-2 py-1 rounded transition-colors'}`}>
+                                                                    className={`font-bold text-sm ${a.withWorklog.length === 0 ? 'text-muted-foreground cursor-not-allowed' : 'text-blue-600 hover:bg-blue-50 dark:bg-blue-950/30 px-2 py-1 rounded transition-colors'}`}>
                                                                     {a.withWorklog.length}
                                                                 </button>
-                                                                <span className="text-[10px] text-slate-400 mt-0.5">{t > 0 ? Math.round((a.withWorklog.length / t) * 100) : 0}%</span>
+                                                                <span className="text-[10px] text-muted-foreground mt-0.5">{t > 0 ? Math.round((a.withWorklog.length / t) * 100) : 0}%</span>
                                                             </div>
                                                         </td>
                                                         <td className="px-3 py-3 text-center">
                                                             <div className="flex flex-col items-center">
                                                                 <button onClick={() => openGroup(`${a.name} · 로그 없음`, a.withoutWorklog, '#64748b')}
                                                                     disabled={a.withoutWorklog.length === 0}
-                                                                    className={`font-bold text-sm ${a.withoutWorklog.length === 0 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-600 hover:bg-slate-50 px-2 py-1 rounded transition-colors'}`}>
+                                                                    className={`font-bold text-sm ${a.withoutWorklog.length === 0 ? 'text-muted-foreground cursor-not-allowed' : 'text-foreground/80 hover:bg-muted/40 px-2 py-1 rounded transition-colors'}`}>
                                                                     {a.withoutWorklog.length}
                                                                 </button>
-                                                                <span className="text-[10px] text-slate-400 mt-0.5">{t > 0 ? Math.round((a.withoutWorklog.length / t) * 100) : 0}%</span>
+                                                                <span className="text-[10px] text-muted-foreground mt-0.5">{t > 0 ? Math.round((a.withoutWorklog.length / t) * 100) : 0}%</span>
                                                             </div>
                                                         </td>
                                                         <td className="px-3 py-3 text-center">
-                                                            <span className="font-semibold text-slate-700">{formatTime(a.totalTimeSpent)}</span>
+                                                            <span className="font-semibold text-foreground/90">{formatTime(a.totalTimeSpent)}</span>
                                                         </td>
                                                         <td className="px-3 py-3 text-center">
                                                             <RateBadge value={progressRate} type="progress" />
@@ -671,39 +671,39 @@ export function ProjectStatsDialog({
                                                                 <td className="pl-7 pr-2 py-1">
                                                                     <div className="flex items-center gap-1 whitespace-nowrap">
                                                                         <span className="text-violet-400 text-[10px] leading-none">└</span>
-                                                                        <span className="text-[8px] leading-none text-violet-700 bg-violet-100 border border-violet-200 rounded px-1 py-px font-semibold tracking-tight">서브</span>
-                                                                        <span className="text-[10px] text-slate-600 truncate" title={c.subDisplayName}>{c.subDisplayName}</span>
+                                                                        <span className="text-[8px] leading-none text-violet-700 dark:text-violet-300 bg-violet-100 border border-violet-200 dark:border-violet-900/60 rounded px-1 py-px font-semibold tracking-tight">서브</span>
+                                                                        <span className="text-[10px] text-foreground/80 truncate" title={c.subDisplayName}>{c.subDisplayName}</span>
                                                                     </div>
                                                                 </td>
-                                                                <td className="px-2 py-1 text-center text-[9px] text-slate-500 whitespace-nowrap">
+                                                                <td className="px-2 py-1 text-center text-[9px] text-muted-foreground whitespace-nowrap">
                                                                     가중 {(sharedN * SUB_ASSIGNEE_WEIGHT).toFixed(1)}
                                                                 </td>
                                                                 {/* 협업 카운트 */}
                                                                 <td className="px-3 py-2 text-center">
                                                                     <button
                                                                         onClick={() => openGroup(`${a.name} ↔ ${c.subDisplayName} · 협업 ${sharedN}건`, c.sharedIssues, '#7c3aed')}
-                                                                        className="font-bold text-xs text-violet-700 hover:bg-violet-50 px-1.5 py-0.5 rounded"
+                                                                        className="font-bold text-xs text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:bg-violet-950/30 px-1.5 py-0.5 rounded"
                                                                         title="협업 task 목록"
                                                                     >
                                                                         {sharedN}
                                                                     </button>
                                                                 </td>
-                                                                <td className="px-3 py-2 text-center text-xs text-green-700 tabular-nums">{collabKpi.completedIssues || '-'}</td>
-                                                                <td className="px-3 py-2 text-center text-xs text-blue-700 tabular-nums">{collabKpi.delayedIssues > 0 ? '-' : (sharedN - (collabKpi.completedIssues + collabKpi.delayedIssues) || '-')}</td>
-                                                                <td className="px-3 py-2 text-center text-xs text-slate-400">-</td>
+                                                                <td className="px-3 py-2 text-center text-xs text-green-700 dark:text-green-300 tabular-nums">{collabKpi.completedIssues || '-'}</td>
+                                                                <td className="px-3 py-2 text-center text-xs text-blue-700 dark:text-blue-300 tabular-nums">{collabKpi.delayedIssues > 0 ? '-' : (sharedN - (collabKpi.completedIssues + collabKpi.delayedIssues) || '-')}</td>
+                                                                <td className="px-3 py-2 text-center text-xs text-muted-foreground">-</td>
                                                                 <td className="px-3 py-2 text-center text-xs text-red-600 tabular-nums">{collabKpi.delayedIssues || '-'}</td>
-                                                                <td className="px-3 py-2 text-center text-xs text-cyan-700 tabular-nums">{collabKpi.earlyIssues || '-'}</td>
-                                                                <td className="px-3 py-2 text-center text-xs text-slate-400">-</td>
-                                                                <td className="px-3 py-2 text-center text-xs text-slate-400">-</td>
-                                                                <td className="px-3 py-2 text-center text-xs text-slate-400">-</td>
+                                                                <td className="px-3 py-2 text-center text-xs text-cyan-700 dark:text-cyan-300 tabular-nums">{collabKpi.earlyIssues || '-'}</td>
+                                                                <td className="px-3 py-2 text-center text-xs text-muted-foreground">-</td>
+                                                                <td className="px-3 py-2 text-center text-xs text-muted-foreground">-</td>
+                                                                <td className="px-3 py-2 text-center text-xs text-muted-foreground">-</td>
                                                                 <td className="px-3 py-2 text-center">
                                                                     <RateBadge value={sharedN > 0 ? Math.round((collabKpi.completedIssues / sharedN) * 100) : 0} type="progress" />
                                                                 </td>
                                                                 <td className="px-3 py-2 text-center">
                                                                     <RateBadge value={collabKpi.complianceRate} type="progress" />
                                                                 </td>
-                                                                <td className="px-3 py-2 text-center text-xs text-slate-400">-</td>
-                                                                <td className="px-3 py-2 text-center text-xs text-slate-400">-</td>
+                                                                <td className="px-3 py-2 text-center text-xs text-muted-foreground">-</td>
+                                                                <td className="px-3 py-2 text-center text-xs text-muted-foreground">-</td>
                                                             </tr>
                                                         );
                                                     })}
@@ -763,7 +763,7 @@ export function ProjectStatsDialog({
                                                         whiteSpace: 'nowrap',
                                                         cursor: onShowIssuesInList && keys.length > 0 ? 'pointer' : 'default'
                                                     }}
-                                                    className={onShowIssuesInList && keys.length > 0 ? 'hover:bg-slate-50 hover:border-slate-300 transition-colors' : ''}
+                                                    className={onShowIssuesInList && keys.length > 0 ? 'hover:bg-muted/40 hover:border-border transition-colors' : ''}
                                                 >
                                                     {name} {count}건 ({pct}%)
                                                 </button>
@@ -824,7 +824,7 @@ export function ProjectStatsDialog({
                     </TabsContent>
 
                     <TabsContent value="kpi" className="flex-1 overflow-y-auto p-0 m-0 border-0 focus-visible:ring-0 focus-visible:outline-none">
-                        <div className="px-6 py-6 space-y-8 text-[13px] leading-5 text-slate-700">
+                        <div className="px-6 py-6 space-y-8 text-[13px] leading-5 text-foreground/90">
                             <section>
                                 <SectionTitle>KPI 등급 평가는 팀 전체 기준입니다</SectionTitle>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mt-4">
@@ -867,56 +867,56 @@ export function ProjectStatsDialog({
 
                             <section>
                                 <SectionTitle>상세 산출 내역</SectionTitle>
-                                <div className="border rounded-lg overflow-hidden text-sm bg-white mt-4">
+                                <div className="border rounded-lg overflow-hidden text-sm bg-card mt-4">
                                     <table className="w-full">
-                                        <thead className="bg-slate-50 border-b">
+                                        <thead className="bg-muted/40 border-b">
                                             <tr>
-                                                <th className="px-6 py-3 text-left font-medium text-slate-500">항목</th>
-                                                <th className="px-6 py-3 text-right font-medium text-slate-500">값</th>
-                                                <th className="px-6 py-3 text-left font-medium text-slate-500">비고</th>
+                                                <th className="px-6 py-3 text-left font-medium text-muted-foreground">항목</th>
+                                                <th className="px-6 py-3 text-right font-medium text-muted-foreground">값</th>
+                                                <th className="px-6 py-3 text-left font-medium text-muted-foreground">비고</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-slate-100">
+                                        <tbody className="divide-y divide-border/50">
                                             <tr>
-                                                <td className="px-6 py-3 text-slate-700">전체 대상 이슈</td>
+                                                <td className="px-6 py-3 text-foreground/90">전체 대상 이슈</td>
                                                 <td className="px-6 py-3 text-right font-semibold">{kpiMetrics.totalIssues} 개</td>
-                                                <td className="px-6 py-3 text-slate-400 text-xs">총 계획된 기능 수</td>
+                                                <td className="px-6 py-3 text-muted-foreground text-xs">총 계획된 기능 수</td>
                                             </tr>
                                             <tr>
-                                                <td className="px-6 py-3 text-slate-700">연기 합의 이슈</td>
-                                                <td className="px-6 py-3 text-right font-semibold text-slate-500">{kpiMetrics.agreedDelayIssues} 개</td>
-                                                <td className="px-6 py-3 text-slate-400 text-xs">완료율 계산 시 모수에서 제외</td>
+                                                <td className="px-6 py-3 text-foreground/90">연기 합의 이슈</td>
+                                                <td className="px-6 py-3 text-right font-semibold text-muted-foreground">{kpiMetrics.agreedDelayIssues} 개</td>
+                                                <td className="px-6 py-3 text-muted-foreground text-xs">완료율 계산 시 모수에서 제외</td>
                                             </tr>
                                             <tr>
-                                                <td className="px-6 py-3 text-slate-700">개발 완료 (조정 후)</td>
+                                                <td className="px-6 py-3 text-foreground/90">개발 완료 (조정 후)</td>
                                                 <td className="px-6 py-3 text-right font-semibold text-blue-600">{kpiMetrics.completedIssues} 개</td>
-                                                <td className="px-6 py-3 text-slate-400 text-xs">최종 완료된 기능 수</td>
+                                                <td className="px-6 py-3 text-muted-foreground text-xs">최종 완료된 기능 수</td>
                                             </tr>
                                             <tr>
-                                                <td className="px-6 py-3 text-slate-700">일정 준수 완료</td>
+                                                <td className="px-6 py-3 text-foreground/90">일정 준수 완료</td>
                                                 <td className="px-6 py-3 text-right font-semibold text-green-600">{kpiMetrics.compliantIssues} 개</td>
-                                                <td className="px-6 py-3 text-slate-400 text-xs">완료 예정일 이내 완료</td>
+                                                <td className="px-6 py-3 text-muted-foreground text-xs">완료 예정일 이내 완료</td>
                                             </tr>
                                             <tr>
-                                                <td className="px-6 py-3 text-slate-700">조기 완료</td>
+                                                <td className="px-6 py-3 text-foreground/90">조기 완료</td>
                                                 <td className="px-6 py-3 text-right font-semibold text-amber-600">{kpiMetrics.earlyIssues} 개</td>
-                                                <td className="px-6 py-3 text-slate-400 text-xs">완료 예정일보다 하루 이상 빨리 완료</td>
+                                                <td className="px-6 py-3 text-muted-foreground text-xs">완료 예정일보다 하루 이상 빨리 완료</td>
                                             </tr>
                                             <tr>
-                                                <td className="px-6 py-3 text-slate-700">지연 완료</td>
+                                                <td className="px-6 py-3 text-foreground/90">지연 완료</td>
                                                 <td className="px-6 py-3 text-right font-semibold text-red-600">{kpiMetrics.delayedIssues} 개</td>
-                                                <td className="px-6 py-3 text-slate-400 text-xs">완료 예정일을 초과하여 완료</td>
+                                                <td className="px-6 py-3 text-muted-foreground text-xs">완료 예정일을 초과하여 완료</td>
                                             </tr>
-                                            <tr className="bg-slate-50/90">
+                                            <tr className="bg-muted/40/90">
                                                 <td
                                                     colSpan={3}
-                                                    className="px-6 py-2 text-xs font-semibold text-slate-600 border-t border-slate-200"
+                                                    className="px-6 py-2 text-xs font-semibold text-foreground/80 border-t border-border"
                                                 >
                                                     결함 KPI (개발·결함 에픽 매핑 · 팀 합계)
                                                 </td>
                                             </tr>
                                             <tr>
-                                                <td className="px-6 py-3 text-slate-700">팀 담당 개발 이슈</td>
+                                                <td className="px-6 py-3 text-foreground/90">팀 담당 개발 이슈</td>
                                                 <td className="px-6 py-3 text-right font-semibold tabular-nums">
                                                     {defectKpiLoading
                                                         ? '…'
@@ -924,12 +924,12 @@ export function ProjectStatsDialog({
                                                           ? `${teamDefectKpiSummary.totalDev} 개`
                                                           : '—'}
                                                 </td>
-                                                <td className="px-6 py-3 text-slate-400 text-xs">
+                                                <td className="px-6 py-3 text-muted-foreground text-xs">
                                                     매핑 에픽 리프·assignee 기준 합계
                                                 </td>
                                             </tr>
                                             <tr>
-                                                <td className="px-6 py-3 text-slate-700">팀 결함 등록</td>
+                                                <td className="px-6 py-3 text-foreground/90">팀 결함 등록</td>
                                                 <td className="px-6 py-3 text-right font-semibold text-rose-600 tabular-nums">
                                                     {defectKpiLoading
                                                         ? '…'
@@ -937,12 +937,12 @@ export function ProjectStatsDialog({
                                                           ? `${teamDefectKpiSummary.totalDefect} 개`
                                                           : '—'}
                                                 </td>
-                                                <td className="px-6 py-3 text-slate-400 text-xs">
+                                                <td className="px-6 py-3 text-muted-foreground text-xs">
                                                     「작업자」매칭 결함 리프 합계
                                                 </td>
                                             </tr>
                                             <tr>
-                                                <td className="px-6 py-3 text-slate-700">팀 결함 비율</td>
+                                                <td className="px-6 py-3 text-foreground/90">팀 결함 비율</td>
                                                 <td className="px-6 py-3 text-right font-semibold tabular-nums">
                                                     {defectKpiLoading
                                                         ? '…'
@@ -950,7 +950,7 @@ export function ProjectStatsDialog({
                                                           ? `${teamDefectKpiSummary.ratePercent}%`
                                                           : '—'}
                                                 </td>
-                                                <td className="px-6 py-3 text-slate-400 text-xs">
+                                                <td className="px-6 py-3 text-muted-foreground text-xs">
                                                     결함 ÷ 담당 개발 이슈 × 100 · 등급{' '}
                                                     {teamDefectKpiSummary && teamDefectKpiSummary.grade !== '—'
                                                         ? teamDefectKpiSummary.grade
@@ -958,8 +958,8 @@ export function ProjectStatsDialog({
                                                 </td>
                                             </tr>
                                             <tr>
-                                                <td className="px-6 py-3 text-slate-700 align-top">팀 심각도 분포</td>
-                                                <td className="px-6 py-3 text-right font-semibold tabular-nums text-slate-800 align-top">
+                                                <td className="px-6 py-3 text-foreground/90 align-top">팀 심각도 분포</td>
+                                                <td className="px-6 py-3 text-right font-semibold tabular-nums text-foreground align-top">
                                                     {defectKpiLoading ? (
                                                         '…'
                                                     ) : teamSeveritySorted.length > 0 ? (
@@ -974,7 +974,7 @@ export function ProjectStatsDialog({
                                                         '—'
                                                     )}
                                                 </td>
-                                                <td className="px-6 py-3 text-slate-400 text-xs align-top">
+                                                <td className="px-6 py-3 text-muted-foreground text-xs align-top">
                                                     {defectKpiLoading ? (
                                                         ''
                                                     ) : !teamDefectKpiSummary ? (
@@ -995,7 +995,7 @@ export function ProjectStatsDialog({
                                 <div className="mt-6 space-y-3">
                                     <div className="flex flex-wrap items-center justify-between gap-3">
                                         <div className="flex items-center gap-1.5 min-w-0">
-                                            <h4 className="text-sm font-semibold text-slate-700 m-0 shrink-0">
+                                            <h4 className="text-sm font-semibold text-foreground/90 m-0 shrink-0">
                                                 결함 KPI (개발·결함 에픽 매핑)
                                             </h4>
                                             <InfoTooltip
@@ -1037,18 +1037,18 @@ export function ProjectStatsDialog({
                                             </Button>
                                         )}
                                     </div>
-                                    <div className="border-b border-slate-200" />
+                                    <div className="border-b border-border" />
                                     {defectKpiLoading && (
-                                        <p className="text-[13px] text-slate-500 m-0">결함 KPI 불러오는 중…</p>
+                                        <p className="text-[13px] text-muted-foreground m-0">결함 KPI 불러오는 중…</p>
                                     )}
                                     {!defectKpiLoading && defectKpiMappingCount === 0 && (
-                                        <p className="text-[13px] text-amber-700 bg-amber-50 border border-amber-100 rounded-md px-3 py-2">
+                                        <p className="text-[13px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border border-amber-100 rounded-md px-3 py-2">
                                             등록된 에픽 매핑이 없습니다. 아래「에픽 매핑 편집」을 눌러 개발 에픽과 TQ 결함
                                             에픽을 추가하세요.
                                         </p>
                                     )}
                                     {!defectKpiLoading && defectKpiMappingCount > 0 && !defectKpiWorkerOk && (
-                                        <p className="text-[13px] text-red-700 bg-red-50 border border-red-100 rounded-md px-3 py-2">
+                                        <p className="text-[13px] text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-100 rounded-md px-3 py-2">
                                             Jira 필드「작업자」를 찾지 못했습니다. defectKpiConfig.ts 의
                                             WORKER_FIELD_NAMES 를 확인하세요.
                                         </p>
@@ -1057,7 +1057,7 @@ export function ProjectStatsDialog({
                                         defectKpiMappingCount > 0 &&
                                         defectKpiWorkerOk &&
                                         !defectKpiSeverityFieldOk && (
-                                            <p className="text-[13px] text-amber-800 bg-amber-50 border border-amber-100 rounded-md px-3 py-2">
+                                            <p className="text-[13px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border border-amber-100 rounded-md px-3 py-2">
                                                 Jira에서「결함 심각도」커스텀 필드 id를 찾지 못했습니다. 차트에는「필드
                                                 미연결」구간만 표시됩니다. defectKpiConfig 의 DEFECT_SEVERITY_FIELD_NAMES·Jira 필드
                                                 이름을 확인하세요(우선순위와 별개).
@@ -1067,45 +1067,45 @@ export function ProjectStatsDialog({
                                         defectKpiMappingCount > 0 &&
                                         defectKpiWorkerOk &&
                                         defectKpiRows.length === 0 && (
-                                            <p className="text-[13px] text-slate-500">
+                                            <p className="text-[13px] text-muted-foreground">
                                                 집계할 행이 없습니다. 개발·결함 에픽에 리프 이슈와 결함「작업자」입력을
                                                 확인하세요.
                                             </p>
                                         )}
                                     {!defectKpiLoading && defectKpiRows.length > 0 && (
-                                        <div className="border rounded-lg overflow-x-auto text-sm bg-white">
+                                        <div className="border rounded-lg overflow-x-auto text-sm bg-card">
                                             <table className="w-full min-w-[720px] table-fixed border-collapse text-[13px] leading-5">
                                                 <colgroup>
                                                     {Array.from({ length: 6 }, (_, i) => (
                                                         <col key={i} style={{ width: `${100 / 6}%` }} />
                                                     ))}
                                                 </colgroup>
-                                                <thead className="bg-slate-50 border-b">
+                                                <thead className="bg-muted/40 border-b">
                                                     <tr>
-                                                        <th className="px-3 py-2.5 text-center font-semibold text-slate-500">
+                                                        <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground">
                                                             담당자
                                                         </th>
-                                                        <th className="px-3 py-2.5 text-center font-semibold text-slate-500">
+                                                        <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground">
                                                             담당 개발 이슈
                                                         </th>
-                                                        <th className="px-3 py-2.5 text-center font-semibold text-slate-500">
+                                                        <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground">
                                                             결함 등록
                                                         </th>
-                                                        <th className="px-3 py-2.5 text-center font-semibold text-slate-500 whitespace-nowrap">
+                                                        <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground whitespace-nowrap">
                                                             비율(%)
                                                         </th>
-                                                        <th className="px-3 py-2.5 text-center font-semibold text-slate-500">
+                                                        <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground">
                                                             심각도
                                                         </th>
-                                                        <th className="px-3 py-2.5 text-center font-semibold text-slate-500">
+                                                        <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground">
                                                             등급
                                                         </th>
                                                     </tr>
                                                 </thead>
-                                                <tbody className="divide-y divide-slate-100">
+                                                <tbody className="divide-y divide-border/50">
                                                     {defectKpiRows.map((r) => (
                                                         <tr key={r.key}>
-                                                            <td className="px-3 py-2.5 text-center text-slate-700 align-middle min-w-0">
+                                                            <td className="px-3 py-2.5 text-center text-foreground/90 align-middle min-w-0">
                                                                 <span
                                                                     className="inline-block max-w-full truncate align-middle"
                                                                     title={r.displayName}
@@ -1124,7 +1124,7 @@ export function ProjectStatsDialog({
                                                                     ? `${r.defectRatePercent}%`
                                                                     : '—'}
                                                             </td>
-                                                            <td className="px-3 py-2.5 text-center align-middle text-slate-700 min-w-0">
+                                                            <td className="px-3 py-2.5 text-center align-middle text-foreground/90 min-w-0">
                                                                 <DefectSeverityDonut
                                                                     breakdown={r.severityBreakdown}
                                                                     centeredInCell
@@ -1142,31 +1142,31 @@ export function ProjectStatsDialog({
 
                             <section>
                                 <SectionTitle>담당자별 성과 분석</SectionTitle>
-                                <div className="border rounded-lg overflow-x-auto text-sm bg-white mt-4">
+                                <div className="border rounded-lg overflow-x-auto text-sm bg-card mt-4">
                                     <table className="w-full min-w-[1100px]">
                                         <thead style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                                             <tr style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                                 <th className="px-4 py-3 text-left font-medium">담당자</th>
-                                                <th className="px-4 py-3 text-center font-bold text-indigo-700">종합 등급</th>
-                                                <th className="px-4 py-3 text-center font-medium text-blue-700">기능 개발 완료율</th>
-                                                <th className="px-4 py-3 text-center font-medium text-green-700">일정 준수율</th>
-                                                <th className="px-4 py-3 text-center font-medium text-amber-700">조기 종료 가점</th>
-                                                <th className="px-4 py-3 text-center font-medium text-slate-400">지연율 (참고)</th>
-                                                <th className="px-3 py-3 text-center font-medium text-rose-700 whitespace-nowrap">
+                                                <th className="px-4 py-3 text-center font-bold text-indigo-700 dark:text-indigo-300">종합 등급</th>
+                                                <th className="px-4 py-3 text-center font-medium text-blue-700 dark:text-blue-300">기능 개발 완료율</th>
+                                                <th className="px-4 py-3 text-center font-medium text-green-700 dark:text-green-300">일정 준수율</th>
+                                                <th className="px-4 py-3 text-center font-medium text-amber-700 dark:text-amber-300">조기 종료 가점</th>
+                                                <th className="px-4 py-3 text-center font-medium text-muted-foreground">지연율 (참고)</th>
+                                                <th className="px-3 py-3 text-center font-medium text-rose-700 dark:text-rose-300 whitespace-nowrap">
                                                     결함
                                                 </th>
-                                                <th className="px-3 py-3 text-center font-medium text-rose-700 whitespace-nowrap">
+                                                <th className="px-3 py-3 text-center font-medium text-rose-700 dark:text-rose-300 whitespace-nowrap">
                                                     결함 비율
                                                 </th>
-                                                <th className="px-3 py-3 text-center font-medium text-rose-700 whitespace-nowrap">
+                                                <th className="px-3 py-3 text-center font-medium text-rose-700 dark:text-rose-300 whitespace-nowrap">
                                                     결함 등급
                                                 </th>
-                                                <th className="px-2 py-3 text-left font-medium text-rose-700 w-auto min-w-[100px] max-w-[200px]">
+                                                <th className="px-2 py-3 text-left font-medium text-rose-700 dark:text-rose-300 w-auto min-w-[100px] max-w-[200px]">
                                                     심각도
                                                 </th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-slate-100">
+                                        <tbody className="divide-y divide-border/50">
                                             {assigneesWithKPI.map(a => {
                                                 const kpi = a.kpi;
                                                 const delayPct = kpi.totalIssues > 0 ? Math.round((kpi.delayedIssues / kpi.totalIssues) * 100) : 0;
@@ -1177,7 +1177,7 @@ export function ProjectStatsDialog({
                                                     <tr style={{ backgroundColor: '#ffffff', transition: 'background-color 0.15s' }}
                                                         onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f8fafc')}
                                                         onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#ffffff')}>
-                                                        <td className="px-4 py-3 font-medium text-slate-700">
+                                                        <td className="px-4 py-3 font-medium text-foreground/90">
                                                             <div className="flex items-center gap-2">
                                                                 <User className="w-3.5 h-3.5 shrink-0" style={{ color: '#94a3b8' }} />
                                                                 {a.name}
@@ -1215,29 +1215,29 @@ export function ProjectStatsDialog({
                                                                 <span style={{ fontSize: 11, color: '#64748b' }}>{kpi.earlyRate}%</span>
                                                             </div>
                                                         </td>
-                                                        <td className="px-4 py-3 text-center text-slate-400">
+                                                        <td className="px-4 py-3 text-center text-muted-foreground">
                                                             {delayPct > 0 ? `${delayPct}%` : '-'}
                                                         </td>
-                                                        <td className="px-3 py-2 text-center tabular-nums text-slate-800">
+                                                        <td className="px-3 py-2 text-center tabular-nums text-foreground">
                                                             {defectKpiLoading ? '…' : dRow != null ? dRow.defectCount : '—'}
                                                         </td>
-                                                        <td className="px-3 py-2 text-center tabular-nums text-slate-800">
+                                                        <td className="px-3 py-2 text-center tabular-nums text-foreground">
                                                             {defectKpiLoading
                                                                 ? '…'
                                                                 : dRow?.defectRatePercent != null
                                                                   ? `${dRow.defectRatePercent}%`
                                                                   : '—'}
                                                         </td>
-                                                        <td className="px-3 py-2 text-center font-bold text-slate-800">
+                                                        <td className="px-3 py-2 text-center font-bold text-foreground">
                                                             {defectKpiLoading ? '…' : dRow != null ? dRow.grade : '—'}
                                                         </td>
                                                         <td className="px-2 py-1 align-middle">
                                                             {defectKpiLoading ? (
-                                                                <span className="text-slate-400 text-xs">…</span>
+                                                                <span className="text-muted-foreground text-xs">…</span>
                                                             ) : dRow && dRow.severityBreakdown.length > 0 ? (
                                                                 <DefectSeverityDonut breakdown={dRow.severityBreakdown} />
                                                             ) : (
-                                                                <span className="text-slate-400 text-xs">—</span>
+                                                                <span className="text-muted-foreground text-xs">—</span>
                                                             )}
                                                         </td>
                                                     </tr>
@@ -1254,9 +1254,9 @@ export function ProjectStatsDialog({
                                                                 <td className="pl-7 pr-2 py-1">
                                                                     <div className="flex items-center gap-1 whitespace-nowrap">
                                                                         <span className="text-violet-400 text-[10px] leading-none">└</span>
-                                                                        <span className="text-[8px] leading-none text-violet-700 bg-violet-100 border border-violet-200 rounded px-1 py-px font-semibold tracking-tight">서브</span>
-                                                                        <span className="text-[10px] text-slate-600 truncate max-w-[80px]" title={c.subDisplayName}>{c.subDisplayName}</span>
-                                                                        <span className="text-[9px] text-slate-400" title={`${a.name}와 함께한 task ${sharedN}건 (가중 ${(sharedN * SUB_ASSIGNEE_WEIGHT).toFixed(1)}점)`}>
+                                                                        <span className="text-[8px] leading-none text-violet-700 dark:text-violet-300 bg-violet-100 border border-violet-200 dark:border-violet-900/60 rounded px-1 py-px font-semibold tracking-tight">서브</span>
+                                                                        <span className="text-[10px] text-foreground/80 truncate max-w-[80px]" title={c.subDisplayName}>{c.subDisplayName}</span>
+                                                                        <span className="text-[9px] text-muted-foreground" title={`${a.name}와 함께한 task ${sharedN}건 (가중 ${(sharedN * SUB_ASSIGNEE_WEIGHT).toFixed(1)}점)`}>
                                                                             ({sharedN}×{SUB_ASSIGNEE_WEIGHT})
                                                                         </span>
                                                                     </div>
@@ -1271,20 +1271,20 @@ export function ProjectStatsDialog({
                                                                 </td>
                                                                 <td className="px-4 py-2 text-center">
                                                                     <div className="flex flex-col items-center">
-                                                                        <span className="text-xs font-semibold text-slate-700">{collabKpi.grades.completion}</span>
-                                                                        <span className="text-[10px] text-slate-500">{collabKpi.completionRate}%</span>
+                                                                        <span className="text-xs font-semibold text-foreground/90">{collabKpi.grades.completion}</span>
+                                                                        <span className="text-[10px] text-muted-foreground">{collabKpi.completionRate}%</span>
                                                                     </div>
                                                                 </td>
                                                                 <td className="px-4 py-2 text-center">
                                                                     <div className="flex flex-col items-center">
-                                                                        <span className="text-xs font-semibold text-slate-700">{collabKpi.grades.compliance}</span>
-                                                                        <span className="text-[10px] text-slate-500">{collabKpi.complianceRate}%</span>
+                                                                        <span className="text-xs font-semibold text-foreground/90">{collabKpi.grades.compliance}</span>
+                                                                        <span className="text-[10px] text-muted-foreground">{collabKpi.complianceRate}%</span>
                                                                     </div>
                                                                 </td>
                                                                 <td className="px-4 py-2 text-center">
-                                                                    <span className="text-[10px] text-amber-700">+{collabKpi.grades.earlyBonus}</span>
+                                                                    <span className="text-[10px] text-amber-700 dark:text-amber-300">+{collabKpi.grades.earlyBonus}</span>
                                                                 </td>
-                                                                <td className="px-4 py-2 text-center text-[10px] text-slate-400">
+                                                                <td className="px-4 py-2 text-center text-[10px] text-muted-foreground">
                                                                     {collabKpi.totalIssues > 0 && collabKpi.delayedIssues > 0
                                                                         ? `${Math.round((collabKpi.delayedIssues / collabKpi.totalIssues) * 100)}%`
                                                                         : '-'}
@@ -1319,7 +1319,7 @@ export function ProjectStatsDialog({
             <DialogContent className="z-[200] sm:max-w-lg max-h-[85vh] flex flex-col gap-0 overflow-hidden p-0">
                 <DialogHeader className="px-6 pt-6 pb-2 shrink-0 border-b">
                     <DialogTitle className="flex items-center gap-2 text-base">
-                        <Link2 className="h-5 w-5 text-slate-600 shrink-0" aria-hidden />
+                        <Link2 className="h-5 w-5 text-foreground/80 shrink-0" aria-hidden />
                         개발 에픽 ↔ 결함 에픽 매핑
                     </DialogTitle>
                 </DialogHeader>
@@ -1369,7 +1369,7 @@ function DefectSeverityDonut({
 }) {
     const total = breakdown.reduce((s, x) => s + x.count, 0);
     if (total === 0) {
-        return <span className="text-slate-400 text-xs">—</span>;
+        return <span className="text-muted-foreground text-xs">—</span>;
     }
     const segments = breakdown.map((item, i) => ({
         value: item.count,
@@ -1391,7 +1391,7 @@ function DefectSeverityDonut({
             />
             <ul
                 className={cn(
-                    'text-[10px] leading-tight text-slate-600 min-w-0 m-0 p-0 list-none space-y-px',
+                    'text-[10px] leading-tight text-foreground/80 min-w-0 m-0 p-0 list-none space-y-px',
                     centeredInCell ? 'shrink text-left' : 'flex-1',
                 )}
             >
@@ -1407,7 +1407,7 @@ function DefectSeverityDonut({
                         />
                         <span className="inline-flex min-w-0 items-baseline gap-0.5">
                             <span className="truncate">{s.name}</span>
-                            <span className="tabular-nums shrink-0 font-medium text-slate-700">{s.count}</span>
+                            <span className="tabular-nums shrink-0 font-medium text-foreground/90">{s.count}</span>
                         </span>
                     </li>
                 ))}
@@ -1428,10 +1428,10 @@ function InfoTooltip({
 }) {
     return (
         <div className={cn('group relative flex items-center ml-1.5 cursor-help z-50', className)}>
-            <HelpCircle className="w-3.5 h-3.5 text-slate-400 hover:text-slate-600 transition-colors" />
+            <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground/80 transition-colors" />
             <div
                 className={cn(
-                    'absolute left-1/2 top-full mt-2 -translate-x-1/2 w-72 p-3 bg-slate-800 text-slate-50 text-xs rounded-md shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all pointer-events-none whitespace-pre-wrap leading-relaxed z-[9999]',
+                    'absolute left-1/2 top-full mt-2 -translate-x-1/2 w-72 p-3 bg-slate-800 text-foreground text-xs rounded-md shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all pointer-events-none whitespace-pre-wrap leading-relaxed z-[9999]',
                     panelClassName,
                 )}
             >
@@ -1458,7 +1458,7 @@ function PieChart({
     const total = segments.reduce((s, seg) => s + seg.value, 0);
     if (total === 0) {
         return (
-            <div className="rounded-full bg-slate-100 flex items-center justify-center text-xs text-slate-400"
+            <div className="rounded-full bg-muted/60 flex items-center justify-center text-xs text-muted-foreground"
                 style={{ width: size, height: size }}>
                 —
             </div>
@@ -1523,8 +1523,8 @@ function PieChart({
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
     return (
-        <div className="border-b border-slate-200 pb-2">
-            <h2 className="m-0 text-[13px] font-semibold tracking-wide text-slate-600 uppercase">{children}</h2>
+        <div className="border-b border-border pb-2">
+            <h2 className="m-0 text-[13px] font-semibold tracking-wide text-foreground/80 uppercase">{children}</h2>
         </div>
     );
 }
@@ -1641,14 +1641,14 @@ function GradeCard({
     return (
         <div style={{ backgroundColor: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: 12, padding: 20 }}>
             <div className="flex items-center mb-2">
-                <h3 className="m-0 text-[13px] font-semibold text-slate-500">{title}</h3>
+                <h3 className="m-0 text-[13px] font-semibold text-muted-foreground">{title}</h3>
                 {tooltip && <InfoTooltip content={tooltip} />}
             </div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
                 <span style={{ fontSize: 32, fontWeight: 800, color: cfg.text }}>{grade}</span>
                 <span style={{ fontSize: 14, fontWeight: 600, color: cfg.text }}>({rateBracket})</span>
             </div>
-            <p className="m-0 text-[12px] leading-5 text-slate-400">{desc}</p>
+            <p className="m-0 text-[12px] leading-5 text-muted-foreground">{desc}</p>
         </div>
     );
 }

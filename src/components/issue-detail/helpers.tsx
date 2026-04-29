@@ -72,7 +72,7 @@ export function IssueTypeIcon({ type, className }: { type: string; className?: s
         case '하위 작업': return <CircleCheck className={cn("text-blue-400", className)} />;
         case '할 일': return <CircleCheck className={cn("text-blue-500", className)} />;
         case '결함': return <Bug className={cn("text-red-500", className)} />;
-        default: return <Info className={cn("text-slate-400", className)} />;
+        default: return <Info className={cn("text-muted-foreground", className)} />;
     }
 }
 
@@ -190,7 +190,7 @@ export function renderDescriptionAdf(
                 return <>{node.content?.map((n: any, i: number) => <React.Fragment key={i}>{renderNode(n)}</React.Fragment>)}</>;
             case 'codeBlock':
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                return <pre className="bg-slate-200 rounded p-2 text-xs my-1 overflow-x-auto"><code>{node.content?.map((n: any, i: number) => <React.Fragment key={i}>{renderNode(n)}</React.Fragment>)}</code></pre>;
+                return <pre className="bg-muted rounded p-2 text-xs my-1 overflow-x-auto"><code>{node.content?.map((n: any, i: number) => <React.Fragment key={i}>{renderNode(n)}</React.Fragment>)}</code></pre>;
             case 'doc':
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 return <>{node.content?.map((n: any, i: number) => <React.Fragment key={i}>{renderNode(n)}</React.Fragment>)}</>;
@@ -203,7 +203,7 @@ export function renderDescriptionAdf(
                     }
                     return <a href={getUrl(resolvedId)} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">[{alt} 다운로드]</a>;
                 }
-                return <span className="text-slate-500 text-sm">[이미지: {alt}]</span>;
+                return <span className="text-muted-foreground text-sm">[이미지: {alt}]</span>;
             }
             case 'mediaSingle':
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -225,11 +225,11 @@ export function renderDescriptionAdf(
 export function EmptyState({ Icon, title, description }: { Icon: React.ElementType; title: string; description: string }) {
     return (
         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center animate-in fade-in zoom-in duration-300">
-            <div className="bg-slate-100 p-4 rounded-full mb-4">
-                <Icon className="h-8 w-8 text-slate-500" />
+            <div className="bg-muted/60 p-4 rounded-full mb-4">
+                <Icon className="h-8 w-8 text-muted-foreground" />
             </div>
-            <h3 className="text-slate-700 font-medium mb-1">{title}</h3>
-            <p className="text-slate-600 text-sm max-w-[200px] leading-relaxed">{description}</p>
+            <h3 className="text-foreground/90 font-medium mb-1">{title}</h3>
+            <p className="text-foreground/80 text-sm max-w-[200px] leading-relaxed">{description}</p>
         </div>
     );
 }

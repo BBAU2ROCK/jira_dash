@@ -11,23 +11,23 @@ import React from 'react';
 const JIRA_BASE = 'https://okestro.atlassian.net/browse';
 
 const GRADE_COLOR: Record<string, string> = {
-    S: 'text-purple-700 bg-purple-100 border-purple-300',
-    A: 'text-green-700 bg-green-100 border-green-300',
-    B: 'text-blue-700 bg-blue-100 border-blue-300',
-    C: 'text-amber-700 bg-amber-100 border-amber-300',
-    D: 'text-red-700 bg-red-100 border-red-300',
+    S: 'text-purple-700 dark:text-purple-300 bg-purple-100 border-purple-300 dark:border-purple-900/60',
+    A: 'text-green-700 dark:text-green-300 bg-green-100 border-green-300 dark:border-green-900/60',
+    B: 'text-blue-700 dark:text-blue-300 bg-blue-100 border-blue-300 dark:border-blue-900/60',
+    C: 'text-amber-700 dark:text-amber-300 bg-amber-100 border-amber-300 dark:border-amber-900/60',
+    D: 'text-red-700 dark:text-red-300 bg-red-100 border-red-300 dark:border-red-900/60',
 };
 
 const TYPE_COLOR: Record<string, string> = {
-    버그: 'bg-red-50 text-red-800 border-red-200',
-    bug: 'bg-red-50 text-red-800 border-red-200',
-    개선: 'bg-blue-50 text-blue-800 border-blue-200',
-    improvement: 'bg-blue-50 text-blue-800 border-blue-200',
-    보안: 'bg-purple-50 text-purple-800 border-purple-200',
-    security: 'bg-purple-50 text-purple-800 border-purple-200',
+    버그: 'bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-300 border-red-200 dark:border-red-900/60',
+    bug: 'bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-300 border-red-200 dark:border-red-900/60',
+    개선: 'bg-blue-50 dark:bg-blue-950/30 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-900/60',
+    improvement: 'bg-blue-50 dark:bg-blue-950/30 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-900/60',
+    보안: 'bg-purple-50 dark:bg-purple-950/30 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-900/60',
+    security: 'bg-purple-50 dark:bg-purple-950/30 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-900/60',
 };
 function typeColor(name: string): string {
-    return TYPE_COLOR[name.toLowerCase()] ?? TYPE_COLOR[name] ?? 'bg-slate-50 text-slate-700 border-slate-200';
+    return TYPE_COLOR[name.toLowerCase()] ?? TYPE_COLOR[name] ?? 'bg-muted/40 text-foreground/90 border-border';
 }
 
 interface Props {
@@ -57,7 +57,7 @@ export function EpicDefectCard({ summary }: Props) {
     const gradeColor = grade ? GRADE_COLOR[grade] ?? '' : '';
 
     return (
-        <div className="rounded-lg border border-slate-200 bg-white p-4 flex flex-col">
+        <div className="rounded-lg border border-border bg-card p-4 flex flex-col">
             {/* Header */}
             <div className="flex items-start justify-between gap-2 mb-3">
                 <div className="min-w-0">
@@ -70,7 +70,7 @@ export function EpicDefectCard({ summary }: Props) {
                         {summary.epicKey}
                         <ExternalLink className="h-3 w-3" />
                     </a>
-                    <h3 className="text-sm font-semibold text-slate-800 mt-0.5 flex items-center gap-1.5">
+                    <h3 className="text-sm font-semibold text-foreground mt-0.5 flex items-center gap-1.5">
                         <Bug className="h-4 w-4 text-red-500" />
                         결함 회고
                         <InfoTip size="sm">
@@ -120,7 +120,7 @@ export function EpicDefectCard({ summary }: Props) {
                     {/* 2. 심각도 분포 */}
                     {stats.severityBreakdown.length > 0 && (
                         <div>
-                            <div className="text-[11px] font-medium text-slate-600 mb-1 inline-flex items-center gap-1">
+                            <div className="text-[11px] font-medium text-foreground/80 mb-1 inline-flex items-center gap-1">
                                 심각도 분포
                                 <InfoTip size="sm">결함 심각도 필드 값 집계. 색상: 적=Critical/Blocker, 주=High/Major, 황=Medium, 청=Low.</InfoTip>
                             </div>
@@ -141,7 +141,7 @@ export function EpicDefectCard({ summary }: Props) {
                     {/* 3. 타입 분포 */}
                     {stats.typeBreakdown.length > 0 && (
                         <div>
-                            <div className="text-[11px] font-medium text-slate-600 mb-1 inline-flex items-center gap-1">
+                            <div className="text-[11px] font-medium text-foreground/80 mb-1 inline-flex items-center gap-1">
                                 타입 분포
                                 <InfoTip size="sm">결함 이슈의 issuetype 분포. 70%↑ 편향 시 자동 권고 트리거.</InfoTip>
                             </div>
@@ -167,7 +167,7 @@ export function EpicDefectCard({ summary }: Props) {
                     {/* 5. 집중 담당자 */}
                     {stats.topAffectedPeople.length > 0 && (
                         <div>
-                            <div className="text-[11px] font-medium text-slate-600 mb-1 inline-flex items-center gap-1">
+                            <div className="text-[11px] font-medium text-foreground/80 mb-1 inline-flex items-center gap-1">
                                 <Users className="h-3 w-3" />
                                 집중 담당자
                                 <InfoTip size="sm">결함을 가장 많이 처리(작업자) 또는 담당한 상위 3명. 50%↑ 집중 시 pair programming 권고.</InfoTip>
@@ -177,10 +177,10 @@ export function EpicDefectCard({ summary }: Props) {
                                     const displayName = maybeAnonymize(p.name, anonMap, anonymizeMode);
                                     return (
                                         <div key={p.name} className="flex items-center justify-between text-[11px]">
-                                            <span className="text-slate-700 truncate">{displayName}</span>
-                                            <span className="text-slate-500 tabular-nums">
-                                                <span className="font-bold text-slate-700">{p.count}건</span>
-                                                <span className="text-slate-400"> ({p.pctOfEpic}%)</span>
+                                            <span className="text-foreground/90 truncate">{displayName}</span>
+                                            <span className="text-muted-foreground tabular-nums">
+                                                <span className="font-bold text-foreground/90">{p.count}건</span>
+                                                <span className="text-muted-foreground"> ({p.pctOfEpic}%)</span>
                                             </span>
                                         </div>
                                     );
@@ -191,13 +191,13 @@ export function EpicDefectCard({ summary }: Props) {
 
                     {/* 6. 자동 권고 */}
                     {stats.recommendations.length > 0 && (
-                        <div className="rounded-md border border-amber-200 bg-amber-50 p-2">
-                            <div className="text-[11px] font-semibold text-amber-900 mb-1 inline-flex items-center gap-1">
+                        <div className="rounded-md border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 p-2">
+                            <div className="text-[11px] font-semibold text-amber-900 dark:text-amber-300 mb-1 inline-flex items-center gap-1">
                                 <Lightbulb className="h-3 w-3" />
                                 권장 액션
                                 <InfoTip size="sm">규칙 기반 자동 생성. 코칭·개선 참고용 — 성과 평가 X.</InfoTip>
                             </div>
-                            <ul className="text-[11px] text-amber-900 space-y-0.5 list-disc list-inside">
+                            <ul className="text-[11px] text-amber-900 dark:text-amber-300 space-y-0.5 list-disc list-inside">
                                 {stats.recommendations.map((rec, i) => (
                                     <li key={i}>{rec}</li>
                                 ))}
@@ -206,16 +206,16 @@ export function EpicDefectCard({ summary }: Props) {
                     )}
 
                     {/* Footer — 등급 해석 */}
-                    <div className="text-[10px] text-slate-500 pt-2 border-t border-slate-100">
+                    <div className="text-[10px] text-muted-foreground pt-2 border-t border-border/50">
                         등급: S ≤5%, A ≤10%, B ≤15%, C ≤20%, D 그 외.
-                        <span className="text-amber-700 font-medium ml-1">결함은 시스템 신호 — 개인 책임 X.</span>
+                        <span className="text-amber-700 dark:text-amber-300 font-medium ml-1">결함은 시스템 신호 — 개인 책임 X.</span>
                     </div>
                 </div>
             ) : (
-                <div className="flex-1 flex flex-col justify-center items-center text-center text-sm text-slate-500 gap-2 py-6">
+                <div className="flex-1 flex flex-col justify-center items-center text-center text-sm text-muted-foreground gap-2 py-6">
                     <AlertTriangle className="h-6 w-6 text-amber-500" />
                     <span className="font-semibold">결함 매핑 미등록</span>
-                    <p className="text-xs text-slate-400 leading-relaxed max-w-[200px]">
+                    <p className="text-xs text-muted-foreground leading-relaxed max-w-[200px]">
                         KPI 성과 탭 → 결함 KPI → 「개발 ↔ 결함 에픽 매핑」에서 등록하면 에픽별 결함 회고가 표시됩니다.
                     </p>
                 </div>
@@ -232,35 +232,35 @@ function MetricTile({ label, value, unit, sub, color, tip }: {
 }) {
     const colorMap = {
         red: 'text-red-600',
-        slate: 'text-slate-800',
-        green: 'text-green-700',
+        slate: 'text-foreground',
+        green: 'text-green-700 dark:text-green-300',
     };
     return (
-        <div className="rounded border border-slate-200 bg-slate-50 p-2">
-            <div className="text-[10px] text-slate-500 inline-flex items-center gap-1">
+        <div className="rounded border border-border bg-muted/40 p-2">
+            <div className="text-[10px] text-muted-foreground inline-flex items-center gap-1">
                 {label}
                 {tip && <InfoTip size="sm">{tip}</InfoTip>}
             </div>
             <div className={cn('text-xl font-bold tabular-nums', colorMap[color])}>
                 {value}
-                {unit && <span className="text-sm font-normal text-slate-500 ml-0.5">{unit}</span>}
+                {unit && <span className="text-sm font-normal text-muted-foreground ml-0.5">{unit}</span>}
             </div>
-            {sub && <div className="text-[9px] text-slate-400">{sub}</div>}
+            {sub && <div className="text-[9px] text-muted-foreground">{sub}</div>}
         </div>
     );
 }
 
 function TrendTile({ direction }: { direction: 'improving' | 'stable' | 'worsening' | 'insufficient' }) {
     const map = {
-        improving: { icon: TrendingDown, color: 'text-green-700', label: '개선 중', desc: '최근 4주 결함 감소' },
-        stable: { icon: Minus, color: 'text-slate-600', label: '안정', desc: '최근 4주 ±30% 이내' },
-        worsening: { icon: TrendingUp, color: 'text-red-700', label: '악화 중', desc: '최근 4주 결함 증가' },
-        insufficient: { icon: Minus, color: 'text-slate-400', label: '—', desc: '주 8개 미만 — 분석 불가' },
+        improving: { icon: TrendingDown, color: 'text-green-700 dark:text-green-300', label: '개선 중', desc: '최근 4주 결함 감소' },
+        stable: { icon: Minus, color: 'text-foreground/80', label: '안정', desc: '최근 4주 ±30% 이내' },
+        worsening: { icon: TrendingUp, color: 'text-red-700 dark:text-red-300', label: '악화 중', desc: '최근 4주 결함 증가' },
+        insufficient: { icon: Minus, color: 'text-muted-foreground', label: '—', desc: '주 8개 미만 — 분석 불가' },
     }[direction];
     const Icon = map.icon;
     return (
-        <div className="rounded border border-slate-200 bg-slate-50 p-2">
-            <div className="text-[10px] text-slate-500 inline-flex items-center gap-1">
+        <div className="rounded border border-border bg-muted/40 p-2">
+            <div className="text-[10px] text-muted-foreground inline-flex items-center gap-1">
                 트렌드
                 <InfoTip size="sm">
                     최근 4주 결함 합 vs 이전 4주 합 비교. ±30%를 경계로 개선/악화 분류.
@@ -271,7 +271,7 @@ function TrendTile({ direction }: { direction: 'improving' | 'stable' | 'worseni
                 <Icon className="h-4 w-4" />
                 {map.label}
             </div>
-            <div className="text-[9px] text-slate-400">{map.desc}</div>
+            <div className="text-[9px] text-muted-foreground">{map.desc}</div>
         </div>
     );
 }
@@ -280,17 +280,17 @@ function WeeklySparkline({ trend }: { trend: Array<{ weekStart: string; count: n
     const max = Math.max(1, ...trend.map((t) => t.count));
     return (
         <div>
-            <div className="text-[11px] font-medium text-slate-600 mb-1 inline-flex items-center gap-1">
+            <div className="text-[11px] font-medium text-foreground/80 mb-1 inline-flex items-center gap-1">
                 주간 추이 (최근 12주)
                 <InfoTip size="sm">
                     각 막대가 1주치 결함 등록 수. 오래된 주가 왼쪽. 막대 높이는 최대값 기준 정규화.
                 </InfoTip>
             </div>
-            <div className="flex items-end gap-0.5 h-8 bg-slate-50 rounded px-1 py-0.5 border border-slate-200">
+            <div className="flex items-end gap-0.5 h-8 bg-muted/40 rounded px-1 py-0.5 border border-border">
                 {trend.map((t) => {
                     const h = Math.max(2, Math.round((t.count / max) * 28));
                     const color = t.count === 0
-                        ? 'bg-slate-200'
+                        ? 'bg-muted'
                         : t.count >= max * 0.7
                           ? 'bg-red-400'
                           : t.count >= max * 0.4
@@ -306,7 +306,7 @@ function WeeklySparkline({ trend }: { trend: Array<{ weekStart: string; count: n
                     );
                 })}
             </div>
-            <div className="flex justify-between text-[9px] text-slate-400 mt-0.5">
+            <div className="flex justify-between text-[9px] text-muted-foreground mt-0.5">
                 <span>{trend[0]?.weekStart?.slice(5) ?? ''}</span>
                 <span>{trend[trend.length - 1]?.weekStart?.slice(5) ?? ''}</span>
             </div>

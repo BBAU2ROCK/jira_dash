@@ -96,7 +96,7 @@ export function DefectKpiDashboard({
                 </div>
 
                 {mappingCount === 0 && (
-                    <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    <div className="flex items-center gap-2 rounded-md border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 p-3 text-sm text-amber-900 dark:text-amber-300">
                         <AlertCircle className="h-5 w-5 shrink-0" />
                         에픽 매핑이 없습니다. 프로젝트 통계 → KPI 성과 → 결함 KPI 아래「개발 ↔ 결함 에픽 매핑」에서
                         등록하세요.
@@ -112,7 +112,7 @@ export function DefectKpiDashboard({
                 )}
 
                 {mappingCount > 0 && workerFieldResolved && !defectSeverityFieldResolved && !isLoading && (
-                    <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    <div className="flex items-center gap-2 rounded-md border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 p-3 text-sm text-amber-900 dark:text-amber-300">
                         <AlertCircle className="h-5 w-5 shrink-0" />
                         「결함 심각도」커스텀 필드 id를 찾지 못했습니다. 차트는「필드 미연결」만 표시됩니다.
                         DEFECT_SEVERITY_FIELD_NAMES·Jira 필드 이름을 확인하세요(우선순위와 별개).

@@ -26,7 +26,7 @@ export function InfoTip({ children, size = 'sm', align = 'start' }: InfoTipProps
             <PopoverTrigger asChild>
                 <button
                     type="button"
-                    className="inline-flex items-center text-slate-400 hover:text-blue-500 transition-colors align-middle ml-0.5"
+                    className="inline-flex items-center text-muted-foreground hover:text-blue-500 transition-colors align-middle ml-0.5"
                     aria-label="설명 보기"
                     onMouseEnter={() => setOpen(true)}
                     onMouseLeave={() => setOpen(false)}
@@ -35,7 +35,7 @@ export function InfoTip({ children, size = 'sm', align = 'start' }: InfoTipProps
                 </button>
             </PopoverTrigger>
             <PopoverContent
-                className="w-64 p-2.5 text-xs text-slate-700 bg-white border border-slate-200 shadow-lg"
+                className="w-64 p-2.5 text-xs text-foreground/90 bg-card border border-border shadow-lg"
                 align={align}
                 onMouseEnter={() => setOpen(true)}
                 onMouseLeave={() => setOpen(false)}

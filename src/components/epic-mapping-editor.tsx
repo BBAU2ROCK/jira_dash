@@ -79,18 +79,18 @@ export function EpicMappingEditor({
             </a>
 
             {defectEpicsLoading && (
-                <p className="text-xs text-slate-500 flex items-center gap-2">
+                <p className="text-xs text-muted-foreground flex items-center gap-2">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
                     {DEFECT_KPI_CONFIG.DEFECT_PROJECT_KEY_HINT} 프로젝트 에픽 목록을 불러오는 중…
                 </p>
             )}
             {defectEpicsError && (
-                <p className="text-xs text-red-700 bg-red-50 border border-red-100 rounded-md px-2 py-1.5">
+                <p className="text-xs text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-100 rounded-md px-2 py-1.5">
                     에픽 목록을 가져오지 못했습니다: {defectEpicsError.message}
                 </p>
             )}
             {!defectEpicsLoading && !defectEpicsError && defectOptions.length === 0 && (
-                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-md px-2 py-1.5">
+                <p className="text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border border-amber-100 rounded-md px-2 py-1.5">
                     {DEFECT_KPI_CONFIG.DEFECT_PROJECT_KEY_HINT}에서 에픽 이슈가 검색되지 않았습니다. 프로젝트 키·에픽
                     이슈 유형을 확인하거나, 결함 에픽 키를 직접 입력하세요.
                 </p>
@@ -98,10 +98,10 @@ export function EpicMappingEditor({
 
             <div className="grid gap-3 sm:grid-cols-2">
                 <div className="grid gap-1.5">
-                    <label className="text-xs font-medium text-slate-600">개발 에픽 (대시보드 프로젝트)</label>
+                    <label className="text-xs font-medium text-foreground/80">개발 에픽 (대시보드 프로젝트)</label>
                     {devOptions.length > 0 ? (
                         <select
-                            className="flex h-9 w-full rounded-md border border-slate-200 bg-white px-3 py-1 text-sm text-slate-900"
+                            className="flex h-9 w-full rounded-md border border-border bg-card px-3 py-1 text-sm text-foreground"
                             value={devKey}
                             onChange={(e) => setDevKey(e.target.value)}
                         >
@@ -123,12 +123,12 @@ export function EpicMappingEditor({
                     )}
                 </div>
                 <div className="grid gap-1.5">
-                    <label className="text-xs font-medium text-slate-600">
+                    <label className="text-xs font-medium text-foreground/80">
                         결함 에픽 ({DEFECT_KPI_CONFIG.DEFECT_PROJECT_KEY_HINT})
                     </label>
                     {defectOptions.length > 0 ? (
                         <select
-                            className="flex h-9 w-full rounded-md border border-slate-200 bg-white px-3 py-1 text-sm text-slate-900"
+                            className="flex h-9 w-full rounded-md border border-border bg-card px-3 py-1 text-sm text-foreground"
                             value={defectKey}
                             onChange={(e) => setDefectKey(e.target.value)}
                             disabled={defectEpicsLoading}
@@ -160,33 +160,33 @@ export function EpicMappingEditor({
                 매핑 추가
             </Button>
 
-            <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
+            <div className="border border-border rounded-lg overflow-hidden bg-card">
                 <table className="w-full text-sm">
-                    <thead className="bg-slate-50 border-b border-slate-200">
+                    <thead className="bg-muted/40 border-b border-border">
                         <tr>
-                            <th className="text-left px-3 py-2 font-medium text-slate-500">개발 에픽</th>
-                            <th className="text-left px-3 py-2 font-medium text-slate-500">결함 에픽</th>
+                            <th className="text-left px-3 py-2 font-medium text-muted-foreground">개발 에픽</th>
+                            <th className="text-left px-3 py-2 font-medium text-muted-foreground">결함 에픽</th>
                             <th className="w-10 px-2 py-2" />
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-border/50">
                         {mappings.length === 0 ? (
                             <tr>
-                                <td colSpan={3} className="px-3 py-4 text-center text-slate-500 text-xs">
+                                <td colSpan={3} className="px-3 py-4 text-center text-muted-foreground text-xs">
                                     등록된 매핑이 없습니다.
                                 </td>
                             </tr>
                         ) : (
                             mappings.map((m) => (
                                 <tr key={m.id}>
-                                    <td className="px-3 py-2 font-mono text-xs text-slate-800">{m.devEpicKey}</td>
-                                    <td className="px-3 py-2 font-mono text-xs text-slate-800">{m.defectEpicKey}</td>
+                                    <td className="px-3 py-2 font-mono text-xs text-foreground">{m.devEpicKey}</td>
+                                    <td className="px-3 py-2 font-mono text-xs text-foreground">{m.defectEpicKey}</td>
                                     <td className="px-2 py-1">
                                         <Button
                                             type="button"
                                             variant="ghost"
                                             size="icon"
-                                            className="h-8 w-8 text-red-600 hover:text-red-700"
+                                            className="h-8 w-8 text-red-600 hover:text-red-700 dark:text-red-300"
                                             onClick={() => removeMapping(m.id)}
                                             title="삭제"
                                         >
@@ -200,7 +200,7 @@ export function EpicMappingEditor({
                 </table>
             </div>
 
-            <p className="text-[11px] text-slate-400 flex items-start gap-1.5">
+            <p className="text-[11px] text-muted-foreground flex items-start gap-1.5">
                 <Link2 className="h-3.5 w-3.5 shrink-0 mt-0.5" aria-hidden />
                 브라우저 localStorage(키: jira-dash-epic-mappings)에 저장됩니다.
             </p>

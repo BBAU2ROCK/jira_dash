@@ -13,10 +13,10 @@ interface Props {
 
 const GRADE_KEYS: (keyof GradeThresholds)[] = ['S', 'A', 'B', 'C'];
 const GRADE_COLOR: Record<string, string> = {
-    S: 'border-purple-300 bg-purple-50',
-    A: 'border-green-300 bg-green-50',
-    B: 'border-blue-300 bg-blue-50',
-    C: 'border-amber-300 bg-amber-50',
+    S: 'border-purple-300 dark:border-purple-900/60 bg-purple-50 dark:bg-purple-950/30',
+    A: 'border-green-300 dark:border-green-900/60 bg-green-50 dark:bg-green-950/30',
+    B: 'border-blue-300 dark:border-blue-900/60 bg-blue-50 dark:bg-blue-950/30',
+    C: 'border-amber-300 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30',
 };
 
 export function GradeEditor({ title, tip, grades, invertLabel, onChange }: Props) {
@@ -31,14 +31,14 @@ export function GradeEditor({ title, tip, grades, invertLabel, onChange }: Props
 
     return (
         <div>
-            <div className="text-sm font-semibold text-slate-800 mb-2 flex items-center gap-1">
+            <div className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1">
                 {title}
                 <InfoTip>{tip}</InfoTip>
             </div>
             <div className="grid grid-cols-4 gap-2">
                 {GRADE_KEYS.map((key) => (
                     <div key={key} className={`rounded-lg border p-2 ${GRADE_COLOR[key]}`}>
-                        <label className="text-xs font-bold text-slate-700 block mb-1">
+                        <label className="text-xs font-bold text-foreground/90 block mb-1">
                             {key} {symbol}
                         </label>
                         <div className="flex items-center gap-1">
@@ -46,12 +46,12 @@ export function GradeEditor({ title, tip, grades, invertLabel, onChange }: Props
                                 type="number"
                                 value={grades[key]}
                                 onChange={(e) => handleChange(key, e.target.value)}
-                                className="h-8 text-sm text-center bg-white"
+                                className="h-8 text-sm text-center bg-card"
                                 min={0}
                                 max={100}
                                 step={1}
                             />
-                            <span className="text-xs text-slate-500">{unit}</span>
+                            <span className="text-xs text-muted-foreground">{unit}</span>
                         </div>
                     </div>
                 ))}

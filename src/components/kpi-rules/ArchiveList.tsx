@@ -58,7 +58,7 @@ export function ArchiveList({ archive }: Props) {
 
     if (archive.length === 0) {
         return (
-            <div className="text-xs text-slate-400 py-2">
+            <div className="text-xs text-muted-foreground py-2">
                 <History className="h-3.5 w-3.5 inline mr-1" />
                 아카이브된 이전 버전이 없습니다. "새 버전" 버튼으로 새 KPI 규칙을 만들면 현재 규칙이 자동으로 아카이브됩니다.
             </div>
@@ -68,32 +68,32 @@ export function ArchiveList({ archive }: Props) {
     return (
         <div>
             <div className="flex items-center justify-between mb-2">
-                <div className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
-                    <History className="h-4 w-4 text-slate-500" />
+                <div className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                    <History className="h-4 w-4 text-muted-foreground" />
                     아카이브 이전 버전 ({archive.length})
                     <InfoTip>
                         "새 버전" 작성 시 또는 복원 시 현재 규칙이 자동 보관됩니다 (최대 20개). 복원 버튼으로 과거 규칙으로 되돌릴 수 있으며, 복원 직전의 규칙은 다시 아카이브됩니다.
                     </InfoTip>
                 </div>
             </div>
-            <ul className="divide-y divide-slate-100 border border-slate-200 rounded">
+            <ul className="divide-y divide-border/50 border border-border rounded">
                 {archive.map((r, i) => (
                     <li
                         key={`${r.version}-${i}`}
-                        className="flex items-center justify-between px-3 py-2 hover:bg-slate-50"
+                        className="flex items-center justify-between px-3 py-2 hover:bg-muted/40"
                     >
                         <div className="min-w-0 flex-1">
                             <div className="flex items-baseline gap-2">
-                                <span className="text-sm font-medium text-slate-800 truncate">
+                                <span className="text-sm font-medium text-foreground truncate">
                                     {r.label}
                                 </span>
-                                <span className="text-[11px] font-mono text-slate-500 shrink-0">
+                                <span className="text-[11px] font-mono text-muted-foreground shrink-0">
                                     v{r.version}
                                 </span>
                             </div>
-                            <div className="text-[11px] text-slate-500 mt-0.5">
+                            <div className="text-[11px] text-muted-foreground mt-0.5">
                                 저장: {new Date(r.updatedAt).toLocaleString('ko-KR')}
-                                <span className="mx-2 text-slate-300">|</span>
+                                <span className="mx-2 text-muted-foreground">|</span>
                                 등급 S≥{r.grades.S} · 가중치 {Math.round(r.weights.completion * 100)}/{Math.round(r.weights.compliance * 100)} · 결함 S≤{r.defectGrades.S}%
                             </div>
                         </div>

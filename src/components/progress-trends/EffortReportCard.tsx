@@ -12,10 +12,10 @@ const SOURCE_LABEL: Record<EffortSource, { name: string; tip: string }> = {
 };
 
 const CONFIDENCE_LABEL: Record<ConfidenceLevel, { label: string; color: string }> = {
-    high:        { label: '높음',     color: 'bg-green-100 text-green-800 border-green-200' },
-    medium:      { label: '중간',     color: 'bg-blue-100 text-blue-800 border-blue-200' },
-    low:         { label: '낮음',     color: 'bg-amber-100 text-amber-800 border-amber-200' },
-    unreliable:  { label: '데이터 부족', color: 'bg-red-100 text-red-800 border-red-200' },
+    high:        { label: '높음',     color: 'bg-green-100 text-green-800 dark:text-green-300 border-green-200 dark:border-green-900/60' },
+    medium:      { label: '중간',     color: 'bg-blue-100 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-900/60' },
+    low:         { label: '낮음',     color: 'bg-amber-100 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-900/60' },
+    unreliable:  { label: '데이터 부족', color: 'bg-red-100 text-red-800 dark:text-red-300 border-red-200 dark:border-red-900/60' },
 };
 
 interface Props {
@@ -30,10 +30,10 @@ export function EffortReportCard({ report, confidence }: Props) {
     const totalCount = report.perIssue.length;
 
     return (
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="rounded-lg border border-border bg-card p-4">
             <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-slate-500" />
+                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
                     백로그 공수 추정
                 </h3>
                 <span className={cn('rounded-full border px-2 py-0.5 text-[11px] font-medium', badge.color)}>
@@ -42,38 +42,38 @@ export function EffortReportCard({ report, confidence }: Props) {
             </div>
 
             {totalCount === 0 ? (
-                <p className="mt-3 text-sm text-slate-500">활성 백로그가 없습니다.</p>
+                <p className="mt-3 text-sm text-muted-foreground">활성 백로그가 없습니다.</p>
             ) : (
                 <>
                     {/* v1.0.16: 시간(인시) 단위 제거 — 일/월 기준 표시 */}
                     <div className="mt-3 grid grid-cols-2 gap-3">
                         <div>
-                            <div className="text-[11px] text-slate-500">
+                            <div className="text-[11px] text-muted-foreground">
                                 추정 작업량 (일수)
                                 <InfoTip>
                                     1 인일(man-day) = 1명이 8시간 일한 만큼.
                                     여러 출처(작업기록/SP/난이도/소요시간)를 자동 선택해 합산. mid = 중앙값.
                                 </InfoTip>
                             </div>
-                            <div className="text-2xl font-bold text-slate-800 tabular-nums">
-                                {report.totalManDaysMid.toLocaleString('ko-KR')} <span className="text-base font-normal text-slate-500">일</span>
+                            <div className="text-2xl font-bold text-foreground tabular-nums">
+                                {report.totalManDaysMid.toLocaleString('ko-KR')} <span className="text-base font-normal text-muted-foreground">일</span>
                             </div>
-                            <div className="text-[11px] text-slate-500 mt-0.5">
+                            <div className="text-[11px] text-muted-foreground mt-0.5">
                                 범위 {report.totalManDaysLow.toFixed(0)} ~ {report.totalManDaysHigh.toFixed(0)} 일
                             </div>
                         </div>
                         <div>
-                            <div className="text-[11px] text-slate-500">
+                            <div className="text-[11px] text-muted-foreground">
                                 월 환산
                                 <InfoTip>
                                     1 인월(man-month) = 영업일 20일 (4주 × 5일).
                                     팀 환산 = 일수 ÷ (인원수 × 실작업 비율 {Math.round(report.teamCapacityAssumption.utilization * 100)}%).
                                 </InfoTip>
                             </div>
-                            <div className="text-2xl font-bold text-slate-800 tabular-nums">
-                                {report.totalManMonthsMid.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-base font-normal text-slate-500">월</span>
+                            <div className="text-2xl font-bold text-foreground tabular-nums">
+                                {report.totalManMonthsMid.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-base font-normal text-muted-foreground">월</span>
                             </div>
-                            <div className="text-[11px] text-slate-500 mt-0.5">
+                            <div className="text-[11px] text-muted-foreground mt-0.5">
                                 팀 {report.teamCapacityAssumption.headcount}명 →{' '}
                                 <strong>{report.teamCapacityAssumption.teamDaysMid}일 ({report.teamCapacityAssumption.teamMonthsMid}월)</strong>
                             </div>
@@ -81,7 +81,7 @@ export function EffortReportCard({ report, confidence }: Props) {
                     </div>
 
                     <div className="mt-3">
-                        <div className="text-[11px] font-medium text-slate-600 mb-1 inline-flex items-center gap-1">
+                        <div className="text-[11px] font-medium text-foreground/80 mb-1 inline-flex items-center gap-1">
                             데이터 출처 분포
                             <InfoTip>이슈마다 가장 정확한 데이터를 자동 선택. 작업 기록(Worklog) 우선 → SP → 난이도 → 소요시간(Cycle) 순.</InfoTip>
                         </div>
@@ -91,14 +91,14 @@ export function EffortReportCard({ report, confidence }: Props) {
                                 const meta = SOURCE_LABEL[s.source];
                                 return (
                                     <li key={s.source} className="flex items-center gap-2 text-xs">
-                                        <span className="w-28 text-slate-700 inline-flex items-center gap-1">
+                                        <span className="w-28 text-foreground/90 inline-flex items-center gap-1">
                                             {meta.name}
                                             <InfoTip size="sm">{meta.tip}</InfoTip>
                                         </span>
-                                        <div className="flex-1 h-2 bg-slate-100 rounded overflow-hidden">
+                                        <div className="flex-1 h-2 bg-muted/60 rounded overflow-hidden">
                                             <div className="h-full bg-blue-500" style={{ width: `${pct}%` }} />
                                         </div>
-                                        <span className="w-24 text-right text-slate-600 tabular-nums">
+                                        <span className="w-24 text-right text-foreground/80 tabular-nums">
                                             {s.count}건 / {s.manDays.toFixed(1)}일
                                         </span>
                                     </li>
@@ -108,7 +108,7 @@ export function EffortReportCard({ report, confidence }: Props) {
                     </div>
 
                     {report.cycleTimeFallbackOnly && (
-                        <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-900 flex items-start gap-1.5">
+                        <div className="mt-3 rounded-md border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 p-2 text-[11px] text-amber-900 dark:text-amber-300 flex items-start gap-1.5">
                             <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                             <span>
                                 작업 기록·SP·난이도 데이터가 부족해 <strong>소요시간 추정만</strong> 사용. 정확도 낮음 — 신뢰 구간 넓음.

@@ -78,7 +78,7 @@ export function JsonImportExport({ rules, onImport, onReset }: Props) {
                 className="hidden"
                 onChange={handleImport}
             />
-            <Button variant="ghost" size="sm" onClick={handleReset} className="text-red-600 hover:text-red-700 hover:bg-red-50">
+            <Button variant="ghost" size="sm" onClick={handleReset} className="text-red-600 hover:text-red-700 dark:text-red-300 hover:bg-red-50 dark:bg-red-950/30">
                 <RotateCcw className="h-3.5 w-3.5 mr-1" />
                 기본값 리셋
             </Button>

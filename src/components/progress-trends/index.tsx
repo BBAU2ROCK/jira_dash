@@ -93,7 +93,7 @@ export function ProgressTrends({ issues, selectedEpicIds, epics }: ProgressTrend
 
     if (selectedEpicIds.length === 0) {
         return (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            <div className="rounded-lg border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 p-4 text-sm text-amber-900 dark:text-amber-300">
                 <div className="flex items-start gap-2">
                     <AlertCircle className="h-5 w-5 shrink-0" />
                     <div>
@@ -119,12 +119,12 @@ export function ProgressTrends({ issues, selectedEpicIds, epics }: ProgressTrend
     return (
         <div className="space-y-4">
             {/* ───── Header: 컨텍스트 + 익명화 + Export + 방법론 ───── */}
-            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-border">
                 <div className="flex items-center gap-2 min-w-0">
-                    <Folder className="h-4 w-4 text-slate-500 shrink-0" />
-                    <span className="text-sm font-semibold text-slate-700">{projectKey}</span>
-                    <span className="text-slate-400">·</span>
-                    <span className="text-xs text-slate-600 truncate" title={selectedEpicTitles}>
+                    <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="text-sm font-semibold text-foreground/90">{projectKey}</span>
+                    <span className="text-muted-foreground">·</span>
+                    <span className="text-xs text-foreground/80 truncate" title={selectedEpicTitles}>
                         에픽 <strong>{selectedEpicIds.length}</strong>개 선택 ({selectedEpicTitles.slice(0, 60)}{selectedEpicTitles.length > 60 ? '…' : ''})
                     </span>
                 </div>
@@ -135,7 +135,7 @@ export function ProgressTrends({ issues, selectedEpicIds, epics }: ProgressTrend
                         size="sm"
                         onClick={toggleAnonymize}
                         title={anonymizeMode ? '실명 모드로 전환' : '익명 모드로 전환 (외부 공유 시)'}
-                        className={cn(anonymizeMode && 'bg-amber-50 border-amber-300 text-amber-800 dark:bg-amber-950/40 dark:border-amber-700 dark:text-amber-200')}
+                        className={cn(anonymizeMode && 'bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-900/60 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40 dark:border-amber-700 dark:text-amber-200')}
                     >
                         {anonymizeMode ? (
                             <><EyeOff className="h-3.5 w-3.5 mr-1" /> 익명</>
@@ -222,10 +222,10 @@ export function ProgressTrends({ issues, selectedEpicIds, epics }: ProgressTrend
                         <span
                             className={cn(
                                 'rounded-full border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap',
-                                scopeMeta.color === 'red' && 'border-red-300 bg-red-100 text-red-800',
-                                scopeMeta.color === 'amber' && 'border-amber-300 bg-amber-100 text-amber-800',
-                                scopeMeta.color === 'green' && 'border-green-300 bg-green-100 text-green-800',
-                                scopeMeta.color === 'blue' && 'border-blue-300 bg-blue-100 text-blue-800'
+                                scopeMeta.color === 'red' && 'border-red-300 dark:border-red-900/60 bg-red-100 text-red-800 dark:text-red-300',
+                                scopeMeta.color === 'amber' && 'border-amber-300 dark:border-amber-900/60 bg-amber-100 text-amber-800 dark:text-amber-300',
+                                scopeMeta.color === 'green' && 'border-green-300 dark:border-green-900/60 bg-green-100 text-green-800 dark:text-green-300',
+                                scopeMeta.color === 'blue' && 'border-blue-300 dark:border-blue-900/60 bg-blue-100 text-blue-800 dark:text-blue-300'
                             )}
                             title={scopeMeta.description}
                         >
@@ -235,7 +235,7 @@ export function ProgressTrends({ issues, selectedEpicIds, epics }: ProgressTrend
                 }
             >
                 {!hasActiveBacklog ? (
-                    <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                    <div className="rounded-md border border-border bg-muted/40 p-3 text-xs text-foreground/80">
                         활성 잔여가 0건이라 미래 ETA 예측은 의미가 없습니다. 정확도 기록은 아래에서 확인.
                     </div>
                 ) : (
@@ -244,8 +244,8 @@ export function ProgressTrends({ issues, selectedEpicIds, epics }: ProgressTrend
                             <div
                                 className={cn(
                                     'rounded-md border p-2 text-xs',
-                                    scopeMeta.color === 'red' && 'border-red-300 bg-red-50 text-red-900',
-                                    scopeMeta.color === 'amber' && 'border-amber-300 bg-amber-50 text-amber-900'
+                                    scopeMeta.color === 'red' && 'border-red-300 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 text-red-900 dark:text-red-300',
+                                    scopeMeta.color === 'amber' && 'border-amber-300 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-300'
                                 )}
                             >
                                 <span className="font-semibold">{scopeMeta.icon} {scopeMeta.label}:</span> {scopeMeta.description}
@@ -308,7 +308,7 @@ export function ProgressTrends({ issues, selectedEpicIds, epics }: ProgressTrend
                 accent="indigo"
             >
                 {retro.perEpic.length === 0 ? (
-                    <div className="text-sm text-slate-500 py-4">선택된 에픽이 없습니다.</div>
+                    <div className="text-sm text-muted-foreground py-4">선택된 에픽이 없습니다.</div>
                 ) : (
                     <div className="space-y-3">
                         {retro.perEpic.map((s) => (
@@ -341,7 +341,7 @@ export function ProgressTrends({ issues, selectedEpicIds, epics }: ProgressTrend
                 accent="slate"
                 headerRight={
                     !anonymizeMode && (
-                        <span className="rounded-full border border-amber-300 bg-amber-100 text-amber-800 px-2 py-0.5 text-[11px] font-medium whitespace-nowrap">
+                        <span className="rounded-full border border-amber-300 dark:border-amber-900/60 bg-amber-100 text-amber-800 dark:text-amber-300 px-2 py-0.5 text-[11px] font-medium whitespace-nowrap">
                             ⚠ 외부 공유 시 익명 모드 권장
                         </span>
                     )
@@ -358,7 +358,7 @@ export function ProgressTrends({ issues, selectedEpicIds, epics }: ProgressTrend
                 accent="orange"
                 headerRight={
                     !anonymizeMode && (
-                        <span className="rounded-full border border-amber-300 bg-amber-100 text-amber-800 px-2 py-0.5 text-[11px] font-medium whitespace-nowrap">
+                        <span className="rounded-full border border-amber-300 dark:border-amber-900/60 bg-amber-100 text-amber-800 dark:text-amber-300 px-2 py-0.5 text-[11px] font-medium whitespace-nowrap">
                             ⚠ 외부 공유 시 익명 모드 권장
                         </span>
                     )

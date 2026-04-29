@@ -15,19 +15,20 @@ interface CardProps {
     tip?: string;
 }
 
+// v1.0.23: 다크모드 dark: variant — 의미 색을 다크에서도 읽히게.
 const COLOR_CLASS: Record<CardProps['color'], { bg: string; text: string; icon: string }> = {
-    blue:   { bg: 'bg-blue-50',   text: 'text-blue-700',   icon: 'text-blue-500' },
-    cyan:   { bg: 'bg-cyan-50',   text: 'text-cyan-700',   icon: 'text-cyan-500' },
-    purple: { bg: 'bg-purple-50', text: 'text-purple-700', icon: 'text-purple-500' },
-    amber:  { bg: 'bg-amber-50',  text: 'text-amber-800',  icon: 'text-amber-500' },
-    green:  { bg: 'bg-green-50',  text: 'text-green-700',  icon: 'text-green-500' },
-    slate:  { bg: 'bg-slate-50',  text: 'text-slate-700',  icon: 'text-slate-500' },
+    blue:   { bg: 'bg-blue-50 dark:bg-blue-950/30',     text: 'text-blue-700 dark:text-blue-300',     icon: 'text-blue-500 dark:text-blue-400' },
+    cyan:   { bg: 'bg-cyan-50 dark:bg-cyan-950/30',     text: 'text-cyan-700 dark:text-cyan-300',     icon: 'text-cyan-500 dark:text-cyan-400' },
+    purple: { bg: 'bg-purple-50 dark:bg-purple-950/30', text: 'text-purple-700 dark:text-purple-300', icon: 'text-purple-500 dark:text-purple-400' },
+    amber:  { bg: 'bg-amber-50 dark:bg-amber-950/30',   text: 'text-amber-800 dark:text-amber-300',   icon: 'text-amber-500 dark:text-amber-400' },
+    green:  { bg: 'bg-green-50 dark:bg-green-950/30',   text: 'text-green-700 dark:text-green-300',   icon: 'text-green-500 dark:text-green-400' },
+    slate:  { bg: 'bg-muted/40',                        text: 'text-foreground/90',                   icon: 'text-muted-foreground' },
 };
 
 function StateCard({ label, value, Icon, color, sublabel, tip }: CardProps) {
     const c = COLOR_CLASS[color];
     return (
-        <div className={cn('group rounded-lg border border-slate-200/70 p-3 card-hover', c.bg)}>
+        <div className={cn('group rounded-lg border border-border/70 p-3 card-hover', c.bg)}>
             <div className="flex items-center gap-2">
                 <Icon className={cn('h-4 w-4 transition-transform group-hover:scale-110', c.icon)} />
                 <span className={cn('text-xs font-medium tracking-tight', c.text)}>
@@ -36,7 +37,7 @@ function StateCard({ label, value, Icon, color, sublabel, tip }: CardProps) {
                 </span>
             </div>
             <div className={cn('mt-1 text-2xl font-bold tabular-nums leading-none', c.text)}>{value}</div>
-            {sublabel && <div className="text-[11px] text-slate-500 mt-1 tabular-nums">{sublabel}</div>}
+            {sublabel && <div className="text-[11px] text-muted-foreground mt-1 tabular-nums">{sublabel}</div>}
         </div>
     );
 }

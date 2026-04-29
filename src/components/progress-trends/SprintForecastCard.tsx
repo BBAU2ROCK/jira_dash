@@ -9,10 +9,10 @@ import { classifySprintRisk, type SprintRiskStatus } from '@/services/prediction
 import type { TeamForecast } from '@/services/prediction/types';
 
 const STATUS_META: Record<SprintRiskStatus, { label: string; color: string; icon: React.ElementType }> = {
-    'on-track': { label: '안전', color: 'border-green-300 bg-green-50 text-green-900', icon: CheckCircle2 },
-    'at-risk': { label: '위험', color: 'border-amber-300 bg-amber-50 text-amber-900', icon: AlertTriangle },
-    'overrun': { label: '지연 확실', color: 'border-red-300 bg-red-50 text-red-900', icon: ShieldAlert },
-    'no-data': { label: '데이터 부족', color: 'border-slate-300 bg-slate-50 text-slate-700', icon: Info },
+    'on-track': { label: '안전', color: 'border-green-300 dark:border-green-900/60 bg-green-50 dark:bg-green-950/30 text-green-900 dark:text-green-300', icon: CheckCircle2 },
+    'at-risk': { label: '위험', color: 'border-amber-300 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-300', icon: AlertTriangle },
+    'overrun': { label: '지연 확실', color: 'border-red-300 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 text-red-900 dark:text-red-300', icon: ShieldAlert },
+    'no-data': { label: '데이터 부족', color: 'border-border bg-muted/40 text-foreground/90', icon: Info },
 };
 
 interface Props {
@@ -69,7 +69,7 @@ export function SprintForecastCard({ projectKey, team }: Props) {
                     </div>
                 )}
                 <div>{risk.message}</div>
-                {activeSprint.goal && <div className="text-slate-600 mt-1">목표: {activeSprint.goal}</div>}
+                {activeSprint.goal && <div className="text-foreground/80 mt-1">목표: {activeSprint.goal}</div>}
             </div>
         </div>
     );

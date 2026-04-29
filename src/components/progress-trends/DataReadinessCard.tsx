@@ -22,10 +22,10 @@ interface Props {
 }
 
 const LEVEL_LABEL: Record<ConfidenceLevel, { ko: string; color: string; bg: string }> = {
-    high:        { ko: '높음',        color: 'text-green-700', bg: 'bg-green-100 border-green-300' },
-    medium:      { ko: '중간',        color: 'text-blue-700',  bg: 'bg-blue-100 border-blue-300' },
-    low:         { ko: '낮음',        color: 'text-amber-700', bg: 'bg-amber-100 border-amber-300' },
-    unreliable:  { ko: '데이터 부족',  color: 'text-red-700',   bg: 'bg-red-100 border-red-300' },
+    high:        { ko: '높음',        color: 'text-green-700 dark:text-green-300', bg: 'bg-green-100 border-green-300 dark:border-green-900/60' },
+    medium:      { ko: '중간',        color: 'text-blue-700 dark:text-blue-300',  bg: 'bg-blue-100 border-blue-300 dark:border-blue-900/60' },
+    low:         { ko: '낮음',        color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 border-amber-300 dark:border-amber-900/60' },
+    unreliable:  { ko: '데이터 부족',  color: 'text-red-700 dark:text-red-300',   bg: 'bg-red-100 border-red-300 dark:border-red-900/60' },
 };
 
 function formatValue(m: ReadinessMetric): string {
@@ -41,7 +41,7 @@ function ProgressBar({ value, status }: { value: number; status: 'good' | 'warn'
         bad: 'bg-red-400',
     };
     return (
-        <div className="h-2 bg-slate-100 rounded overflow-hidden">
+        <div className="h-2 bg-muted/60 rounded overflow-hidden">
             <div className={cn('h-full transition-all', colorMap[status])} style={{ width: `${Math.round(Math.max(0, Math.min(1, value)) * 100)}%` }} />
         </div>
     );
@@ -62,7 +62,7 @@ export function DataReadinessCard({ stats, variant = 'full' }: Props) {
 
     if (!stats || !computed) {
         return (
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">
+            <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
                 ℹ 데이터 통계가 없습니다 — 처리량 분석 불가
             </div>
         );
@@ -75,12 +75,12 @@ export function DataReadinessCard({ stats, variant = 'full' }: Props) {
         // 인라인 1줄 — 현재 등급 + 다음 등급 1줄 안내
         const nextReq = nextRequirements[0];
         return (
-            <div className="text-[11px] text-slate-600 inline-flex items-center gap-2 flex-wrap">
+            <div className="text-[11px] text-foreground/80 inline-flex items-center gap-2 flex-wrap">
                 <span className={cn('inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-semibold', level.bg, level.color)}>
                     {level.ko}
                 </span>
                 {nextReq && !nextReq.achievable && (
-                    <span className="text-slate-500">
+                    <span className="text-muted-foreground">
                         → '{LEVEL_LABEL[nextReq.target].ko}' 까지: {nextReq.items.filter((i) => !i.met).map((i) => i.need).join(', ')}
                     </span>
                 )}
@@ -89,10 +89,10 @@ export function DataReadinessCard({ stats, variant = 'full' }: Props) {
     }
 
     return (
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="rounded-lg border border-border bg-card p-4">
             <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-slate-800 inline-flex items-center gap-2">
-                    <Target className="h-4 w-4 text-slate-500" />
+                <h3 className="text-sm font-semibold text-foreground inline-flex items-center gap-2">
+                    <Target className="h-4 w-4 text-muted-foreground" />
                     데이터 충족 현황
                     <InfoTip>
                         예측 정확도는 활동 일수·처리 일관성·백로그 안정성에 따라 4단계로 결정됩니다.
@@ -109,14 +109,14 @@ export function DataReadinessCard({ stats, variant = 'full' }: Props) {
                 {metrics.map((m) => (
                     <div key={m.label}>
                         <div className="flex items-baseline justify-between text-[11px] mb-0.5">
-                            <span className="text-slate-700 font-medium inline-flex items-center gap-1">
+                            <span className="text-foreground/90 font-medium inline-flex items-center gap-1">
                                 <StatusIcon status={m.status} />
                                 {m.label}
                                 <InfoTip size="sm">{m.tip}</InfoTip>
                             </span>
-                            <span className="tabular-nums text-slate-600">
+                            <span className="tabular-nums text-foreground/80">
                                 <span className="font-bold">{formatValue(m)}</span>
-                                <span className="text-slate-400 ml-1">
+                                <span className="text-muted-foreground ml-1">
                                     {m.format === 'cv' && '(낮을수록 안정)'}
                                     {m.format === 'ratio' && '(낮을수록 마무리)'}
                                 </span>
@@ -124,9 +124,9 @@ export function DataReadinessCard({ stats, variant = 'full' }: Props) {
                         </div>
                         <ProgressBar value={m.progress} status={m.status} />
                         {/* 임계값 마커들 */}
-                        <div className="flex justify-between text-[9px] text-slate-400 mt-0.5 px-px">
+                        <div className="flex justify-between text-[9px] text-muted-foreground mt-0.5 px-px">
                             {m.targets.map((t) => (
-                                <span key={t.level} className={cn(t.meet ? 'text-green-600 font-bold' : 'text-slate-400')}>
+                                <span key={t.level} className={cn(t.meet ? 'text-green-600 font-bold' : 'text-muted-foreground')}>
                                     {t.meet ? '✓' : '·'} {LEVEL_LABEL[t.level].ko} {t.comparator}{m.format === 'days' ? `${t.threshold}일` : t.threshold}
                                 </span>
                             ))}
@@ -145,16 +145,16 @@ export function DataReadinessCard({ stats, variant = 'full' }: Props) {
                                 key={req.target}
                                 className={cn(
                                     'rounded-md border p-2.5 text-[11px]',
-                                    req.achievable ? 'border-green-200 bg-green-50' : 'border-slate-200 bg-slate-50'
+                                    req.achievable ? 'border-green-200 dark:border-green-900/60 bg-green-50 dark:bg-green-950/30' : 'border-border bg-muted/40'
                                 )}
                             >
-                                <div className={cn('font-semibold mb-1 inline-flex items-center gap-1', req.achievable ? 'text-green-800' : 'text-slate-700')}>
+                                <div className={cn('font-semibold mb-1 inline-flex items-center gap-1', req.achievable ? 'text-green-800 dark:text-green-300' : 'text-foreground/90')}>
                                     {req.achievable ? '✓' : '🎯'} '{targetMeta.ko}' 등급 가능 조건
-                                    {req.achievable && <span className="text-[10px] text-green-700 ml-1">(다음 갱신 시 달성!)</span>}
+                                    {req.achievable && <span className="text-[10px] text-green-700 dark:text-green-300 ml-1">(다음 갱신 시 달성!)</span>}
                                 </div>
                                 <ul className="space-y-0.5 ml-3">
                                     {req.items.map((it, i) => (
-                                        <li key={i} className={it.met ? 'text-green-700' : 'text-slate-600'}>
+                                        <li key={i} className={it.met ? 'text-green-700 dark:text-green-300' : 'text-foreground/80'}>
                                             <span className="font-medium">{it.name}:</span> {it.need}
                                         </li>
                                     ))}
@@ -165,9 +165,9 @@ export function DataReadinessCard({ stats, variant = 'full' }: Props) {
                 </div>
             )}
 
-            <p className="mt-3 pt-2 border-t border-slate-100 text-[10px] text-slate-500">
+            <p className="mt-3 pt-2 border-t border-border/50 text-[10px] text-muted-foreground">
                 기준: 활동 7일↑ 예측 가능 / 14일↑ 중간 / 30일↑ 높음 가능. CV ≤ 0.5 안정. 유입/완료 비율 ≤ 1.0 안정.
-                <span className="text-amber-700 font-medium ml-1">정직성 원칙 — 데이터 부족 시 단일 날짜 표시 안 함.</span>
+                <span className="text-amber-700 dark:text-amber-300 font-medium ml-1">정직성 원칙 — 데이터 부족 시 단일 날짜 표시 안 함.</span>
             </p>
         </div>
     );

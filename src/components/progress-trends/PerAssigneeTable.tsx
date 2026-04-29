@@ -15,7 +15,7 @@ const CONFIDENCE_DOT: Record<ConfidenceLevel, { dots: string; color: string }> =
     high: { dots: '●●●', color: 'text-green-600' },
     medium: { dots: '●●○', color: 'text-blue-600' },
     low: { dots: '●○○', color: 'text-amber-600' },
-    unreliable: { dots: '○○○', color: 'text-slate-400' },
+    unreliable: { dots: '○○○', color: 'text-muted-foreground' },
 };
 
 type SortKey = 'name' | 'remaining' | 'throughput' | 'eta';
@@ -40,7 +40,7 @@ function SortableTh({
         <th
             scope="col"
             className={cn(
-                'px-2 py-2 text-xs font-medium text-slate-600 cursor-pointer hover:bg-slate-100 select-none',
+                'px-2 py-2 text-xs font-medium text-foreground/80 cursor-pointer hover:bg-muted/60 select-none',
                 align === 'right' && 'text-right',
                 align === 'center' && 'text-center'
             )}
@@ -106,36 +106,36 @@ export function PerAssigneeTable({ team, issues }: Props) {
     };
 
     return (
-        <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
-            <div className="px-3 py-2 border-b border-slate-200 flex items-baseline justify-between">
-                <h3 className="text-sm font-semibold text-slate-800">담당자별 처리량 + ETA</h3>
-                <span className="text-[11px] text-slate-500">미배정 {team.unassignedCount}건 / 보류 {team.onHoldCount}건은 별도</span>
+        <div className="rounded-lg border border-border bg-card overflow-hidden">
+            <div className="px-3 py-2 border-b border-border flex items-baseline justify-between">
+                <h3 className="text-sm font-semibold text-foreground">담당자별 처리량 + ETA</h3>
+                <span className="text-[11px] text-muted-foreground">미배정 {team.unassignedCount}건 / 보류 {team.onHoldCount}건은 별도</span>
             </div>
             <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                    <thead className="bg-slate-50 border-b border-slate-200">
+                    <thead className="bg-muted/40 border-b border-border">
                         <tr>
                             <SortableTh k="name" label="담당자" currentKey={sortKey} asc={asc} onSort={onSort} />
                             <SortableTh k="remaining" label="잔여" align="right" currentKey={sortKey} asc={asc} onSort={onSort} />
-                            <th className="px-2 py-2 text-xs font-medium text-slate-600 text-center">난이도 <InfoTip>담당 이슈의 난이도(상/중/하) 비율. Jira에 미입력이면 회색 원.</InfoTip></th>
-                            <th className="px-2 py-2 text-xs font-medium text-slate-600 text-right">보류 <InfoTip>status가 '보류'인 이슈. ETA에서 제외됨.</InfoTip></th>
-                            <th className="px-2 py-2 text-xs font-medium text-slate-600 text-right">활동일 <InfoTip>최근 30일 중 1건 이상 완료가 있었던 일수. 7일 미만이면 신뢰도 낮음.</InfoTip></th>
+                            <th className="px-2 py-2 text-xs font-medium text-foreground/80 text-center">난이도 <InfoTip>담당 이슈의 난이도(상/중/하) 비율. Jira에 미입력이면 회색 원.</InfoTip></th>
+                            <th className="px-2 py-2 text-xs font-medium text-foreground/80 text-right">보류 <InfoTip>status가 '보류'인 이슈. ETA에서 제외됨.</InfoTip></th>
+                            <th className="px-2 py-2 text-xs font-medium text-foreground/80 text-right">활동일 <InfoTip>최근 30일 중 1건 이상 완료가 있었던 일수. 7일 미만이면 신뢰도 낮음.</InfoTip></th>
                             <SortableTh k="throughput" label="일평균" align="right" currentKey={sortKey} asc={asc} onSort={onSort} />
                             <SortableTh k="eta" label="ETA (P85)" align="right" currentKey={sortKey} asc={asc} onSort={onSort} />
-                            <th className="px-2 py-2 text-xs font-medium text-slate-600 text-center">신뢰 <InfoTip>●●● 높음 / ●●○ 중간 / ●○○ 낮음 (범위만) / ○○○ 예측 불가. 활동일·CV·Scope로 산정.</InfoTip></th>
+                            <th className="px-2 py-2 text-xs font-medium text-foreground/80 text-center">신뢰 <InfoTip>●●● 높음 / ●●○ 중간 / ●○○ 낮음 (범위만) / ○○○ 예측 불가. 활동일·CV·Scope로 산정.</InfoTip></th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-border/50">
                         {rows.length === 0 && (
-                            <tr><td colSpan={7} className="px-3 py-6 text-center text-sm text-slate-500">담당자 데이터 없음</td></tr>
+                            <tr><td colSpan={7} className="px-3 py-6 text-center text-sm text-muted-foreground">담당자 데이터 없음</td></tr>
                         )}
                         {rows.map((r) => {
                             const inactive = r.activeDays < 7;
                             const guidance = r.forecast ? confidenceGuidance(r.forecast.confidence) : null;
                             const dot = r.forecast ? CONFIDENCE_DOT[r.forecast.confidence] : CONFIDENCE_DOT.unreliable;
                             return (
-                                <tr key={r.key} className={cn(inactive && 'bg-slate-50/50 text-slate-400')}>
-                                    <td className="px-2 py-2 text-slate-800">{r.displayName}</td>
+                                <tr key={r.key} className={cn(inactive && 'bg-muted/30 text-muted-foreground')}>
+                                    <td className="px-2 py-2 text-foreground">{r.displayName}</td>
                                     <td className="px-2 py-2 text-right tabular-nums">{r.remaining}</td>
                                     <td className="px-2 py-2 text-center">
                                         <div className="flex justify-center">
@@ -161,7 +161,7 @@ export function PerAssigneeTable({ team, issues }: Props) {
                     </tbody>
                 </table>
             </div>
-            <p className="px-3 py-2 text-[11px] text-slate-500 bg-slate-50 border-t border-slate-100">
+            <p className="px-3 py-2 text-[11px] text-muted-foreground bg-muted/40 border-t border-border/50">
                 * 활동 7일 미만 인원은 회색. 휴가·specialization 미반영. 워크로드 균형 분석 용도 (성과 평가 X).
             </p>
         </div>

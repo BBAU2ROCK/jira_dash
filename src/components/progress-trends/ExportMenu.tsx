@@ -47,12 +47,12 @@ export function ExportMenu({ projectKey, counts, team, effort, dailySeries }: Pr
                     Export
                 </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-48 p-1 bg-white border border-slate-200">
+            <PopoverContent align="end" className="w-48 p-1 bg-card border border-border">
                 <button
                     type="button"
                     onClick={handleExcel}
                     disabled={exporting}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left rounded hover:bg-slate-100 disabled:opacity-50"
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left rounded hover:bg-muted/60 disabled:opacity-50"
                 >
                     <FileSpreadsheet className="h-4 w-4 text-green-600" />
                     Excel (.xlsx)
@@ -61,7 +61,7 @@ export function ExportMenu({ projectKey, counts, team, effort, dailySeries }: Pr
                     type="button"
                     onClick={handlePdf}
                     disabled={exporting}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left rounded hover:bg-slate-100 disabled:opacity-50"
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left rounded hover:bg-muted/60 disabled:opacity-50"
                 >
                     <FileText className="h-4 w-4 text-red-600" />
                     PDF (브라우저 인쇄)

@@ -29,12 +29,12 @@ export function EarlyBonusEditor({ steps, onChange }: Props) {
 
     return (
         <div>
-            <div className="text-sm font-semibold text-slate-800 mb-2 flex items-center gap-1">
+            <div className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1">
                 조기 보너스
                 <InfoTip>조기완료율이 기준 이상이면 총점에 보너스 가산. 높은 기준부터 매칭.</InfoTip>
             </div>
             <div className="space-y-1.5">
-                <div className="grid grid-cols-[1fr_1fr_auto] gap-2 text-xs text-slate-500 px-1">
+                <div className="grid grid-cols-[1fr_1fr_auto] gap-2 text-xs text-muted-foreground px-1">
                     <span>조기완료율 ≥</span>
                     <span>보너스 점수</span>
                     <span className="w-8"></span>
@@ -50,10 +50,10 @@ export function EarlyBonusEditor({ steps, onChange }: Props) {
                                 min={0}
                                 max={100}
                             />
-                            <span className="text-xs text-slate-500">%</span>
+                            <span className="text-xs text-muted-foreground">%</span>
                         </div>
                         <div className="flex items-center gap-1">
-                            <span className="text-xs text-slate-500">+</span>
+                            <span className="text-xs text-muted-foreground">+</span>
                             <Input
                                 type="number"
                                 value={step.bonus}
@@ -62,12 +62,12 @@ export function EarlyBonusEditor({ steps, onChange }: Props) {
                                 min={0}
                                 max={20}
                             />
-                            <span className="text-xs text-slate-500">점</span>
+                            <span className="text-xs text-muted-foreground">점</span>
                         </div>
                         <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                            className="h-7 w-7 text-red-500 hover:text-red-700 dark:text-red-300 hover:bg-red-50 dark:bg-red-950/30"
                             onClick={() => removeStep(i)}
                         >
                             <Trash2 className="h-3.5 w-3.5" />

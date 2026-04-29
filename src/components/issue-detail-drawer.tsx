@@ -254,32 +254,32 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
     return (
         <Sheet open={open} onOpenChange={onClose}>
             <SheetContent
-                className="overflow-y-auto p-0 bg-white text-slate-900"
+                className="overflow-y-auto p-0 bg-card text-foreground"
                 style={{ width: 'min(900px, 95vw)', maxWidth: 'none' }}
             >
                 {!issue ? (
-                    <div className="flex items-center justify-center h-full text-slate-500">
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
                         이슈를 선택해주세요
                     </div>
                 ) : (
                     <>
                         {/* 헤더 */}
-                        <SheetHeader className="px-6 py-4 border-b border-slate-200 sticky top-0 z-10 flex-row items-center justify-between bg-white">
-                            <SheetTitle className="text-base font-semibold text-slate-900 leading-snug">
+                        <SheetHeader className="px-6 py-4 border-b border-border sticky top-0 z-10 flex-row items-center justify-between bg-card">
+                            <SheetTitle className="text-base font-semibold text-foreground leading-snug">
                                 이슈 상세
                             </SheetTitle>
                             <div className="flex items-center gap-2">
                                 <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-8 w-8 text-slate-500 hover:text-slate-700"
+                                    className="h-8 w-8 text-muted-foreground hover:text-foreground/90"
                                     onClick={() => refetch()}
                                     disabled={detailsLoading}
                                 >
                                     <RefreshCw className={`h-4 w-4 ${detailsLoading ? 'animate-spin' : ''}`} />
                                 </Button>
-                                <SheetClose className="rounded-sm opacity-70 ring-offset-white transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-slate-100 h-8 w-8 flex items-center justify-center">
-                                    <X className="h-5 w-5 text-slate-600" />
+                                <SheetClose className="rounded-sm opacity-70 ring-offset-white transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-muted/60 h-8 w-8 flex items-center justify-center">
+                                    <X className="h-5 w-5 text-foreground/80" />
                                     <span className="sr-only">Close</span>
                                 </SheetClose>
                             </div>
@@ -305,9 +305,9 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                             </div>
                         )}
 
-                        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+                        <div className="px-6 py-4 border-b border-border flex items-center justify-between">
                             <div className="flex items-center gap-3 overflow-hidden">
-                                <div className="bg-slate-100 p-2 rounded-lg shrink-0">
+                                <div className="bg-muted/60 p-2 rounded-lg shrink-0">
                                     {issue && <IssueTypeIcon type={issue.fields.issuetype.name} className="h-5 w-5" />}
                                 </div>
                                 <div className="min-w-0">
@@ -318,7 +318,7 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                                 <button
                                                     type="button"
                                                     className={cn(
-                                                        "inline-flex items-center gap-1 rounded text-[10px] px-1.5 h-4 font-medium bg-slate-200 text-slate-700 border-none cursor-pointer hover:bg-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1",
+                                                        "inline-flex items-center gap-1 rounded text-[10px] px-1.5 h-4 font-medium bg-muted text-foreground/90 border-none cursor-pointer hover:bg-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1",
                                                         (transitionMutation.isPending || (transitions?.length === 0)) && "opacity-80"
                                                     )}
                                                     disabled={transitionMutation.isPending}
@@ -328,20 +328,20 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                                 </button>
                                             </PopoverTrigger>
                                             <PopoverContent
-                                                className="w-auto min-w-[8rem] p-0 bg-white border border-slate-200/90 text-slate-800 shadow-sm rounded-md"
+                                                className="w-auto min-w-[8rem] p-0 bg-card border border-border/90 text-foreground shadow-sm rounded-md"
                                                 align="start"
                                                 sideOffset={4}
                                                 avoidCollisions={true}
                                             >
                                                 {!transitions?.length ? (
-                                                    <div className="px-2.5 py-2 text-[11px] text-slate-500">변경 가능한 상태가 없습니다</div>
+                                                    <div className="px-2.5 py-2 text-[11px] text-muted-foreground">변경 가능한 상태가 없습니다</div>
                                                 ) : (
                                                     <div className="py-0.5 max-h-40 overflow-y-auto">
                                                         {transitions.map((t) => (
                                                             <button
                                                                 key={t.id}
                                                                 type="button"
-                                                                className="w-full px-2.5 py-1.5 text-left text-[11px] font-medium text-slate-700 hover:bg-slate-50 focus:bg-slate-50 focus:outline-none first:rounded-t-[6px] last:rounded-b-[6px]"
+                                                                className="w-full px-2.5 py-1.5 text-left text-[11px] font-medium text-foreground/90 hover:bg-muted/40 focus:bg-muted/40 focus:outline-none first:rounded-t-[6px] last:rounded-b-[6px]"
                                                                 onClick={() => {
                                                                     handleStatusChange(t.id);
                                                                     setStatusPopoverOpen(false);
@@ -354,15 +354,15 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                                     </div>
                                                 )}
                                                 {transitionMutation.isError && (
-                                                    <div className="px-2.5 py-1.5 text-[10px] text-red-600 border-t border-slate-100">
+                                                    <div className="px-2.5 py-1.5 text-[10px] text-red-600 border-t border-border/50">
                                                         {(transitionMutation.error as Error)?.message ?? '변경 실패'}
                                                     </div>
                                                 )}
                                             </PopoverContent>
                                         </Popover>
-                                        {transitionMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400 shrink-0" />}
+                                        {transitionMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />}
                                     </div>
-                                    <h2 className="text-sm font-semibold text-slate-900 leading-snug truncate mr-4">
+                                    <h2 className="text-sm font-semibold text-foreground leading-snug truncate mr-4">
                                         {issue?.fields.summary}
                                     </h2>
                                 </div>
@@ -380,7 +380,7 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                     onSave={(val) => handleUpdateField(plannedStartField, val)}
                                 />
                                 <EditableInfoRow
-                                    icon={<Calendar className="w-4 h-4 text-slate-400" />}
+                                    icon={<Calendar className="w-4 h-4 text-muted-foreground" />}
                                     label="완료 예정"
                                     value={details?.fields.duedate ?? issue.fields.duedate}
                                     type="date"
@@ -408,7 +408,7 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                     onSave={(val) => handleUpdateField('assignee', val ? { accountId: val } : null)}
                                 />
                                 <EditableInfoRow
-                                    icon={<User className="w-4 h-4 text-slate-400" />}
+                                    icon={<User className="w-4 h-4 text-muted-foreground" />}
                                     label="보고자"
                                     value={details?.fields.reporter?.displayName ?? issue.fields.reporter?.displayName ?? '-'}
                                     type="user"
@@ -418,23 +418,23 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                 <div className="flex items-start gap-2 min-h-[40px] px-2 py-1">
                                     <Info className="w-4 h-4 mt-1 text-amber-500 shrink-0" />
                                     <div className="min-w-0 flex-1">
-                                        <p className="text-[10px] uppercase font-semibold text-slate-500">우선순위</p>
+                                        <p className="text-[10px] uppercase font-semibold text-muted-foreground">우선순위</p>
                                         <Popover open={priorityPopoverOpen} onOpenChange={setPriorityPopoverOpen}>
                                             <PopoverTrigger asChild>
                                                 <button
                                                     type="button"
-                                                    className="text-sm font-medium text-slate-800 hover:bg-slate-100 rounded px-1 -mx-1 flex items-center gap-1"
+                                                    className="text-sm font-medium text-foreground hover:bg-muted/60 rounded px-1 -mx-1 flex items-center gap-1"
                                                 >
                                                     {details?.fields.priority?.name ?? issue.fields.priority?.name ?? '-'}
-                                                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                                                    <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
                                                 </button>
                                             </PopoverTrigger>
                                             <PopoverContent
-                                                className="w-56 p-1 bg-white border border-slate-200 shadow-md rounded-md"
+                                                className="w-56 p-1 bg-card border border-border shadow-md rounded-md"
                                                 align="start"
                                             >
                                                 {priorities.length === 0 ? (
-                                                    <p className="text-xs text-slate-600 py-2 px-2">불러오는 중...</p>
+                                                    <p className="text-xs text-foreground/80 py-2 px-2">불러오는 중...</p>
                                                 ) : (
                                                     <ul className="max-h-60 overflow-y-auto">
                                                         {priorities.map((p: { id: string; name: string }) => (
@@ -442,8 +442,8 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                                                 <button
                                                                     type="button"
                                                                     className={cn(
-                                                                        "w-full text-left text-sm py-2 px-2 rounded text-slate-900 hover:bg-slate-100 focus:bg-slate-100 focus:outline-none",
-                                                                        (details?.fields.priority?.name ?? issue.fields.priority?.name) === p.name && "bg-slate-200 font-medium text-slate-900"
+                                                                        "w-full text-left text-sm py-2 px-2 rounded text-foreground hover:bg-muted/60 focus:bg-muted/60 focus:outline-none",
+                                                                        (details?.fields.priority?.name ?? issue.fields.priority?.name) === p.name && "bg-muted font-medium text-foreground"
                                                                     )}
                                                                     onClick={() => {
                                                                         handleUpdateField('priority', { id: p.id });
@@ -479,22 +479,22 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                         : undefined);
                                     return (
                                         <div className="flex items-start gap-2 min-h-[40px] px-2 py-1">
-                                            <AlertCircle className="w-4 h-4 mt-1 text-slate-500 shrink-0" />
+                                            <AlertCircle className="w-4 h-4 mt-1 text-muted-foreground shrink-0" />
                                             <div className="min-w-0 flex-1">
-                                                <p className="text-[10px] uppercase font-semibold text-slate-500">난이도</p>
+                                                <p className="text-[10px] uppercase font-semibold text-muted-foreground">난이도</p>
                                                 {difficultyOptions.length > 0 ? (
                                                     <Popover open={difficultyPopoverOpen} onOpenChange={setDifficultyPopoverOpen}>
                                                         <PopoverTrigger asChild>
                                                             <button
                                                                 type="button"
-                                                                className="text-sm font-medium text-slate-800 hover:bg-slate-100 rounded px-1 -mx-1 flex items-center gap-1"
+                                                                className="text-sm font-medium text-foreground hover:bg-muted/60 rounded px-1 -mx-1 flex items-center gap-1"
                                                             >
                                                                 {difficultyDisplay}
-                                                                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                                                                <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
                                                             </button>
                                                         </PopoverTrigger>
                                                         <PopoverContent
-                                                            className="w-56 p-1 bg-white border border-slate-200 shadow-md rounded-md"
+                                                            className="w-56 p-1 bg-card border border-border shadow-md rounded-md"
                                                             align="start"
                                                         >
                                                             <ul className="max-h-60 overflow-y-auto">
@@ -503,8 +503,8 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                                                         <button
                                                                             type="button"
                                                                             className={cn(
-                                                                                "w-full text-left text-sm py-2 px-2 rounded text-slate-900 hover:bg-slate-100 focus:bg-slate-100 focus:outline-none",
-                                                                                difficultyIdNorm === String(opt.id) && "bg-slate-200 font-medium text-slate-900"
+                                                                                "w-full text-left text-sm py-2 px-2 rounded text-foreground hover:bg-muted/60 focus:bg-muted/60 focus:outline-none",
+                                                                                difficultyIdNorm === String(opt.id) && "bg-muted font-medium text-foreground"
                                                                             )}
                                                                             onClick={() => {
                                                                                 handleUpdateField(difficultyFieldId, { id: opt.id });
@@ -519,17 +519,17 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                                         </PopoverContent>
                                                     </Popover>
                                                 ) : (
-                                                    <p className="text-sm font-medium text-slate-800">{difficultyDisplay}</p>
+                                                    <p className="text-sm font-medium text-foreground">{difficultyDisplay}</p>
                                                 )}
                                             </div>
                                         </div>
                                     );
                                 })()}
                                 <div className="flex items-start gap-2 min-h-[40px] px-2 py-1">
-                                    <Calendar className="w-4 h-4 mt-1 text-slate-400 shrink-0" />
+                                    <Calendar className="w-4 h-4 mt-1 text-muted-foreground shrink-0" />
                                     <div className="min-w-0">
-                                        <p className="text-[10px] uppercase font-semibold text-slate-500">생성일</p>
-                                        <p className="text-sm font-medium text-slate-800">
+                                        <p className="text-[10px] uppercase font-semibold text-muted-foreground">생성일</p>
+                                        <p className="text-sm font-medium text-foreground">
                                             {details?.fields.created ?? issue.fields.created
                                                 ? format(new Date(details?.fields.created ?? issue.fields.created), 'yyyy.MM.dd HH:mm')
                                                 : '-'}
@@ -540,11 +540,11 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
 
                             {/* 설명(주요 세부정보) - §8 설명 내 첨부(미디어) 표시: ADF → React, media는 attachment content URL로 표시 */}
                             <div className="space-y-2">
-                                <h3 className="text-xs font-semibold text-slate-600 uppercase flex items-center gap-1.5">
+                                <h3 className="text-xs font-semibold text-foreground/80 uppercase flex items-center gap-1.5">
                                     <FileText className="w-3.5 h-3.5" />
                                     설명
                                 </h3>
-                                <div className="rounded-md border border-slate-200 bg-slate-50/50 px-3 py-2.5 text-sm text-slate-700">
+                                <div className="rounded-md border border-border bg-muted/30 px-3 py-2.5 text-sm text-foreground/90">
                                     {(details?.fields?.description ?? issue?.fields?.description)
                                         ? renderDescriptionAdf(
                                             details?.fields?.description ?? issue?.fields?.description,
@@ -557,7 +557,7 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
 
                             {/* 첨부파일 - 목록만 횡(일렬) 표시, 다운로드 미제공 */}
                             <div className="space-y-2">
-                                <h3 className="text-xs font-semibold text-slate-600 uppercase flex items-center gap-1.5">
+                                <h3 className="text-xs font-semibold text-foreground/80 uppercase flex items-center gap-1.5">
                                     <Paperclip className="w-3.5 h-3.5" />
                                     첨부파일 ({(details?.fields?.attachment ?? issue?.fields?.attachment)?.length ?? 0})
                                 </h3>
@@ -566,11 +566,11 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                         {(details?.fields?.attachment ?? issue?.fields?.attachment)?.map((att) => (
                                             <li
                                                 key={String(att.id)}
-                                                className="shrink-0 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-800 max-w-full min-w-0"
+                                                className="shrink-0 rounded-md border border-border bg-card px-3 py-1.5 text-sm text-foreground max-w-full min-w-0"
                                                 title={`${att.filename}${att.size != null ? ` · ${(att.size / 1024).toFixed(1)} KB` : ''}${att.created ? ` · ${format(new Date(att.created), 'yyyy.MM.dd')}` : ''}${att.author?.displayName ? ` · ${att.author.displayName}` : ''}`}
                                             >
                                                 <span className="truncate block font-medium">{att.filename}</span>
-                                                <span className="text-[11px] text-slate-500 truncate block">
+                                                <span className="text-[11px] text-muted-foreground truncate block">
                                                     {att.size != null ? `${(att.size / 1024).toFixed(1)} KB` : ''}
                                                     {att.created && ` · ${format(new Date(att.created), 'yyyy.MM.dd')}`}
                                                     {att.author?.displayName && ` · ${att.author.displayName}`}
@@ -579,42 +579,42 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                         ))}
                                     </ul>
                                 ) : (
-                                    <p className="rounded-md border border-slate-200 bg-slate-50/50 px-3 py-2.5 text-sm text-slate-500">첨부된 파일이 없습니다.</p>
+                                    <p className="rounded-md border border-border bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground">첨부된 파일이 없습니다.</p>
                                 )}
                             </div>
 
                             {/* 활동 탭: 동일 크기 버튼, 선택 탭은 배경으로 구분 */}
-                            <div className="border-t border-slate-200 pt-5">
+                            <div className="border-t border-border pt-5">
                                 <Tabs defaultValue="all" className="w-full">
-                                    <TabsList className="flex gap-1 p-1 rounded-lg h-auto bg-slate-100 border border-slate-200">
+                                    <TabsList className="flex gap-1 p-1 rounded-lg h-auto bg-muted/60 border border-border">
                                         <TabsTrigger
                                             value="all"
-                                            className="flex-1 min-w-0 text-xs py-2 rounded-md data-[state=inactive]:bg-transparent data-[state=inactive]:text-slate-500 data-[state=active]:bg-slate-700 data-[state=active]:text-white data-[state=active]:shadow-sm"
+                                            className="flex-1 min-w-0 text-xs py-2 rounded-md data-[state=inactive]:bg-transparent data-[state=inactive]:text-muted-foreground data-[state=active]:bg-slate-700 data-[state=active]:text-white data-[state=active]:shadow-sm"
                                         >
                                             전체
                                         </TabsTrigger>
                                         <TabsTrigger
                                             value="comments"
-                                            className="flex-1 min-w-0 text-xs py-2 rounded-md data-[state=inactive]:bg-transparent data-[state=inactive]:text-slate-500 data-[state=active]:bg-slate-700 data-[state=active]:text-white data-[state=active]:shadow-sm"
+                                            className="flex-1 min-w-0 text-xs py-2 rounded-md data-[state=inactive]:bg-transparent data-[state=inactive]:text-muted-foreground data-[state=active]:bg-slate-700 data-[state=active]:text-white data-[state=active]:shadow-sm"
                                         >
                                             댓글 ({comments.length})
                                         </TabsTrigger>
                                         <TabsTrigger
                                             value="history"
-                                            className="flex-1 min-w-0 text-xs py-2 rounded-md data-[state=inactive]:bg-transparent data-[state=inactive]:text-slate-500 data-[state=active]:bg-slate-700 data-[state=active]:text-white data-[state=active]:shadow-sm"
+                                            className="flex-1 min-w-0 text-xs py-2 rounded-md data-[state=inactive]:bg-transparent data-[state=inactive]:text-muted-foreground data-[state=active]:bg-slate-700 data-[state=active]:text-white data-[state=active]:shadow-sm"
                                         >
                                             기록 ({histories.length})
                                         </TabsTrigger>
                                         <TabsTrigger
                                             value="worklog"
-                                            className="flex-1 min-w-0 text-xs py-2 rounded-md data-[state=inactive]:bg-transparent data-[state=inactive]:text-slate-500 data-[state=active]:bg-slate-700 data-[state=active]:text-white data-[state=active]:shadow-sm"
+                                            className="flex-1 min-w-0 text-xs py-2 rounded-md data-[state=inactive]:bg-transparent data-[state=inactive]:text-muted-foreground data-[state=active]:bg-slate-700 data-[state=active]:text-white data-[state=active]:shadow-sm"
                                         >
                                             업무로그 ({worklogs.length})
                                         </TabsTrigger>
                                     </TabsList>
 
                                     {detailsLoading ? (
-                                        <div className="flex items-center justify-center py-20 text-slate-500 gap-2">
+                                        <div className="flex items-center justify-center py-20 text-muted-foreground gap-2">
                                             <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
                                             데이터 불러오는 중...
                                         </div>
@@ -640,13 +640,13 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                                     >
                                                         <PopoverAnchor asChild>
                                                             <div className={cn(
-                                                                "min-w-0 rounded-md border bg-white focus-within:ring-2 focus-within:ring-blue-500",
+                                                                "min-w-0 rounded-md border bg-card focus-within:ring-2 focus-within:ring-blue-500",
                                                                 editorReadOnly
-                                                                    ? "border-amber-400 bg-amber-50/30"
-                                                                    : "border-slate-300 focus-within:border-blue-500"
+                                                                    ? "border-amber-400 bg-amber-50 dark:bg-amber-950/30/30"
+                                                                    : "border-border focus-within:border-blue-500"
                                                             )}>
                                                                 {editorReadOnly && (
-                                                                    <div className="flex items-start gap-2 px-2 pt-2 text-[11px] text-amber-800 bg-amber-50 border-b border-amber-200">
+                                                                    <div className="flex items-start gap-2 px-2 pt-2 text-[11px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900/60">
                                                                         <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                                                                         <span>코드블록·리스트·링크 등 풍부한 서식이 포함된 댓글입니다. 데이터 손실 방지를 위해 Jira 웹에서 편집해 주세요.</span>
                                                                     </div>
@@ -657,7 +657,7 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                                                     contentEditable={!editorReadOnly}
                                                                     suppressContentEditableWarning
                                                                     data-placeholder={editingCommentId ? '댓글 수정 중... (우측 하단 ✓ 클릭 시 반영)' : '댓글 입력... (@ 멘션, 여러 줄 가능)'}
-                                                                    className="min-h-[80px] max-h-[200px] overflow-y-auto px-2 pt-2 pb-1 text-xs text-slate-800 leading-5 focus:outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 empty:before:pointer-events-none [&_.mention-chip]:inline-flex [&_.mention-chip]:items-center [&_.mention-chip]:px-1 [&_.mention-chip]:py-px [&_.mention-chip]:rounded [&_.mention-chip]:bg-blue-100 [&_.mention-chip]:text-blue-800 [&_.mention-chip]:text-[10px] [&_.mention-chip]:font-medium [&_.mention-chip]:mx-0.5 [&_.mention-chip]:select-none [&_.mention-chip]:cursor-default"
+                                                                    className="min-h-[80px] max-h-[200px] overflow-y-auto px-2 pt-2 pb-1 text-xs text-foreground leading-5 focus:outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground empty:before:pointer-events-none [&_.mention-chip]:inline-flex [&_.mention-chip]:items-center [&_.mention-chip]:px-1 [&_.mention-chip]:py-px [&_.mention-chip]:rounded [&_.mention-chip]:bg-blue-100 [&_.mention-chip]:text-blue-800 dark:text-blue-300 [&_.mention-chip]:text-[10px] [&_.mention-chip]:font-medium [&_.mention-chip]:mx-0.5 [&_.mention-chip]:select-none [&_.mention-chip]:cursor-default"
                                                                     onInput={() => {
                                                                         const editor = editorRef.current;
                                                                         if (!editor) return;
@@ -704,7 +704,7 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                                                             type="button"
                                                                             size="sm"
                                                                             variant="ghost"
-                                                                            className="h-7 w-7 p-0 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                                                                            className="h-7 w-7 p-0 text-foreground/80 hover:text-foreground hover:bg-muted/60"
                                                                             onClick={() => {
                                                                                 setEditingCommentId(null);
                                                                                 clearEditor();
@@ -718,7 +718,7 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                                                     <Button
                                                                         size="sm"
                                                                         variant="ghost"
-                                                                        className="h-7 w-7 p-0 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                                                                        className="h-7 w-7 p-0 text-foreground/80 hover:text-foreground hover:bg-muted/60"
                                                                         disabled={
                                                                             editorReadOnly ||
                                                                             (addCommentMutation.isPending || updateCommentMutation.isPending) ||
@@ -747,8 +747,8 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                                                 </div>
                                                             </div>
                                                         </PopoverAnchor>
-                                                        <PopoverContent className="w-auto min-w-[160px] max-w-[220px] p-0 bg-white border border-slate-200 shadow-lg" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
-                                                            <div className="p-1.5 border-b border-slate-200">
+                                                        <PopoverContent className="w-auto min-w-[160px] max-w-[220px] p-0 bg-card border border-border shadow-lg" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+                                                            <div className="p-1.5 border-b border-border">
                                                                 <Input
                                                                     placeholder="이름 검색..."
                                                                     className="h-7 text-xs"
@@ -761,17 +761,17 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
                                                                     }}
                                                                 />
                                                             </div>
-                                                            <div className="max-h-36 overflow-y-auto bg-white">
+                                                            <div className="max-h-36 overflow-y-auto bg-card">
                                                                 {mentionSearching ? (
-                                                                    <div className="p-2 text-center text-slate-500 text-xs">검색 중...</div>
+                                                                    <div className="p-2 text-center text-muted-foreground text-xs">검색 중...</div>
                                                                 ) : mentionSearchResults.length === 0 ? (
-                                                                    <div className="p-2 text-center text-slate-500 text-xs">검색어를 입력하세요</div>
+                                                                    <div className="p-2 text-center text-muted-foreground text-xs">검색어를 입력하세요</div>
                                                                 ) : (
                                                                     mentionSearchResults.map((u) => (
                                                                         <button
                                                                             key={u.accountId}
                                                                             type="button"
-                                                                            className="w-full px-2 py-1.5 text-left text-xs hover:bg-slate-100 flex items-center gap-1.5 text-slate-800 bg-white"
+                                                                            className="w-full px-2 py-1.5 text-left text-xs hover:bg-muted/60 flex items-center gap-1.5 text-foreground bg-card"
                                                                             onMouseDown={(e) => {
                                                                                 // mousedown에서 처리해 에디터 포커스 유지
                                                                                 e.preventDefault();

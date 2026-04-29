@@ -68,14 +68,14 @@ export function KpiRulesManager() {
             {/* 헤더: 버전 정보 + 저장 */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <h2 className="text-base font-bold text-foreground flex items-center gap-2">
                         KPI 규칙 관리
                         <InfoTip>PM이 매년 KPI 등급·가중치·결함 기준을 직접 편집. 저장 즉시 대시보드에 반영. JSON으로 내보내기/가져오기 가능.</InfoTip>
                     </h2>
-                    <div className="text-xs text-slate-500 mt-0.5">
+                    <div className="text-xs text-muted-foreground mt-0.5">
                         활성: <span className="font-mono font-semibold">v{draft.version}</span> · {draft.label}
                         {archive.length > 0 && (
-                            <span className="ml-2 text-slate-400">
+                            <span className="ml-2 text-muted-foreground">
                                 <History className="h-3 w-3 inline mr-0.5" />
                                 아카이브 {archive.length}개
                             </span>
@@ -100,7 +100,7 @@ export function KpiRulesManager() {
 
             {/* 검증 에러 */}
             {errors.length > 0 && (
-                <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                <div className="rounded-md border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 p-3 text-sm text-red-800 dark:text-red-300">
                     <div className="flex items-start gap-2">
                         <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
                         <ul className="space-y-0.5 list-disc list-inside text-xs">
@@ -111,7 +111,7 @@ export function KpiRulesManager() {
             )}
 
             {/* ━ 1. KPI 등급 기준 ━ */}
-            <section className="rounded-lg border border-slate-200 bg-white p-4">
+            <section className="rounded-lg border border-border bg-card p-4">
                 <GradeEditor
                     title="KPI 등급 기준"
                     tip="총점이 이 값 이상이면 해당 등급. 95 이상 = S, 90 이상 = A ..."
@@ -121,7 +121,7 @@ export function KpiRulesManager() {
             </section>
 
             {/* ━ 2. 가중치 ━ */}
-            <section className="rounded-lg border border-slate-200 bg-white p-4">
+            <section className="rounded-lg border border-border bg-card p-4">
                 <WeightEditor
                     weights={draft.weights}
                     onChange={(weights) => setDraft({ ...draft, weights })}
@@ -129,7 +129,7 @@ export function KpiRulesManager() {
             </section>
 
             {/* ━ 3. 조기 보너스 ━ */}
-            <section className="rounded-lg border border-slate-200 bg-white p-4">
+            <section className="rounded-lg border border-border bg-card p-4">
                 <EarlyBonusEditor
                     steps={draft.earlyBonus}
                     onChange={(earlyBonus) => setDraft({ ...draft, earlyBonus })}
@@ -137,7 +137,7 @@ export function KpiRulesManager() {
             </section>
 
             {/* ━ 4. 결함 등급 ━ */}
-            <section className="rounded-lg border border-slate-200 bg-white p-4">
+            <section className="rounded-lg border border-border bg-card p-4">
                 <GradeEditor
                     title="결함 등급 기준"
                     tip="Defect Density가 이 값 이하이면 해당 등급. S ≤ 5%, A ≤ 10% ..."
@@ -148,8 +148,8 @@ export function KpiRulesManager() {
             </section>
 
             {/* ━ 5. Jira 연결 ━ */}
-            <section className="rounded-lg border border-slate-200 bg-white p-4">
-                <div className="text-sm font-semibold text-slate-800 mb-3">Jira 연결 설정</div>
+            <section className="rounded-lg border border-border bg-card p-4">
+                <div className="text-sm font-semibold text-foreground mb-3">Jira 연결 설정</div>
                 <JiraFieldsEditor
                     labels={draft.labels}
                     statusNames={draft.statusNames}
@@ -161,8 +161,8 @@ export function KpiRulesManager() {
             </section>
 
             {/* ━ 6. 프로젝트 ━ */}
-            <section className="rounded-lg border border-slate-200 bg-white p-4">
-                <div className="text-sm font-semibold text-slate-800 mb-3">프로젝트 설정</div>
+            <section className="rounded-lg border border-border bg-card p-4">
+                <div className="text-sm font-semibold text-foreground mb-3">프로젝트 설정</div>
                 <ProjectEditor
                     dashboardProjectKey={draft.dashboardProjectKey}
                     projectKeys={draft.projectKeys}
@@ -174,7 +174,7 @@ export function KpiRulesManager() {
             </section>
 
             {/* ━ 7. 고급 (예측) ━ */}
-            <section className="rounded-lg border border-slate-200 bg-white p-4">
+            <section className="rounded-lg border border-border bg-card p-4">
                 <PredictionConfigEditor
                     config={draft.prediction}
                     onChange={(prediction) => setDraft({ ...draft, prediction })}
@@ -182,11 +182,11 @@ export function KpiRulesManager() {
             </section>
 
             {/* ━ JSON + 리셋 ━ */}
-            <section className="rounded-lg border border-slate-200 bg-white p-4">
+            <section className="rounded-lg border border-border bg-card p-4">
                 <div className="flex items-center justify-between mb-2">
-                    <div className="text-sm font-semibold text-slate-800">데이터 관리</div>
+                    <div className="text-sm font-semibold text-foreground">데이터 관리</div>
                     {isDirty && (
-                        <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5">
+                        <span className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 rounded px-2 py-0.5">
                             미저장 변경사항 있음
                         </span>
                     )}
@@ -216,13 +216,13 @@ export function KpiRulesManager() {
             </section>
 
             {/* ━ K12: 아카이브 복원 ━ */}
-            <section className="rounded-lg border border-slate-200 bg-white p-4">
+            <section className="rounded-lg border border-border bg-card p-4">
                 <ArchiveList archive={archive} />
             </section>
 
             {/* 저장 상태 */}
             {!isDirty && (
-                <div className="flex items-center gap-1.5 text-xs text-green-700">
+                <div className="flex items-center gap-1.5 text-xs text-green-700 dark:text-green-300">
                     <CheckCircle2 className="h-3.5 w-3.5" />
                     모든 변경이 저장되었습니다. 마지막 수정: {new Date(rules.updatedAt).toLocaleString('ko-KR')}
                 </div>

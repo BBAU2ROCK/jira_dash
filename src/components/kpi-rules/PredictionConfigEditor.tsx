@@ -22,7 +22,7 @@ function NumRow({ label, tip, value, onChange, min, max, step, unit }: {
     const outOfRange = (min != null && value < min) || (max != null && value > max);
     return (
         <div className="grid grid-cols-[180px_1fr] gap-2 items-start">
-            <label className="text-xs text-slate-600 flex items-center gap-1 pt-1.5">
+            <label className="text-xs text-foreground/80 flex items-center gap-1 pt-1.5">
                 {label}
                 <InfoTip>{tip}</InfoTip>
             </label>
@@ -37,14 +37,14 @@ function NumRow({ label, tip, value, onChange, min, max, step, unit }: {
                         }}
                         className={cn(
                             'h-7 text-xs w-24',
-                            outOfRange && 'border-red-400 focus-visible:ring-red-400 text-red-700'
+                            outOfRange && 'border-red-400 focus-visible:ring-red-400 text-red-700 dark:text-red-300'
                         )}
                         min={min}
                         max={max}
                         step={step}
                         aria-invalid={outOfRange || undefined}
                     />
-                    {unit && <span className="text-xs text-slate-500">{unit}</span>}
+                    {unit && <span className="text-xs text-muted-foreground">{unit}</span>}
                 </div>
                 {outOfRange && (
                     <div className="mt-0.5 text-[11px] text-red-600 flex items-center gap-1">
@@ -68,7 +68,7 @@ export function PredictionConfigEditor({ config, onChange }: Props) {
 
     return (
         <div>
-            <div className="text-sm font-semibold text-slate-800 mb-2 flex items-center gap-1">
+            <div className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1">
                 예측 파라미터 (고급)
                 <InfoTip>Monte Carlo, 신뢰도, 공수 분석에 사용되는 임계값. 기본값 사용 권장.</InfoTip>
             </div>
