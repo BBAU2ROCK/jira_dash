@@ -8,6 +8,8 @@ import {
 import {
     resolveAgreedDelayLabel,
     resolveVerificationDelayLabel,
+    resolveCancelledStatus,
+    resolveRejectedStatus,
     resolveFields,
     resolveWeights,
     resolveGrades,
@@ -17,12 +19,14 @@ import {
 /**
  * v1.0.10: KPI 산식용 규칙 해석.
  * 공통 resolver 헬퍼(`@/lib/kpi-rules-resolver`)를 조합하여 필요한 값만 취함.
- * 기존 v1.0.9의 `resolveKpiRules` + `FALLBACK_RULES`는 resolver로 이전됨.
+ * v1.0.18: cancelled/rejected status 추가 (분모·분자 제외).
  */
 function resolveKpiRules() {
     return {
         agreedDelayLabel: resolveAgreedDelayLabel(),
         verificationDelayLabel: resolveVerificationDelayLabel(),
+        cancelledStatus: resolveCancelledStatus(),
+        rejectedStatus: resolveRejectedStatus(),
         actualDoneField: resolveFields().ACTUAL_DONE,
         weights: resolveWeights(),
         grades: resolveGrades(),
@@ -62,6 +66,15 @@ export interface KPIMetrics {
      * 준수율 해석 시 투명성을 위해 UI에서 별도 표시.
      */
     noDueDateCount: number;
+    /**
+     * v1.0.18: 취소(status='취소') 상태 이슈 — KPI 분모·분자에서 제외.
+     * 표시는 별도 (UI 투명성).
+     */
+    cancelledIssues: number;
+    /**
+     * v1.0.18: 반려(status='반려') 상태 이슈 — KPI 분모·분자에서 제외.
+     */
+    rejectedIssues: number;
 
     completionRate: number;
     complianceRate: number;
@@ -86,6 +99,8 @@ const ZERO_METRICS: KPIMetrics = {
     compliantIssues: 0,
     agreedDelayIssues: 0,
     noDueDateCount: 0,
+    cancelledIssues: 0,
+    rejectedIssues: 0,
     completionRate: 0,
     complianceRate: 0,
     earlyRate: 0,
@@ -119,6 +134,9 @@ export function calculateKPI(issues: JiraIssue[]): KPIMetrics {
     let agreedDelayIssues = 0;
     // K6: 기한 미설정으로 준수 카운트된 이슈 수 (투명성용 UI 표시)
     let noDueDateCount = 0;
+    // v1.0.18: 취소·반려 카운트 (분모·분자 제외)
+    let cancelledIssues = 0;
+    let rejectedIssues = 0;
 
     // KPI A/B/C 분자에서 차감해야 하는 합의지연 하위 카운트 (단일 패스로 누적)
     let agreedDelayDoneCount = 0;
@@ -127,6 +145,14 @@ export function calculateKPI(issues: JiraIssue[]): KPIMetrics {
 
     for (const issue of issues) {
         const isDone = getStatusCategoryKey(issue) === 'done';
+        const statusName = issue.fields.status?.name?.trim() ?? '';
+        // v1.0.18: 취소·반려는 KPI 평가에서 완전 제외 (성과 평가 X)
+        const isCancelled = statusName === rules.cancelledStatus;
+        const isRejected = statusName === rules.rejectedStatus;
+        if (isCancelled) cancelledIssues++;
+        if (isRejected) rejectedIssues++;
+        if (isCancelled || isRejected) continue; // 분자 카운트 X (분모도 아래 kpiTotal에서 차감)
+
         const labels = issue.fields.labels;
         const isAgreedDelay = labels?.includes(rules.agreedDelayLabel) ?? false;
         const isVerificationDelay = labels?.includes(rules.verificationDelayLabel) ?? false;
@@ -182,9 +208,10 @@ export function calculateKPI(issues: JiraIssue[]): KPIMetrics {
         }
     }
 
-    const kpiTotal = totalIssues - agreedDelayIssues;
+    // v1.0.18: 분모에서도 cancelled/rejected 제외 (agreed-delay 패턴)
+    const kpiTotal = totalIssues - agreedDelayIssues - cancelledIssues - rejectedIssues;
     if (kpiTotal <= 0) {
-        // 측정 불가 — 합의지연 카운트는 보존하되 등급은 '—'
+        // 측정 불가 — 합의지연·취소·반려 카운트는 보존하되 등급은 '—'
         return {
             ...ZERO_METRICS,
             totalIssues,
@@ -194,6 +221,8 @@ export function calculateKPI(issues: JiraIssue[]): KPIMetrics {
             compliantIssues,
             agreedDelayIssues,
             noDueDateCount,
+            cancelledIssues,
+            rejectedIssues,
             measurable: false,
         };
     }
@@ -227,6 +256,8 @@ export function calculateKPI(issues: JiraIssue[]): KPIMetrics {
         compliantIssues,
         agreedDelayIssues,
         noDueDateCount,
+        cancelledIssues,
+        rejectedIssues,
         completionRate: Math.round(completionRate),
         complianceRate: Math.round(complianceRate),
         earlyRate: Math.round(earlyRate),

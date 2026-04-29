@@ -120,23 +120,28 @@ export function ProjectStatsDialog({
     const leafIssues = React.useMemo(() => filterLeafIssues(issues), [issues]);
 
     // v1.0.10 S1: store 우선 — kpiRules 구독값으로 status명 참조 (설정 변경 시 즉시 반영)
+    // v1.0.18: rejected status 추가 — KPI/통계에서 cancelled와 동일하게 제외
     const onHoldName = kpiRules.statusNames?.onHold ?? JIRA_CONFIG.STATUS_NAMES?.ON_HOLD ?? '보류';
     const cancelledName = kpiRules.statusNames?.cancelled ?? JIRA_CONFIG.STATUS_NAMES?.CANCELLED ?? '취소';
+    const rejectedName = kpiRules.statusNames?.rejected ?? JIRA_CONFIG.STATUS_NAMES?.REJECTED ?? '반려';
     const isOnHold = (i: JiraIssue) => (i.fields.status?.name?.trim() ?? '') === onHoldName;
     const isCancelled = (i: JiraIssue) => (i.fields.status?.name?.trim() ?? '') === cancelledName;
+    const isRejected = (i: JiraIssue) => (i.fields.status?.name?.trim() ?? '') === rejectedName;
 
     // ── KPI 계산 ─────────────────────────────────────────────────────────────
     const kpiMetrics = calculateKPI(leafIssues);
 
-    // ── 전체 통계 (5분할: 보류·취소·완료·진행·대기, 상호 배타) ─────────────────
+    // ── 전체 통계 (6분할: 보류·취소·반려·완료·진행·대기, 상호 배타) ────────────
     const onHold = leafIssues.filter(i => isOnHold(i));
     const cancelled = leafIssues.filter(i => isCancelled(i));
+    const rejected = leafIssues.filter(i => isRejected(i));
+    // v1.0.18: 완료 = statusCategory='done' AND NOT(보류·취소·반려)
     const done = leafIssues.filter(i =>
-        getStatusCategoryKey(i) === 'done' && !isOnHold(i) && !isCancelled(i)
+        getStatusCategoryKey(i) === 'done' && !isOnHold(i) && !isCancelled(i) && !isRejected(i)
     );
     const inProg = leafIssues.filter(i => getStatusCategoryKey(i) === 'indeterminate');
     const todo = leafIssues.filter(i =>
-        !isOnHold(i) && !isCancelled(i) &&
+        !isOnHold(i) && !isCancelled(i) && !isRejected(i) &&
         getStatusCategoryKey(i) !== 'done' &&
         getStatusCategoryKey(i) !== 'indeterminate'
     );
@@ -150,7 +155,9 @@ export function ProjectStatsDialog({
     );
 
     const total = leafIssues.length;
-    const completionRate = total > 0 ? Math.round((done.length / total) * 100) : 0;
+    // v1.0.18: 완료율 분모는 취소·반려 제외 (KPI와 일관성)
+    const completionDenom = total - cancelled.length - rejected.length;
+    const completionRate = completionDenom > 0 ? Math.round((done.length / completionDenom) * 100) : 0;
 
     // v1.0.10 S5: store에서 필드 ID 참조 (커스텀 필드 변경 시 즉시 반영)
     const spField = kpiRules.fields?.storyPoint ?? JIRA_CONFIG.FIELDS.STORY_POINT;
@@ -160,9 +167,11 @@ export function ProjectStatsDialog({
     // ── 담당자별 통계 ─────────────────────────────────────────────────────────
     const assigneeMap = new Map<string, AssigneeStats>();
 
-    // 리프만 담당자별 건수·업무로그 집계 (보류·취소는 완료로 포함, earlyDone/compliant는 실제 done만)
+    // 리프만 담당자별 건수·업무로그 집계.
+    // v1.0.18: 보류는 "처리 끝남"으로 포함, 취소·반려는 done에서 제외 (KPI 정책과 일치).
+    //   earlyDone/compliant는 실제 done(statusCategory)만.
     const isDoneForAssignee = (issue: JiraIssue) =>
-        getStatusCategoryKey(issue) === 'done' || isOnHold(issue) || isCancelled(issue);
+        (getStatusCategoryKey(issue) === 'done' && !isCancelled(issue) && !isRejected(issue)) || isOnHold(issue);
 
     function newStats(name: string): AssigneeStats {
         return {
@@ -359,13 +368,14 @@ export function ProjectStatsDialog({
         return `${hours}h ${minutes}m`;
     };
 
-    // ── 파이차트 세그먼트 (5분할: 완료·진행·대기·보류·취소) ─────────────────────
+    // ── 파이차트 세그먼트 (v1.0.18: 6분할 — 완료·진행·대기·보류·취소·반려) ────
     const overallSegments = [
         { value: done.length, color: '#22c55e', label: '완료' },
         { value: inProg.length, color: '#3b82f6', label: '진행' },
         { value: todo.length, color: '#cbd5e1', label: '대기' },
         { value: onHold.length, color: '#94a3b8', label: '보류' },
         { value: cancelled.length, color: '#64748b', label: '취소' },
+        { value: rejected.length, color: '#a855f7', label: '반려' },
     ];
 
     const handleStatsDialogOpenChange = (next: boolean) => {
@@ -476,6 +486,10 @@ export function ProjectStatsDialog({
                                     <StatCard icon={<CircleSlash className="w-4 h-4 text-slate-600" />}
                                         label="취소" value={cancelled.length} sub="개" color="slate"
                                         onClick={() => openGroup('취소 이슈', cancelled, '#64748b')} />
+                                    {/* v1.0.18: 반려 카드 — KPI에서 제외 */}
+                                    <StatCard icon={<CircleSlash className="w-4 h-4 text-purple-600" />}
+                                        label="반려" value={rejected.length} sub="개" color="slate"
+                                        onClick={() => openGroup('반려 이슈', rejected, '#a855f7')} />
                                 </div>
 
                                 {/* 파이차트 + 범례 + 바 */}
@@ -487,7 +501,7 @@ export function ProjectStatsDialog({
                                         <div className="flex flex-wrap justify-center gap-2 mt-3">
                                             {overallSegments.map(seg => (
                                                 <button key={seg.label}
-                                                    onClick={() => openGroup(seg.label, seg.label === '완료' ? done : seg.label === '진행' ? inProg : seg.label === '대기' ? todo : seg.label === '보류' ? onHold : cancelled, seg.color)}
+                                                    onClick={() => openGroup(seg.label, seg.label === '완료' ? done : seg.label === '진행' ? inProg : seg.label === '대기' ? todo : seg.label === '보류' ? onHold : seg.label === '취소' ? cancelled : rejected, seg.color)}
                                                     style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 9999, padding: '2px 8px', cursor: 'pointer' }}
                                                     className="flex items-center gap-1.5 text-[11px] hover:opacity-80 transition-opacity"
                                                 >
@@ -525,6 +539,10 @@ export function ProjectStatsDialog({
                                             pct={total > 0 ? Math.round((cancelled.length / total) * 100) : 0}
                                             color="#64748b"
                                             sub={`${cancelled.length} / ${total}개`} />
+                                        <BarStat label="반려율"
+                                            pct={total > 0 ? Math.round((rejected.length / total) * 100) : 0}
+                                            color="#a855f7"
+                                            sub={`${rejected.length} / ${total}개`} />
                                     </div>
                                 </div>
                             </section>

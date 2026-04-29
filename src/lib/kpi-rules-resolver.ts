@@ -43,6 +43,11 @@ export function resolveCancelledStatus(): string {
     return getActiveRules()?.statusNames?.cancelled ?? JIRA_CONFIG.STATUS_NAMES.CANCELLED;
 }
 
+/** v1.0.18: 반려 status — KPI 분모·분자에서 제외 (cancelled와 동일 처리) */
+export function resolveRejectedStatus(): string {
+    return getActiveRules()?.statusNames?.rejected ?? JIRA_CONFIG.STATUS_NAMES.REJECTED;
+}
+
 // ─── 프로젝트 ───────────────────────────────────────────────────────────
 
 export function resolveDashboardProjectKey(): string {

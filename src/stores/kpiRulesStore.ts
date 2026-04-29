@@ -58,6 +58,8 @@ export interface KpiRuleSet {
     statusNames: {
         onHold: string;
         cancelled: string;
+        /** v1.0.18: 반려 status — KPI에서 cancelled와 동일하게 제외 */
+        rejected: string;
     };
     fields: {
         storyPoint: string;
@@ -108,6 +110,7 @@ function getDefaultRuleSet(): KpiRuleSet {
         statusNames: {
             onHold: JIRA_CONFIG.STATUS_NAMES.ON_HOLD,
             cancelled: JIRA_CONFIG.STATUS_NAMES.CANCELLED,
+            rejected: JIRA_CONFIG.STATUS_NAMES.REJECTED,
         },
         fields: {
             storyPoint: JIRA_CONFIG.FIELDS.STORY_POINT,

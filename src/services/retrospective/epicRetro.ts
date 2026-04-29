@@ -13,11 +13,17 @@ import { filterLeafIssues, getStatusCategoryKey } from '@/lib/jira-helpers';
 import { parseLocalDay, endOfLocalDay } from '@/lib/date-utils';
 import { calculateKPI, getCompletionDateStr } from '@/services/kpiService';
 import { personKeyFromAssignee } from '@/lib/defect-kpi-utils';
+import { resolveCancelledStatus, resolveRejectedStatus } from '@/lib/kpi-rules-resolver';
 import type { EpicRetroSummary, EpicComparisonRow, DeveloperStrengthRow } from './types';
 import { generateDefectRecommendations } from './defectInsights';
 
 function isDone(issue: JiraIssue): boolean {
-    return getStatusCategoryKey(issue) === 'done';
+    if (getStatusCategoryKey(issue) !== 'done') return false;
+    // v1.0.18: 취소·반려는 완료 카운트에서 제외 (KPI 정책과 일치)
+    const statusName = issue.fields.status?.name?.trim() ?? '';
+    if (statusName === resolveCancelledStatus()) return false;
+    if (statusName === resolveRejectedStatus()) return false;
+    return true;
 }
 
 function isInProgress(issue: JiraIssue): boolean {

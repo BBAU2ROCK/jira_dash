@@ -4,6 +4,85 @@
 
 ---
 
+## [1.0.18] 취소·반려 KPI/통계 제외 — 완료 카운트 정직성 강화
+
+### 적용 버전
+- 앱 버전: **1.0.18**
+- 패치 반영일: 2026년 4월
+
+### 배경
+사용자 피드백: "완료한 타스크라고 하더라도 취소나 반려의 경우는 완료 항목에서 제외해줘 + 프로젝트 현황에서도 마찬가지야"
+
+#### 발견된 문제
+Jira의 status 카테고리 매핑상 `취소`·`반려`도 `statusCategory='done'`이라, 기존 KPI가 이를 **완료로 카운트**하던 정직성 이슈:
+
+| Status | statusCategory | v1.0.17까지 | **v1.0.18** |
+|--------|---------------|-----------|-----------|
+| 완료 | done | 완료 ✓ | 완료 ✓ |
+| **취소** | **done** | **완료 ✗** | **분모·분자 모두 제외** |
+| **반려** | **done** | **완료 ✗** | **분모·분자 모두 제외** |
+| 보류 | done | 별도 | 별도 (변경 없음) |
+| 진행 | indeterminate | 진행 | 진행 |
+| 할 일 | new | 대기 | 대기 |
+
+IGMU 실측: 취소 20건, 보류 3건이 모두 done 카테고리에 들어있어 KPI 완료율을 부풀리던 상태였음.
+
+### 수정 — 분모·분자 제외 (agreed-delay 패턴 적용)
+취소·반려는 합의지연 라벨처럼 **분모와 분자 양쪽에서 제외** → 성과 평가에서 완전 제외.
+
+#### 1. 데이터 모델 확장
+- `JIRA_CONFIG.STATUS_NAMES.REJECTED = '반려'` 추가
+- `kpiRulesStore.statusNames.rejected` 필드 추가
+- `resolveRejectedStatus()` resolver 추가
+- `KPIMetrics` 타입에 `cancelledIssues`·`rejectedIssues` 필드 노출 (UI 투명성)
+
+#### 2. `calculateKPI` 흐름 변경
+```ts
+for (const issue of issues) {
+    const isCancelled = statusName === rules.cancelledStatus;
+    const isRejected = statusName === rules.rejectedStatus;
+    if (isCancelled) cancelledIssues++;
+    if (isRejected) rejectedIssues++;
+    if (isCancelled || isRejected) continue; // 분자에서 제외
+    // ... 기존 로직
+}
+const kpiTotal = totalIssues - agreedDelayIssues - cancelledIssues - rejectedIssues; // 분모 차감
+```
+
+#### 3. 프로젝트 현황 탭 (project-stats-dialog)
+- `done` 필터에 `!isRejected` 조건 추가 (이미 isCancelled 제외됨)
+- 6분할 파이차트: 완료·진행·대기·보류·취소·**반려** (보라색)
+- 신규 "반려" StatCard + "반려율" BarStat
+- `completionDenom = total - cancelled - rejected` (KPI와 동일 산식)
+- `isDoneForAssignee` 함수: 보류는 done 포함, 취소·반려는 제외
+
+#### 4. 진행 추이/예측·회고 일관 적용
+- `epicRetro.isDone()` — 취소·반려 제외
+- `perAssigneeForecast.isDone()` — 동일
+- `useBacklogForecast.cycleTimeStats` — done 필터에 취소·반려 제외
+- `effortEstimation.aggregateBacklogEffort` — resolved/active 둘 다 제외
+
+#### 5. 설정 UI
+- `JiraFieldsEditor`: "반려" status 입력란 추가
+
+### 검증
+- vitest 298/298 통과
+- TypeScript strict, ESLint 에러 0
+- IGMU 실측 데이터 기준: 취소 20건이 완료에서 자동 제외되어 KPI 완료율 정직성 향상
+
+### 영향 — 사용자에게 보이는 변화
+v1.0.18 적용 후 IGMU 데이터 기준:
+- KPI 탭 완료율: 분모에서 취소·반려 제외 → 일반적으로 **약간 상승** (취소 task가 분모만 차지하던 효과 제거)
+- 프로젝트 현황 탭: 6분할 파이차트로 **반려가 별도 시각화**
+- 진행 추이/예측 cycle time: 취소된 task 제외로 더 정직한 통계
+
+### 빌드
+```bash
+npm run build          # 1.0.18 .exe + portable 생성
+```
+
+---
+
 ## [1.0.17] Hotfix — 난이도 필드 ID 수정 (10017 → 11624) + 312건 난이도 일괄 등록
 
 ### 적용 버전

@@ -41,7 +41,8 @@ export function JiraFieldsEditor({ labels, statusNames, fields, onLabelsChange, 
                 <div className="text-sm font-semibold text-slate-800 mb-2">Jira 상태 이름</div>
                 <div className="space-y-1.5">
                     <FieldRow label="보류" tip="이 status name의 이슈는 '보류'로 분류. ETA에서 제외." value={statusNames.onHold} onChange={(v) => onStatusNamesChange({ ...statusNames, onHold: v })} />
-                    <FieldRow label="취소" tip="이 status name의 이슈는 '취소'로 분류. 백로그에서 제외." value={statusNames.cancelled} onChange={(v) => onStatusNamesChange({ ...statusNames, cancelled: v })} />
+                    <FieldRow label="취소" tip="이 status name의 이슈는 '취소'로 분류. KPI 분모·분자에서 제외 (성과 평가 X)." value={statusNames.cancelled} onChange={(v) => onStatusNamesChange({ ...statusNames, cancelled: v })} />
+                    <FieldRow label="반려" tip="v1.0.18: 이 status name은 '반려'로 분류. KPI에서 cancelled와 동일하게 제외." value={statusNames.rejected} onChange={(v) => onStatusNamesChange({ ...statusNames, rejected: v })} />
                 </div>
             </div>
             <div>

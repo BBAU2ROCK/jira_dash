@@ -27,6 +27,7 @@ import { classifyScopeStatus, scopeChangeRatio } from './scopeAnalysis';
 import {
     resolveOnHoldStatus,
     resolveCancelledStatus,
+    resolveRejectedStatus,
     resolveFields,
     resolvePredictionConfig,
 } from '@/lib/kpi-rules-resolver';
@@ -50,7 +51,12 @@ function getCreationDate(issue: JiraIssue): Date | null {
 }
 
 function isDone(issue: JiraIssue): boolean {
-    return getStatusCategoryKey(issue) === 'done';
+    if (getStatusCategoryKey(issue) !== 'done') return false;
+    // v1.0.18: 취소·반려는 완료 처리량에서 제외 (KPI 정책과 일치)
+    const statusName = issue.fields.status?.name?.trim() ?? '';
+    if (statusName === resolveCancelledStatus()) return false;
+    if (statusName === resolveRejectedStatus()) return false;
+    return true;
 }
 
 function isOnHold(issue: JiraIssue): boolean {

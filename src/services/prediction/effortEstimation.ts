@@ -23,6 +23,7 @@ import type {
 import { BUSINESS_DAYS_PER_MONTH } from './types';
 import {
     resolveCancelledStatus,
+    resolveRejectedStatus,
     resolvePredictionConfig,
     resolveFields,
 } from '@/lib/kpi-rules-resolver';
@@ -262,12 +263,18 @@ export function aggregateBacklogEffort(
 ): BacklogEffortReport {
     const C = resolvePredictionConfig();
     const cancelledName = resolveCancelledStatus();
+    const rejectedName = resolveRejectedStatus();
     const leaf = filterLeafIssues(allIssues);
-    const resolved = leaf.filter((i) => getStatusCategoryKey(i) === 'done');
+    // v1.0.18: 취소·반려는 done에서 제외 (cycle time 통계 왜곡 방지)
+    const resolved = leaf.filter((i) => {
+        if (getStatusCategoryKey(i) !== 'done') return false;
+        const sn = i.fields.status?.name?.trim() ?? '';
+        return sn !== cancelledName && sn !== rejectedName;
+    });
     const active = leaf.filter((i) => {
         const cat = getStatusCategoryKey(i);
         const name = i.fields.status?.name;
-        return cat !== 'done' && name !== cancelledName;
+        return cat !== 'done' && name !== cancelledName && name !== rejectedName;
     });
 
     const coverage = measureCoverage(resolved);

@@ -4,6 +4,8 @@ import type { JiraIssue } from '@/api/jiraClient';
 import { filterLeafIssues, getStatusCategoryKey } from '@/lib/jira-helpers';
 import {
     resolveOnHoldStatus,
+    resolveCancelledStatus,
+    resolveRejectedStatus,
     resolveDashboardProjectKey,
     resolveFields,
     resolvePredictionConfig,
@@ -168,7 +170,14 @@ export function useBacklogForecast(issues: JiraIssue[], options?: {
 
     const cycleTimeStats = useMemo<CycleTimeStats[] | null>(() => {
         if (!issues) return null;
-        const resolved = filterLeafIssues(issues).filter((i) => getStatusCategoryKey(i) === 'done');
+        // v1.0.18: 취소·반려는 cycle time 통계에서 제외
+        const cancelledName = resolveCancelledStatus();
+        const rejectedName = resolveRejectedStatus();
+        const resolved = filterLeafIssues(issues).filter((i) => {
+            if (getStatusCategoryKey(i) !== 'done') return false;
+            const sn = i.fields.status?.name?.trim() ?? '';
+            return sn !== cancelledName && sn !== rejectedName;
+        });
         // changelog 없는 이슈도 lead time만으로 통계 산출됨
         // 50개 sample (성능 + rate limit 고려)
         const sample = resolved.slice(0, 50);

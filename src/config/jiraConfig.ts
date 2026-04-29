@@ -32,10 +32,18 @@ export const JIRA_CONFIG = {
         AGREED_DELAY: 'agreed-delay', // Label to mark issues as agreed delay
         VERIFICATION_DELAY: 'verification-delay',
     },
-    /** 프로젝트 통계에서 보류·취소로 분류할 상태 이름 (Jira status.name과 일치) */
+    /**
+     * 프로젝트 통계·KPI에서 분류할 상태 이름 (Jira status.name과 일치).
+     *
+     * v1.0.18: REJECTED 추가.
+     *   - CANCELLED/REJECTED: statusCategory='done'이라도 KPI 분모·분자에서 제외
+     *     (agreed-delay 라벨과 동일한 처리. 성과 평가 제외)
+     *   - ON_HOLD: 별도 카운트 (보류는 미완료지만 활성도 아님)
+     */
     STATUS_NAMES: {
         ON_HOLD: '보류',
         CANCELLED: '취소',
+        REJECTED: '반려',
     },
     /** 이번주 시작 요일 — 1 = 월요일 (한국 비즈니스 표준) */
     WEEK_STARTS_ON: 1 as 0 | 1 | 2 | 3 | 4 | 5 | 6,
