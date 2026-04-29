@@ -4,6 +4,55 @@
 
 ---
 
+## [1.0.24] 프로젝트 통계 다크 핫픽스 + 다이얼로그 폭 확장
+
+### 적용 버전
+- 앱 버전: **1.0.24**
+
+### 배경
+v1.0.23에서 `text-{slate|gray}-*`, `bg-{color}-50` 같은 Tailwind 클래스는 토큰 마이그레이션됐으나, `project-stats-dialog.tsx`의 **`StatCard`, `BarStat`, `ClickCell`, `RateBadge` 컴포넌트가 inline `style={{ backgroundColor: '#eff6ff' }}` 같은 hex hard-code 사용** → Tailwind dark variant 적용 불가, 다크 모드에서도 라이트 색이 그대로 노출되는 문제 발견. 또한 반려 카드(7번째)가 6열 그리드라 다음 줄로 떨어지고 사용자가 다이얼로그 폭이 좁다고 지적.
+
+### 핵심 변경
+
+#### 1. StatCard inline hex → Tailwind 토큰
+- `style={{ backgroundColor: '#eff6ff' }}` 등 6개 색 매핑을 클래스 객체로 변환
+- 다크 variant 자동 (`bg-blue-50 dark:bg-blue-950/30`, `border-blue-200 dark:border-blue-900/60`, `text-blue-700 dark:text-blue-300`)
+- `purple` 색 추가 (반려 카드용)
+- hover 효과도 hex inline → Tailwind hover 클래스
+- `card-hover` 유틸 적용 — 시각 일관성
+
+#### 2. 7개 카드 한 줄 정렬
+- `grid-cols-2 sm:grid-cols-3 lg:grid-cols-6` → `grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7`
+- 반려 카드가 다른 6개와 같은 줄에 배치 — 시각적 통일
+
+#### 3. BarStat·ClickCell·RateBadge 토큰화
+- `BarStat`: `style={{ color: '#475569' }}` → `text-foreground/80`, 트랙 `#f1f5f9` → `bg-muted/60`
+- `ClickCell`: hover 색 hex → `hover:bg-accent`, 비활성 색 → `text-muted-foreground/50`
+- `RateBadge`: 9가지 색 매핑을 모두 다크 variant 포함 (`bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300` 등)
+
+#### 4. 다이얼로그 폭 확장
+- `max-w-[1180px]` → **`w-[95vw] max-w-[1600px]`** — 모니터 폭의 95% 사용, 최대 1600px cap
+- `max-h-[90vh]` → `max-h-[92vh]` — 약간 더 넉넉
+- 큰 모니터에서 시원한 화면, 작은 화면에서도 자동 축소
+
+### 영향 — 사용자 체감 변화
+
+| 영역 | v1.0.23 | v1.0.24 |
+|------|---------|---------|
+| KPI 카드 다크 모드 | 라이트 hex 그대로 (어색) | **다크 tint 자동** |
+| 반려 카드 위치 | 6열 그리드라 다음 줄 | **7열 한 줄 정렬** |
+| 다이얼로그 폭 | 1180px 고정 | **95vw / max 1600px (시원)** |
+| BarStat 트랙 색 | #f1f5f9 (라이트만) | **bg-muted/60 토큰** |
+| RateBadge 다크 | 미반영 | **9가지 모두 dark variant** |
+| 카드 hover | filter inline | **card-hover 토큰 일관** |
+
+### 검증
+- TypeScript strict 빌드 통과
+- ESLint 0 errors
+- vitest 298/298 통과
+
+---
+
 ## [1.0.23] 다크모드 일관성 완성 — 전체 화면 토큰 마이그레이션
 
 ### 적용 버전

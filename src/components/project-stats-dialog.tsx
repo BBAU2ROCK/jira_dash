@@ -391,7 +391,8 @@ export function ProjectStatsDialog({
         <>
         <Dialog open={open} onOpenChange={handleStatsDialogOpenChange}>
             <DialogContent
-                className="max-w-[1180px] max-h-[90vh] flex flex-col p-0 overflow-hidden"
+                // v1.0.24: 다이얼로그 폭 확장 — 1180 → 95vw / max 1600px (시원한 화면)
+                className="w-[95vw] max-w-[1600px] max-h-[92vh] flex flex-col p-0 overflow-hidden"
                 onInteractOutside={(e) => {
                     if (epicMappingOpenRef.current) {
                         e.preventDefault();
@@ -466,18 +467,18 @@ export function ProjectStatsDialog({
                             <section className="space-y-4">
                                 <SectionTitle>전체 현황</SectionTitle>
 
-                                {/* 6개 카드: 전체·완료·진행·지연·보류·취소 */}
-                                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                                    <StatCard icon={<Layers className="w-4 h-4 text-blue-500" />}
+                                {/* v1.0.24: 7개 카드 한 줄 (전체·완료·진행·지연·보류·취소·반려) — grid-cols-7 */}
+                                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7">
+                                    <StatCard icon={<Layers className="w-4 h-4 text-blue-500 dark:text-blue-400" />}
                                         label="전체 이슈" value={total} sub="개" color="blue"
                                         onClick={() => openGroup('전체 이슈', leafIssues, '#3b82f6')} />
-                                    <StatCard icon={<CheckCircle2 className="w-4 h-4 text-green-500" />}
+                                    <StatCard icon={<CheckCircle2 className="w-4 h-4 text-green-500 dark:text-green-400" />}
                                         label="완료" value={`${completionRate}%`} sub={`${done.length}/${total}`} color="green"
                                         onClick={() => openGroup('완료 이슈', done, '#22c55e')} />
-                                    <StatCard icon={<Clock className="w-4 h-4 text-amber-500" />}
+                                    <StatCard icon={<Clock className="w-4 h-4 text-amber-500 dark:text-amber-400" />}
                                         label="진행 중" value={inProg.length} sub="개" color="amber"
                                         onClick={() => openGroup('진행 중 이슈', inProg, '#f59e0b')} />
-                                    <StatCard icon={<AlertTriangle className="w-4 h-4 text-red-500" />}
+                                    <StatCard icon={<AlertTriangle className="w-4 h-4 text-red-500 dark:text-red-400" />}
                                         label="지연" value={delayed.length} sub="개" color="red"
                                         onClick={() => openGroup('지연 이슈', delayed, '#ef4444')} />
                                     <StatCard icon={<Pause className="w-4 h-4 text-muted-foreground" />}
@@ -487,8 +488,8 @@ export function ProjectStatsDialog({
                                         label="취소" value={cancelled.length} sub="개" color="slate"
                                         onClick={() => openGroup('취소 이슈', cancelled, '#64748b')} />
                                     {/* v1.0.18: 반려 카드 — KPI에서 제외 */}
-                                    <StatCard icon={<CircleSlash className="w-4 h-4 text-purple-600" />}
-                                        label="반려" value={rejected.length} sub="개" color="slate"
+                                    <StatCard icon={<CircleSlash className="w-4 h-4 text-purple-600 dark:text-purple-400" />}
+                                        label="반려" value={rejected.length} sub="개" color="purple"
                                         onClick={() => openGroup('반려 이슈', rejected, '#a855f7')} />
                                 </div>
 
@@ -1529,83 +1530,108 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
     );
 }
 
+/**
+ * StatCard — v1.0.24: inline hex 색상 → Tailwind 토큰 (다크 모드 자동 대응).
+ * KPI 대시보드 / 프로젝트 현황 카드.
+ */
 function StatCard({ icon, label, value, sub, color, onClick }: {
     icon: React.ReactNode; label: string; value: number | string; sub: string;
-    color: 'blue' | 'green' | 'amber' | 'red' | 'slate'; onClick?: () => void;
+    color: 'blue' | 'green' | 'amber' | 'red' | 'slate' | 'purple'; onClick?: () => void;
 }) {
     const cfg = {
-        blue: { bg: '#eff6ff', hover: '#dbeafe', val: '#1d4ed8', border: '#bfdbfe' },
-        green: { bg: '#f0fdf4', hover: '#dcfce7', val: '#15803d', border: '#bbf7d0' },
-        amber: { bg: '#fffbeb', hover: '#fef3c7', val: '#b45309', border: '#fde68a' },
-        red: { bg: '#fef2f2', hover: '#fee2e2', val: '#b91c1c', border: '#fecaca' },
-        slate: { bg: '#f8fafc', hover: '#f1f5f9', val: '#475569', border: '#e2e8f0' },
+        blue:   { bg: 'bg-blue-50 dark:bg-blue-950/30',     border: 'border-blue-200 dark:border-blue-900/60',     val: 'text-blue-700 dark:text-blue-300',     hover: 'hover:bg-blue-100 dark:hover:bg-blue-950/50' },
+        green:  { bg: 'bg-green-50 dark:bg-green-950/30',   border: 'border-green-200 dark:border-green-900/60',   val: 'text-green-700 dark:text-green-300',   hover: 'hover:bg-green-100 dark:hover:bg-green-950/50' },
+        amber:  { bg: 'bg-amber-50 dark:bg-amber-950/30',   border: 'border-amber-200 dark:border-amber-900/60',   val: 'text-amber-700 dark:text-amber-300',   hover: 'hover:bg-amber-100 dark:hover:bg-amber-950/50' },
+        red:    { bg: 'bg-red-50 dark:bg-red-950/30',       border: 'border-red-200 dark:border-red-900/60',       val: 'text-red-700 dark:text-red-300',       hover: 'hover:bg-red-100 dark:hover:bg-red-950/50' },
+        purple: { bg: 'bg-purple-50 dark:bg-purple-950/30', border: 'border-purple-200 dark:border-purple-900/60', val: 'text-purple-700 dark:text-purple-300', hover: 'hover:bg-purple-100 dark:hover:bg-purple-950/50' },
+        slate:  { bg: 'bg-muted/40',                        border: 'border-border',                                val: 'text-foreground',                       hover: 'hover:bg-muted/60' },
     }[color];
     return (
-        <button onClick={onClick}
-            style={{
-                backgroundColor: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: 12, padding: '12px 16px',
-                display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left', width: '100%', cursor: 'pointer', transition: 'filter 0.15s'
-            }}
-            onMouseEnter={e => (e.currentTarget.style.backgroundColor = cfg.hover)}
-            onMouseLeave={e => (e.currentTarget.style.backgroundColor = cfg.bg)}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#64748b' }}>{icon}{label}</div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: cfg.val }}>{value}</div>
-            <div style={{ fontSize: 12, color: '#94a3b8' }}>{sub}</div>
+        <button
+            onClick={onClick}
+            className={cn(
+                'group rounded-xl border px-4 py-3 flex flex-col gap-1 text-left w-full cursor-pointer card-hover',
+                cfg.bg, cfg.border, cfg.hover
+            )}
+        >
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                {icon}
+                <span className="font-medium">{label}</span>
+            </div>
+            <div className={cn('text-2xl font-bold tabular-nums leading-none', cfg.val)}>{value}</div>
+            <div className="text-xs text-muted-foreground tabular-nums">{sub}</div>
         </button>
     );
 }
 
+/**
+ * BarStat — 진행률 바 (라벨 + 퍼센트 + 트랙). 다크 모드 토큰 사용.
+ */
 function BarStat({ label, pct, color, sub }: { label: string; pct: number; color: string; sub: string }) {
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                <span style={{ fontWeight: 500, color: '#475569' }}>{label}</span>
-                <span style={{ fontWeight: 700, color }}>{pct}%</span>
+        <div className="flex flex-col gap-1">
+            <div className="flex justify-between text-xs">
+                <span className="font-medium text-foreground/80">{label}</span>
+                <span className="font-bold tabular-nums" style={{ color }}>{pct}%</span>
             </div>
-            <div style={{ width: '100%', height: 8, borderRadius: 9999, backgroundColor: '#f1f5f9', overflow: 'hidden' }}>
-                <div style={{ height: '100%', borderRadius: 9999, transition: 'width 0.3s', width: `${pct}%`, backgroundColor: color }} />
+            <div className="w-full h-2 rounded-full bg-muted/60 overflow-hidden">
+                <div
+                    className="h-full rounded-full transition-[width] duration-300"
+                    style={{ width: `${pct}%`, backgroundColor: color }}
+                />
             </div>
-            <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>{sub}</p>
+            <p className="text-xs text-muted-foreground tabular-nums m-0">{sub}</p>
         </div>
     );
 }
 
+/**
+ * ClickCell — 표 안 클릭 가능한 숫자 셀. 다크 hover 토큰 사용.
+ */
 function ClickCell({ value, color, onClick }: { value: number; color: string; onClick: () => void }) {
     return (
         <td className="px-3 py-3 text-center">
-            <button onClick={onClick}
+            <button
+                onClick={onClick}
                 disabled={value === 0}
-                style={{
-                    backgroundColor: 'transparent', border: 'none', borderRadius: 6, padding: '4px 8px',
-                    color: value === 0 ? '#cbd5e1' : color,
-                    fontWeight: 700, fontSize: 14, cursor: value === 0 ? 'not-allowed' : 'pointer',
-                    opacity: value === 0 ? 0.5 : 1, transition: 'background-color 0.15s'
-                }}
-                onMouseEnter={e => { if (value > 0) (e.currentTarget.style.backgroundColor = '#f1f5f9'); }}
-                onMouseLeave={e => { (e.currentTarget.style.backgroundColor = 'transparent'); }}>
+                className={cn(
+                    'rounded-md px-2 py-1 font-bold text-sm tabular-nums transition-colors',
+                    value === 0
+                        ? 'text-muted-foreground/50 cursor-not-allowed'
+                        : 'cursor-pointer hover:bg-accent'
+                )}
+                style={value > 0 ? { color } : undefined}
+            >
                 {value}
             </button>
         </td>
     );
 }
 
+/**
+ * RateBadge — v1.0.24: 등급 색을 Tailwind 토큰화. 다크 모드 자동 대응.
+ */
 function RateBadge({ value, type }: { value: number; type: 'progress' | 'delay' | 'early' }) {
-    const cfg = {
-        progress: value >= 80
-            ? { bg: '#dcfce7', color: '#15803d' }
-            : value >= 50 ? { bg: '#dbeafe', color: '#1d4ed8' } : { bg: '#f1f5f9', color: '#475569' },
-        delay: value === 0
-            ? { bg: '#dcfce7', color: '#15803d' }
-            : value <= 20 ? { bg: '#fef3c7', color: '#b45309' } : { bg: '#fee2e2', color: '#b91c1c' },
-        early: value >= 50
-            ? { bg: '#cffafe', color: '#0e7490' }
-            : value > 0 ? { bg: '#dbeafe', color: '#1d4ed8' } : { bg: '#f1f5f9', color: '#94a3b8' },
-    }[type];
+    const cls =
+        type === 'progress'
+            ? value >= 80
+                ? 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300'
+                : value >= 50
+                    ? 'bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300'
+                    : 'bg-muted/60 text-foreground/80'
+            : type === 'delay'
+                ? value === 0
+                    ? 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300'
+                    : value <= 20
+                        ? 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300'
+                        : 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300'
+                : value >= 50
+                    ? 'bg-cyan-100 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300'
+                    : value > 0
+                        ? 'bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300'
+                        : 'bg-muted/60 text-muted-foreground';
     return (
-        <span style={{
-            display: 'inline-block', borderRadius: 9999, padding: '2px 8px',
-            fontSize: 12, fontWeight: 600, backgroundColor: cfg.bg, color: cfg.color
-        }}>
+        <span className={cn('inline-block rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums', cls)}>
             {value}%
         </span>
     );
