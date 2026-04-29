@@ -3,13 +3,14 @@ import { useQuery } from '@tanstack/react-query';
 import { jiraApi, type JiraIssue } from '@/api/jiraClient';
 import { filterLeafIssues } from '@/lib/jira-helpers';
 import { Sidebar } from '@/components/layout/sidebar';
+import { cn } from '@/lib/utils';
 import { IssueList } from '@/components/issue-list';
 import { IssueDetailDrawer } from '@/components/issue-detail-drawer';
 import { ProjectStatsDialog } from '@/components/project-stats-dialog';
 import { JiraSettingsDialog, type JiraConfig } from '@/components/jira-settings-dialog';
 import { useKpiRulesStore } from '@/stores/kpiRulesStore';
 import { Button } from '@/components/ui/button';
-import { BarChart3, RefreshCw, AlertCircle, Settings, Bug } from 'lucide-react';
+import { BarChart3, RefreshCw, AlertCircle, Settings, Bug, Layers, Sparkles, MousePointerClick } from 'lucide-react';
 import { useEpicMappingStore } from '@/stores/epicMappingStore';
 import { DefectKpiDashboard } from '@/components/defect-kpi-dashboard';
 import { useDefectKpiAggregation } from '@/hooks/useDefectKpiAggregation';
@@ -129,9 +130,19 @@ export function Dashboard() {
         .join(', ');
 
     return (
-        <div className="flex h-screen overflow-hidden bg-background">
+        <div className="flex h-screen overflow-hidden bg-background relative">
+            {/* v1.0.22: Subtle radial glow background — Linear/Vercel 스타일 depth */}
+            <div
+                className="pointer-events-none absolute inset-0 -z-0 opacity-[0.35] dark:opacity-[0.5]"
+                style={{
+                    background:
+                        'radial-gradient(60% 50% at 80% 0%, hsl(var(--primary) / 0.12) 0%, transparent 60%), radial-gradient(50% 40% at 0% 100%, hsl(var(--chart-2) / 0.08) 0%, transparent 60%)',
+                }}
+                aria-hidden
+            />
+
             {/* Sidebar */}
-            <div className={sidebarCollapsed ? 'flex-shrink-0' : 'w-[14%] min-w-[175px] flex-shrink-0'}>
+            <div className={cn('relative z-10', sidebarCollapsed ? 'flex-shrink-0' : 'w-[14%] min-w-[200px] flex-shrink-0')}>
                 <Sidebar
                     epics={epics || []}
                     selectedEpicIds={selectedEpicIds}
@@ -145,69 +156,84 @@ export function Dashboard() {
             </div>
 
             {/* Main Content */}
-            <div className="flex-1 flex flex-col overflow-hidden">
-                {/* Header */}
-                <header className="min-h-16 border-b grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-center px-6 py-2 bg-card">
+            <div className="flex-1 flex flex-col overflow-hidden relative z-10">
+                {/* Header — v1.0.22: glassmorphism + depth */}
+                <header
+                    className={cn(
+                        'min-h-16 grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-center px-6 py-2',
+                        'border-b border-border',
+                        'bg-card/80 supports-[backdrop-filter]:bg-card/60 supports-[backdrop-filter]:backdrop-blur-xl',
+                        'shadow-[0_1px_0_0_hsl(var(--border)),0_4px_12px_-8px_hsl(var(--foreground)/0.1)]'
+                    )}
+                >
                     <div className="flex items-center gap-4 min-w-0">
-                        <h1 className="text-lg font-semibold tracking-tight truncate min-w-0">
+                        <h1 className="text-lg font-semibold tracking-tight truncate min-w-0 text-foreground">
                             {selectedEpicIds.length > 0 ? selectedEpicTitles || '선택된 Epic' : '에픽을 선택하세요'}
                         </h1>
                         {selectedEpicIds.length > 0 && (
-                            <div className="hidden md:flex gap-4 text-sm text-muted-foreground border-l pl-4 shrink-0">
-                                <span className="font-medium text-foreground">{issueCount} 이슈</span>
-                                <span>{totalSP} SP</span>
+                            <div className="hidden md:flex items-center gap-4 text-sm border-l border-border pl-4 shrink-0">
+                                <span className="flex items-baseline gap-1 text-muted-foreground">
+                                    <span className="tabular-nums font-semibold text-foreground">{issueCount}</span>
+                                    이슈
+                                </span>
+                                <span className="flex items-baseline gap-1 text-muted-foreground">
+                                    <span className="tabular-nums font-semibold text-foreground">{totalSP}</span>
+                                    SP
+                                </span>
                                 {selectedEpicIds.length > 1 && (
-                                    <span className="text-blue-600 font-medium">({selectedEpicIds.length}개 Epic)</span>
+                                    <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-primary/10 text-primary tabular-nums">
+                                        {selectedEpicIds.length}개 Epic
+                                    </span>
                                 )}
                             </div>
                         )}
                     </div>
-                    <div className="flex items-center gap-2 sm:gap-3 shrink-0 justify-self-end">
+                    <div className="flex items-center gap-2 shrink-0 justify-self-end">
                         <Button
-                            variant="outline"
-                            size="default"
+                            variant="ghost"
+                            size="sm"
                             onClick={() => setSettingsOpen(true)}
                             title="Jira 연결 설정"
+                            className="h-8"
                         >
-                            <Settings className="h-4 w-4 mr-2" />
-                            설정
+                            <Settings className="h-4 w-4 mr-1.5" />
+                            <span className="hidden sm:inline">설정</span>
                         </Button>
                         <Button
-                            variant="outline"
-                            size="default"
+                            variant="ghost"
+                            size="sm"
                             onClick={() => setDefectKpiOpen(true)}
                             title="개발자별 중요 결함 KPI"
+                            className="h-8"
                         >
-                            <Bug className="h-4 w-4 mr-2" />
-                            결함 KPI
+                            <Bug className="h-4 w-4 mr-1.5" />
+                            <span className="hidden sm:inline">결함 KPI</span>
                         </Button>
                         <Button
                             variant="default"
-                            size="default"
+                            size="sm"
                             disabled={!issues || issues.length === 0}
                             onClick={() => setStatsOpen(true)}
-                            className="bg-blue-500 text-white shadow-sm hover:bg-blue-600"
+                            className="h-8 shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.4)]"
                         >
-                            <BarChart3 className="h-4 w-4 mr-2 text-white" />
-                            <span className="text-white">프로젝트 통계</span>
+                            <BarChart3 className="h-4 w-4 mr-1.5" />
+                            프로젝트 통계
                         </Button>
                         <Button
-                            variant="secondary"
+                            variant="outline"
                             size="icon"
                             onClick={() => refetch()}
                             disabled={selectedEpicIds.length === 0}
                             title="새로고침"
-                            className="bg-gray-500 text-white shadow-sm hover:bg-gray-600"
+                            className="h-8 w-8"
                         >
-                            <RefreshCw
-                                className={`h-4 w-4 text-white ${isFetching ? 'animate-spin' : ''}`}
-                            />
+                            <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
                         </Button>
                     </div>
                 </header>
 
                 {/* Content */}
-                <div className="flex-1 overflow-auto p-6 bg-muted/10">
+                <div className="flex-1 overflow-auto p-6">
                     {issuesError ? (
                         <div className="bg-destructive/10 text-destructive p-4 rounded-lg flex items-center gap-2 border border-destructive/20">
                             <AlertCircle className="h-5 w-5" />
@@ -217,7 +243,7 @@ export function Dashboard() {
                             </div>
                         </div>
                     ) : selectedEpicIds.length > 0 ? (
-                        <div className="bg-background rounded-lg border shadow-sm overflow-hidden">
+                        <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
                             <IssueList
                                 issues={issues || []}
                                 isLoading={issuesLoading}
@@ -230,8 +256,30 @@ export function Dashboard() {
                             />
                         </div>
                     ) : (
-                        <div className="flex items-center justify-center h-full text-muted-foreground">
-                            에픽을 선택하여 이슈를 확인하세요.
+                        // v1.0.22: Hero EmptyState — 일러스트 + CTA
+                        <div className="flex items-center justify-center h-full">
+                            <div className="text-center max-w-md mx-auto">
+                                {/* Animated icon stack */}
+                                <div className="relative mx-auto mb-6 w-24 h-24">
+                                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary/20 via-primary/10 to-transparent blur-2xl" />
+                                    <div className="relative w-full h-full rounded-2xl border border-border bg-card/60 supports-[backdrop-filter]:backdrop-blur-md flex items-center justify-center shadow-lg">
+                                        <Layers className="h-10 w-10 text-primary" />
+                                        <span className="absolute -top-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md">
+                                            <Sparkles className="h-3 w-3" />
+                                        </span>
+                                    </div>
+                                </div>
+                                <h2 className="text-xl font-semibold tracking-tight text-foreground mb-2">
+                                    분석할 에픽을 선택해주세요
+                                </h2>
+                                <p className="text-sm text-muted-foreground leading-relaxed mb-6">
+                                    좌측 사이드바에서 에픽을 선택하면 이슈 목록·KPI·진행 추이/예측·회고 분석을 한눈에 확인할 수 있습니다.
+                                </p>
+                                <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground">
+                                    <MousePointerClick className="h-3.5 w-3.5 text-primary" />
+                                    여러 에픽을 동시에 선택하여 비교 분석도 가능합니다
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>

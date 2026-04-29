@@ -4,6 +4,82 @@
 
 ---
 
+## [1.0.22] 다크모드 가독성 핫픽스 + 프리미엄 마감
+
+### 적용 버전
+- 앱 버전: **1.0.22**
+- 패치 반영일: 2026년 4월
+
+### 배경
+v1.0.21에서 디자인 토큰 시스템을 정립했지만 **이미 작성된 코드의 hard-code 색상이 토큰을 거치지 않아** 다크모드에서 가독성이 박살. 사용자 화면 캡처 확인 결과:
+- Sidebar 비선택 카드 텍스트가 거의 안 보임 (`text-gray-500/700/800/900` 그대로)
+- 메인 빈 영역이 새까만 사막 (placeholder 텍스트 한 줄)
+- 헤더가 평면적 (depth/shadow 없음)
+- 사이드바와 메인의 시각적 분리감 없음
+
+→ 즉시 핫픽스 + 프리미엄 마감.
+
+### 핵심 변경
+
+#### 1. Sidebar 카드 전면 리뉴얼 — `src/components/layout/sidebar.tsx`
+- 모든 `text-gray-*`/`bg-blue-500`/`bg-transparent` hard-code → 토큰 (`text-foreground/90`, `bg-primary/[0.08]`, `bg-accent/40`)
+- 선택 카드: **좌측 3px primary strip** + `ring shadow` + tint 배경 (`bg-primary/[0.08]`) + 좌측 패딩 보정
+- 비선택 카드: `bg-card hover:bg-accent/40`, `border-border/60 hover:border-border`, hover 시 `shadow-sm`
+- Badge 가독성 강화 (선택 시 `bg-primary/15 text-primary`, 비선택 시 `text-foreground/80`)
+- Sidebar 컨테이너에 `bg-gradient-to-b from-card to-card/60` + 백드롭 블러 + `border-r border-border` (분리감)
+- Epics 헤더 아이콘 컨테이너 (`p-1.5 bg-primary/10`) 추가
+
+#### 2. Dashboard 헤더 glassmorphism — `src/pages/dashboard.tsx`
+- `bg-card/80 supports-[backdrop-filter]:bg-card/60 backdrop-blur-xl` (반투명 + 블러)
+- `shadow-[0_1px_0_0_hsl(var(--border)),0_4px_12px_-8px_hsl(var(--foreground)/0.1)]` — subtle depth
+- 메타 정보 ("이슈/SP/Epic 개수") tabular-nums + Pill 배지
+- 버튼 hard-code (`bg-blue-500`, `bg-gray-500`) 제거 → variant 시스템 활용
+- 버튼 사이즈 `default` → `sm` (h-8) — 헤더 컴팩트화
+
+#### 3. 메인 Hero EmptyState
+- 단순 텍스트 1줄 → **일러스트 + 제목 + 설명 + CTA hint**
+- Layers 아이콘 컨테이너 (rounded-2xl, gradient blur backdrop, Sparkles 보조 아이콘)
+- 제목: "분석할 에픽을 선택해주세요"
+- 설명: 한 줄에 분석 가능 영역 모두 안내 (이슈·KPI·진행 추이·회고)
+- Pill hint: MousePointerClick 아이콘 + "여러 에픽 동시 선택 비교 분석" 안내
+
+#### 4. 다크모드 색상 토큰 대비 강화 — `src/index.css`
+- `--background`: 222 47% 5% → 224 47% 6% (살짝 따뜻한 검정)
+- `--card`/`--popover`: 222 47% 8% → 222 33% 11% (background와 분리감 ↑)
+- `--muted-foreground`: 215 20% 65% → 215 25% 75% (보조 텍스트 가독성 ↑)
+- `--border`: 217 33% 18% → 217 33% 22% (카드 boundary 명확)
+- `--accent`: 217 33% 17% → 217 33% 20% (hover 피드백 명확)
+- `--primary`: 217 91% 60% → 217 91% 65% (다크에서 살짝 글로우)
+
+#### 5. Radial gradient 배경 (Linear 스타일)
+- Dashboard `<div>` 안에 absolute positioned radial gradient 2개:
+  - 우상단: primary tint (60% × 50%, 12% opacity)
+  - 좌하단: chart-2 (emerald) tint (50% × 40%, 8% opacity)
+- `opacity-[0.35] dark:opacity-[0.5]` — 라이트는 미세, 다크에서 더 깊이감
+
+#### 6. 콘텐츠 카드 토큰화
+- `bg-background rounded-lg border` → `bg-card rounded-xl border-border shadow-sm`
+- `bg-muted/10` 메인 영역 배경 제거 (gradient가 대신함)
+
+### 영향 — 사용자 체감 변화
+
+| 영역 | v1.0.21 | v1.0.22 |
+|------|---------|---------|
+| 사이드바 비선택 카드 가독성 | **거의 안 보임** | **선명** (text-foreground/90) |
+| 사이드바 선택 카드 강조 | bg-blue 단색 | **strip + ring + glow + tint** |
+| 메인 빈 영역 | 텍스트 한 줄 | **일러스트 + CTA** |
+| 헤더 depth | 평면 | **glassmorphism + shadow** |
+| 사이드바·메인 분리 | 없음 | **gradient bg + border** |
+| 다크 배경 | 단조로운 검정 | **radial glow gradient** |
+| 버튼 색상 일관성 | hard-code 혼재 | **variant 시스템 통일** |
+
+### 검증
+- TypeScript strict 빌드 통과
+- ESLint **0 errors** (13 기존 warnings)
+- vitest **298/298 통과**
+
+---
+
 ## [1.0.21] UI 세련화 대형 패스 — 디자인 시스템 정립
 
 ### 적용 버전

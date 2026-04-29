@@ -1,7 +1,7 @@
 {
   "name": "01_jira_dash",
   "private": true,
-  "version": "1.0.21",
+  "version": "1.0.22",
   "description": "Jira Dashboard Application",
   "author": "Okestro",
   "type": "module",
@@ -106,7 +106,7 @@
       }
     ],
     "releaseInfo": {
-      "releaseNotes": "v1.0.21 — UI 세련화 대형 패스: Pretendard 한글 폰트, 디자인 토큰 정리(색·shadow·radius), 차트 색상 토큰화, 다크모드 토글, 카드 hover, 섹션 accent bar, Skeleton loading."
+      "releaseNotes": "v1.0.22 — 다크모드 가독성 핫픽스 + 프리미엄 마감: Sidebar 카드 토큰화·선택 ring·glow, 헤더 glassmorphism, 메인 Hero EmptyState (일러스트 + CTA), radial gradient 배경, 다크 토큰 대비 강화."
     },
     "win": {
       "target": [

@@ -89,36 +89,38 @@
 }
 
 .dark {
-  /* 다크 모드 — 모던 한 검정(slate-950 기반) */
-  --background: 222 47% 5%;
+  /* 다크 모드 — Linear/Vercel 풍 깊이감 있는 검정.
+   * background는 가장 어두움, card/popover는 한 톤 밝게 (분리감).
+   * foreground는 거의 흰색, muted-foreground는 충분히 밝음 (가독성). */
+  --background: 224 47% 6%;
   --foreground: 210 40% 98%;
-  --card: 222 47% 8%;
+  --card: 222 33% 11%;
   --card-foreground: 210 40% 98%;
-  --popover: 222 47% 8%;
+  --popover: 222 33% 11%;
   --popover-foreground: 210 40% 98%;
 
-  --primary: 217 91% 60%;              /* blue-500 (살짝 밝게) */
-  --primary-foreground: 222 47% 11%;
+  --primary: 217 91% 65%;              /* 살짝 더 밝게 — 다크에서 글로우 */
+  --primary-foreground: 224 47% 8%;
 
-  --secondary: 217 33% 17%;
+  --secondary: 217 33% 18%;
   --secondary-foreground: 210 40% 98%;
-  --muted: 217 33% 17%;
-  --muted-foreground: 215 20% 65%;
-  --accent: 217 33% 17%;
+  --muted: 217 33% 16%;
+  --muted-foreground: 215 25% 75%;     /* 65 → 75 — 가독성 강화 (보조 텍스트도 또렷) */
+  --accent: 217 33% 20%;
   --accent-foreground: 210 40% 98%;
 
-  --success: 142 71% 45%;
-  --success-foreground: 0 0% 100%;
-  --warning: 38 92% 55%;
-  --warning-foreground: 222 47% 11%;
-  --destructive: 0 72% 51%;
+  --success: 142 65% 55%;
+  --success-foreground: 224 47% 8%;
+  --warning: 38 92% 60%;
+  --warning-foreground: 224 47% 8%;
+  --destructive: 0 72% 60%;
   --destructive-foreground: 210 40% 98%;
-  --info: 199 89% 55%;
-  --info-foreground: 222 47% 11%;
+  --info: 199 89% 60%;
+  --info-foreground: 224 47% 8%;
 
-  --border: 217 33% 18%;
-  --input: 217 33% 20%;
-  --ring: 217 91% 60%;
+  --border: 217 33% 22%;               /* 18 → 22 — 카드 boundary 명확 */
+  --input: 217 33% 22%;
+  --ring: 217 91% 65%;
 
   --chart-1: 217 91% 60%;
   --chart-2: 142 71% 50%;
