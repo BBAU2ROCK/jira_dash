@@ -4,6 +4,104 @@
 
 ---
 
+## [1.0.21] UI 세련화 대형 패스 — 디자인 시스템 정립
+
+### 적용 버전
+- 앱 버전: **1.0.21**
+- 패치 반영일: 2026년 4월
+
+### 배경
+v1.0.20까지 산업 표준 수준(8/10)이었으나 "프리미엄 SaaS 수준"(9.5/10)으로 가기 위한 디자인 시스템 정립. Linear·Notion·Vercel 같은 모던 SaaS 디자인 패턴 적용.
+
+### Tier A — 즉시 효과 큰 핵심 (4)
+
+#### 1. Vite 기본 템플릿 잔재 제거
+- `src/index.css`에서 Vite 기본 `a` 보라색(#646cff), 전역 `button` padding/border, `h1` 3.2em, `body` flex layout 모두 제거 → shadcn 컴포넌트와 충돌 해소
+
+#### 2. Pretendard 한글 폰트 도입
+- `index.html`: jsdelivr CDN preconnect + variable font 로드 (gzip ~92KB)
+- `index.css`: 한글 우선 폰트 스택 (`Pretendard Variable, system-ui, Apple SD Gothic Neo, Noto Sans KR, Malgun Gothic`)
+- letter-spacing -0.01em 추가 (한글 미세 조정)
+
+#### 3. 차트 색상 토큰화
+- `src/lib/chart-tokens.ts` 신규 — `CHART.{primary,success,warning,danger,neutral,grid,axisText,...}` 형태 hsl(var(--chart-N)) 래퍼
+- DailyCompletionChart, ForecastFunnelChart, WorkloadScatter, defect-kpi-dashboard의 hard-code (#2563eb, #ef4444 등) 일괄 토큰 교체
+- 차트 tooltip 도 토큰화 (배경·border·shadow)
+
+#### 4. 카드 hover 마이크로 인터랙션
+- `.card-hover` 유틸 클래스 — `transition: box-shadow + border-color + transform 200ms`
+- BacklogStateCards: 그룹 hover 시 아이콘 scale-110, shadow-md
+- 모든 차트 카드에도 일관 적용
+
+### Tier B — 세련도 향상 (4)
+
+#### 5. shadcn Card 컴포넌트 강화
+- `interactive` prop (자동 card-hover), `compact` prop (작은 padding)
+- `tracking-tight`, `leading-tight` 일관 적용
+
+#### 6. 섹션 헤더 accent bar 리뉴얼
+- `CategorySection.tsx` 전면 리뉴얼:
+  - 좌측 3px colored strip (Linear/Notion 스타일)
+  - 1px border (전 2px) — 시각 노이즈 감소
+  - icon container 다크모드 자동 (`bg-blue-100 dark:bg-blue-950/40`)
+  - shadow-sm + hover:shadow-md — 미세 lift
+  - emerald, rose accent 추가 (8개 색)
+
+#### 7. Skeleton loading
+- `src/components/ui/skeleton.tsx` 신규 — Skeleton, SkeletonStatCard, SkeletonChart, SkeletonRow, SkeletonSection
+- shimmer 애니메이션 (`@keyframes shimmer`)
+- BacklogStateCards에 적용 (spinner 대체) → layout shift 0
+
+#### 8. 숫자 통일
+- `tabular-nums` 자동 적용 클래스 (`.tabular`, `[class*="tabular-nums"]`)
+- font-feature-settings: rlig + calt + ss03 (Pretendard 미세 조정)
+
+### Tier C — 프리미엄 마감 (2)
+
+#### 9. 다크모드 토글 (light / dark / system)
+- `displayPreferenceStore`에 `theme`, `setTheme`, `cycleTheme` 추가 (persist)
+- `applyTheme()` 헬퍼 — `documentElement.classList.toggle('dark')` + `meta[theme-color]` 동기화
+- `App.tsx`: 부팅 시 + theme 변경 시 + system 모드일 때 `prefers-color-scheme` 미디어 쿼리 변경 감지
+- `<ThemeToggle>` 컴포넌트 — 진행 추이/예측 헤더 배치, sun/moon/monitor 아이콘 순환
+- `index.css` `.dark` 변수 완전 정의 (전 oklch 일부만 → 전체 HSL 통일)
+
+#### 10. 차트 fontFamily inherit
+- `CHART_FONT` 토큰: `fontFamily: 'inherit'` — recharts 기본 'sans-serif' → 시스템 폰트 통일
+- fontSize 10 → 11 (가독성)
+- fill: muted-foreground 토큰
+
+### 디자인 토큰 추가
+- 신규 semantic colors: `--success`, `--warning`, `--info` (전 destructive만 있던 것)
+- shadow tokens: `--shadow-sm/md/lg` (다크모드는 더 진한 alpha)
+- radius: 0.625rem (전 0.5rem) — 살짝 부드럽게
+- 스크롤바 커스텀 (8px, border 토큰)
+- ::selection 색 (primary 0.2 alpha)
+- focus ring 통일 (2px outline + 2px offset)
+
+### 검증
+- TypeScript strict 빌드 통과
+- ESLint **0 errors** (13 기존 warnings, 무관)
+- vitest **298/298 통과**
+
+### 영향 — 사용자 가시 변화
+| 영역 | v1.0.20 | v1.0.21 |
+|------|---------|---------|
+| 한글 가독성 | system-ui (영문 우선) | **Pretendard variable** |
+| 차트 색상 일관성 | hard-code 7+ 위치 | **단일 토큰 시스템** |
+| 카드 인터랙션 | 정적 | **hover lift + scale** |
+| 섹션 헤더 | 2px border + bg tint | **좌측 strip + 미세 shadow** |
+| 다크모드 | 미지원 | **3 모드 토글** (light/dark/system) |
+| 로딩 상태 | "데이터 로딩 중..." 텍스트 | **Skeleton (layout shift 0)** |
+| 색 의미론 | destructive만 | **success/warning/info/destructive** |
+| Vite 잔재 | a 보라색·h1 3.2em·flex body | **모두 제거** |
+
+### 빌드
+```bash
+npm run build          # 1.0.21 .exe + portable
+```
+
+---
+
 ## [1.0.20] 정밀분석 후속 — 성능·구조·UX 일관성 보강
 
 ### 적용 버전

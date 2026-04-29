@@ -1,7 +1,7 @@
 {
   "name": "01_jira_dash",
   "private": true,
-  "version": "1.0.20",
+  "version": "1.0.21",
   "description": "Jira Dashboard Application",
   "author": "Okestro",
   "type": "module",
@@ -106,7 +106,7 @@
       }
     ],
     "releaseInfo": {
-      "releaseNotes": "v1.0.20 — Web Worker(Monte Carlo offload) 실제 연결, 큰 컴포넌트 분해, useMemo selector 안정화, UX 일관성(Empty State·hover·시간 표기·색맹 보조·truncate) 폴리싱."
+      "releaseNotes": "v1.0.21 — UI 세련화 대형 패스: Pretendard 한글 폰트, 디자인 토큰 정리(색·shadow·radius), 차트 색상 토큰화, 다크모드 토글, 카드 hover, 섹션 accent bar, Skeleton loading."
     },
     "win": {
       "target": [

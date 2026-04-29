@@ -2,6 +2,7 @@ import type { BacklogStateCounts } from '@/services/prediction/types';
 import { cn } from '@/lib/utils';
 import { Layers, Activity, PauseCircle, UserMinus, CheckCircle2, FileX } from 'lucide-react';
 import { InfoTip } from '@/components/ui/info-tip';
+import { SkeletonStatCard } from '@/components/ui/skeleton';
 import { UNASSIGNED_LABEL } from '@/lib/jira-constants';
 
 interface CardProps {
@@ -26,23 +27,28 @@ const COLOR_CLASS: Record<CardProps['color'], { bg: string; text: string; icon: 
 function StateCard({ label, value, Icon, color, sublabel, tip }: CardProps) {
     const c = COLOR_CLASS[color];
     return (
-        <div className={cn('rounded-lg border border-slate-200 p-3', c.bg)}>
+        <div className={cn('group rounded-lg border border-slate-200/70 p-3 card-hover', c.bg)}>
             <div className="flex items-center gap-2">
-                <Icon className={cn('h-4 w-4', c.icon)} />
-                <span className={cn('text-xs font-medium', c.text)}>
+                <Icon className={cn('h-4 w-4 transition-transform group-hover:scale-110', c.icon)} />
+                <span className={cn('text-xs font-medium tracking-tight', c.text)}>
                     {label}
                     {tip && <InfoTip>{tip}</InfoTip>}
                 </span>
             </div>
-            <div className={cn('mt-1 text-2xl font-bold tabular-nums', c.text)}>{value}</div>
-            {sublabel && <div className="text-[11px] text-slate-500 mt-0.5">{sublabel}</div>}
+            <div className={cn('mt-1 text-2xl font-bold tabular-nums leading-none', c.text)}>{value}</div>
+            {sublabel && <div className="text-[11px] text-slate-500 mt-1 tabular-nums">{sublabel}</div>}
         </div>
     );
 }
 
 export function BacklogStateCards({ counts }: { counts: BacklogStateCounts | null }) {
     if (!counts) {
-        return <div className="text-sm text-slate-500 py-4">데이터 로딩 중...</div>;
+        // v1.0.21: spinner 대신 skeleton — layout shift 0
+        return (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                {Array.from({ length: 6 }).map((_, i) => <SkeletonStatCard key={i} />)}
+            </div>
+        );
     }
     return (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">

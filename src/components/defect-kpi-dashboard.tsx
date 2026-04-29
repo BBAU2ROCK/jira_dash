@@ -148,7 +148,7 @@ export function DefectKpiDashboard({
                                         }
                                     />
                                     <Legend />
-                                    <Bar dataKey="결함" fill="#ef4444" name="결함 등록 건수" radius={[4, 4, 0, 0]} />
+                                    <Bar dataKey="결함" fill="hsl(var(--chart-4))" name="결함 등록 건수" radius={[4, 4, 0, 0]} />
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>

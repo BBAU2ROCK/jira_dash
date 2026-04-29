@@ -1,5 +1,6 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import type { DailyPoint } from '@/services/prediction/types';
+import { CHART, CHART_FONT } from '@/lib/chart-tokens';
 
 interface Props {
     series: DailyPoint[] | null;
@@ -9,9 +10,9 @@ interface Props {
 export function DailyCompletionChart({ series, title = '일별 완료 추이 (최근 30일)' }: Props) {
     if (!series || series.length === 0) {
         return (
-            <div className="rounded-lg border border-slate-200 bg-white p-4">
-                <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
-                <p className="mt-2 text-sm text-slate-500">데이터 없음</p>
+            <div className="rounded-lg border border-border bg-card p-4 card-hover">
+                <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+                <p className="mt-2 text-sm text-muted-foreground">데이터 없음</p>
             </div>
         );
     }
@@ -23,12 +24,12 @@ export function DailyCompletionChart({ series, title = '일별 완료 추이 (�
     const max = Math.max(...series.map((p) => p.count), 1);
 
     return (
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="rounded-lg border border-border bg-card p-4 card-hover">
             <div className="flex items-baseline justify-between">
-                <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
-                <div className="text-xs text-slate-500">
-                    합계 <span className="font-semibold text-slate-700">{total}건</span> · 최대{' '}
-                    <span className="font-semibold text-slate-700">{max}건/일</span>
+                <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+                <div className="text-xs text-muted-foreground">
+                    합계 <span className="font-semibold text-foreground tabular-nums">{total}</span>건 · 최대{' '}
+                    <span className="font-semibold text-foreground tabular-nums">{max}</span>건/일
                 </div>
             </div>
             <div
@@ -38,15 +39,33 @@ export function DailyCompletionChart({ series, title = '일별 완료 추이 (�
             >
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-slate-100" />
-                        <XAxis dataKey="date" tick={{ fontSize: 10 }} interval={Math.ceil(data.length / 10)} />
-                        <YAxis allowDecimals={false} tick={{ fontSize: 10 }} width={24} />
+                        <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} />
+                        <XAxis
+                            dataKey="date"
+                            tick={CHART_FONT}
+                            interval={Math.ceil(data.length / 10)}
+                            stroke={CHART.axisLine}
+                        />
+                        <YAxis
+                            allowDecimals={false}
+                            tick={CHART_FONT}
+                            width={24}
+                            stroke={CHART.axisLine}
+                        />
                         <Tooltip
-                            cursor={{ fill: '#f1f5f9' }}
+                            cursor={{ fill: CHART.cursor }}
+                            contentStyle={{
+                                background: CHART.tooltipBg,
+                                border: `1px solid ${CHART.tooltipBorder}`,
+                                borderRadius: 8,
+                                fontSize: 12,
+                                padding: '6px 10px',
+                                boxShadow: 'var(--shadow-md)',
+                            }}
                             formatter={(v) => [`${v}건`, '완료']}
                             labelFormatter={(d) => `${d}`}
                         />
-                        <Bar dataKey="count" fill="#2563eb" radius={[2, 2, 0, 0]} name="완료" />
+                        <Bar dataKey="count" fill={CHART.primary} radius={[3, 3, 0, 0]} name="완료" />
                     </BarChart>
                 </ResponsiveContainer>
             </div>

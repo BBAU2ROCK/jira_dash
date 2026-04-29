@@ -13,12 +13,13 @@ import {
 import type { TeamForecast, WorkloadQuadrant } from '@/services/prediction/types';
 import { useDisplayPreferenceStore } from '@/stores/displayPreferenceStore';
 import { buildAnonymizeMap, maybeAnonymize } from '@/lib/anonymize';
+import { CHART, CHART_FONT } from '@/lib/chart-tokens';
 
 const QUADRANT_COLOR: Record<WorkloadQuadrant, string> = {
-    overload: '#ef4444',  // 좌상 — 과부하
-    focus:    '#f59e0b',  // 우상 — 집중 필요
-    capacity: '#94a3b8',  // 좌하 — 여유
-    fast:     '#10b981',  // 우하 — 고속
+    overload: CHART.overload,  // 좌상 — 과부하 (red)
+    focus:    CHART.focus,     // 우상 — 집중 필요 (amber)
+    capacity: CHART.capacity,  // 좌하 — 여유 (slate)
+    fast:     CHART.fast,      // 우하 — 고속 (emerald)
 };
 
 // v1.0.20 색맹 대응 — 색상에 더해 모양으로도 4분위 구분 가능 (WCAG 1.4.1).
@@ -100,10 +101,10 @@ export function WorkloadScatter({ team }: Props) {
     data.forEach((p) => grouped[p.quadrant].push(p));
 
     return (
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="rounded-lg border border-border bg-card p-4 card-hover">
             <div className="flex items-baseline justify-between mb-2">
-                <h3 className="text-sm font-semibold text-slate-800">워크로드 4분위</h3>
-                <div className="flex items-center gap-3 text-[10px] text-slate-500">
+                <h3 className="text-sm font-semibold text-foreground">워크로드 4분위</h3>
+                <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
                     {(['overload', 'focus', 'capacity', 'fast'] as WorkloadQuadrant[]).map((q) => (
                         <span key={q} className="flex items-center gap-1">
                             <QuadrantMarker quadrant={q} />
@@ -119,38 +120,43 @@ export function WorkloadScatter({ team }: Props) {
             >
                 <ResponsiveContainer width="100%" height="100%">
                     <ScatterChart margin={{ top: 8, right: 16, left: 0, bottom: 24 }}>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-slate-100" />
+                        <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} />
                         <XAxis
                             type="number"
                             dataKey="x"
                             name="일평균"
-                            tick={{ fontSize: 10 }}
-                            label={{ value: '일평균 처리량', position: 'insideBottom', offset: -8, fontSize: 11 }}
+                            tick={CHART_FONT}
+                            stroke={CHART.axisLine}
+                            label={{ value: '일평균 처리량', position: 'insideBottom', offset: -8, ...CHART_FONT }}
                         />
                         <YAxis
                             type="number"
                             dataKey="y"
                             name="잔여"
-                            tick={{ fontSize: 10 }}
+                            tick={CHART_FONT}
+                            stroke={CHART.axisLine}
                             allowDecimals={false}
-                            label={{ value: '잔여 건수', angle: -90, position: 'insideLeft', fontSize: 11 }}
+                            label={{ value: '잔여 건수', angle: -90, position: 'insideLeft', ...CHART_FONT }}
                         />
                         <ZAxis range={[100, 100]} />
-                        <ReferenceLine x={medianX} stroke="#cbd5e1" strokeDasharray="3 3" />
-                        <ReferenceLine y={medianY} stroke="#cbd5e1" strokeDasharray="3 3" />
+                        <ReferenceLine x={medianX} stroke={CHART.axisLine} strokeDasharray="3 3" />
+                        <ReferenceLine y={medianY} stroke={CHART.axisLine} strokeDasharray="3 3" />
                         <Tooltip
                             cursor={{ strokeDasharray: '3 3' }}
                             content={({ active, payload }) => {
                                 if (!active || !payload || payload.length === 0) return null;
                                 const p = payload[0].payload as ChartPoint;
                                 return (
-                                    <div className="rounded-md border border-slate-200 bg-white p-2 shadow-sm text-xs">
-                                        <div className="font-semibold text-slate-800">{p.fullName}</div>
-                                        <div className="text-slate-600 mt-1">
-                                            잔여 <strong>{p.y}</strong>건 · 일평균 <strong>{p.x}</strong>건
+                                    <div
+                                        className="rounded-md border bg-popover p-2 text-xs"
+                                        style={{ borderColor: CHART.tooltipBorder, boxShadow: 'var(--shadow-md)' }}
+                                    >
+                                        <div className="font-semibold text-foreground">{p.fullName}</div>
+                                        <div className="text-foreground/80 mt-1">
+                                            잔여 <strong className="tabular-nums">{p.y}</strong>건 · 일평균 <strong className="tabular-nums">{p.x}</strong>건
                                         </div>
-                                        <div className="text-slate-500 mt-0.5">
-                                            활동 {p.activeDays}일 · {QUADRANT_LABEL[p.quadrant]}
+                                        <div className="text-muted-foreground mt-0.5">
+                                            활동 <span className="tabular-nums">{p.activeDays}</span>일 · {QUADRANT_LABEL[p.quadrant]}
                                         </div>
                                     </div>
                                 );
@@ -170,7 +176,7 @@ export function WorkloadScatter({ team }: Props) {
                     </ScatterChart>
                 </ResponsiveContainer>
             </div>
-            <p className="text-[11px] text-slate-500 mt-2">
+            <p className="text-[11px] text-muted-foreground mt-2">
                 * 점선 = 중앙값. 좌상(과부하) → 도움 필요, 우상(집중 필요) → 진행 잘됨, 좌하(여유) → 추가 할당 가능, 우하(고속) → 다음 작업 준비.
             </p>
         </div>

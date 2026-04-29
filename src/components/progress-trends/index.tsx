@@ -3,6 +3,7 @@ import { useBacklogForecast } from '@/hooks/useBacklogForecast';
 import { useDefectKpiAggregation } from '@/hooks/useDefectKpiAggregation';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { cn } from '@/lib/utils';
 import {
     AlertCircle,
@@ -128,12 +129,13 @@ export function ProgressTrends({ issues, selectedEpicIds, epics }: ProgressTrend
                     </span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                    <ThemeToggle />
                     <Button
                         variant="outline"
                         size="sm"
                         onClick={toggleAnonymize}
                         title={anonymizeMode ? '실명 모드로 전환' : '익명 모드로 전환 (외부 공유 시)'}
-                        className={cn(anonymizeMode && 'bg-amber-50 border-amber-300 text-amber-800')}
+                        className={cn(anonymizeMode && 'bg-amber-50 border-amber-300 text-amber-800 dark:bg-amber-950/40 dark:border-amber-700 dark:text-amber-200')}
                     >
                         {anonymizeMode ? (
                             <><EyeOff className="h-3.5 w-3.5 mr-1" /> 익명</>
