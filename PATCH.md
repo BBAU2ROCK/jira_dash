@@ -4,6 +4,70 @@
 
 ---
 
+## [1.0.20] 정밀분석 후속 — 성능·구조·UX 일관성 보강
+
+### 적용 버전
+- 앱 버전: **1.0.20**
+- 패치 반영일: 2026년 4월
+
+### 배경
+v1.0.19 출시 후 전체 정밀분석 — 4개 영역(아키텍처·UX/UI·성능·정확성)을 점검하여 P0~P2 우선순위 보완 항목을 일괄 처리.
+
+### 핵심 변경
+
+#### 1. 성능 — Web Worker 실연결 (P0)
+- `monteCarloForecast.worker.ts` 인프라는 v1.0.7~ 존재했으나 `useBacklogForecast` 가 동기 `teamForecast` 만 호출 → worker 자동 분기 미작동.
+- v1.0.20: `buildForecastAsync`, `perAssigneeForecastAsync`, `teamForecastAsync` 추가.
+- `useBacklogForecast` 가 `useState + useEffect` 기반으로 비동기 처리. 큰 입력(remainingCount × historyDays × trials/1000 > 50,000)은 자동으로 worker offload — 1000+ 이슈 시 main thread freeze 방지.
+- 동기 버전(`teamForecast` 등)은 테스트 호환·rngSeed 시나리오용으로 유지.
+
+#### 2. 구조 — 큰 컴포넌트 분해 (P1)
+- `issue-detail-drawer.tsx` 1245줄 → 약 900줄 + 3개 모듈로 분해:
+  - `issue-detail/helpers.tsx` (240줄) — segmentsToHtml, extractSegmentsFromEditor, IssueTypeIcon, adfToText, isSafeHref, renderDescriptionAdf, EmptyState
+  - `issue-detail/activity.tsx` (78줄) — ActivityItem, HistoryItems
+  - `issue-detail/editable-info-row.tsx` (87줄) — EditableInfoRow + Jira 사용자 검색 250ms 디바운스
+- `jiraClient.ts` `fetchEpicsForProjectKey()` 63줄을 `tryEpicJqlVariants()` + `fetchAllPagesForJql()` 2개 헬퍼로 분해 — 가독성·재사용성 ↑
+
+#### 3. 안정성 — useMemo selector 안정화 (P1)
+- `issue-detail-drawer.tsx`에서 `kpiFields` 객체 참조 변경 시 불필요한 리렌더 발생 가능 → primitive selector 4개로 분리 (`s.rules.fields?.plannedStart` 등). Zustand `Object.is` 비교가 string 단위로 안정 작동.
+
+#### 4. localStorage 무한 증가 방지 (P1)
+- `forecastHistoryStore.pruneStale()` 가 `useBacklogForecast` 안에서만 호출 → 앱 부팅 시 1회 명시 호출 추가 (`App.tsx`).
+
+#### 5. UX/UI 일관성 폴리싱
+- **EmptyState 공용 컴포넌트** (`@/components/ui/empty-state.tsx`) 신규 — info/success/warning/minimal 4 variant. 진행 추이/예측의 인라인 회색 박스 적용.
+- **버튼 hover 피드백 강화** — `transition-all`, `hover:shadow-md`, `active:scale-[0.98]`, `focus-visible:ring-2` 추가.
+- **ConfidenceBadge** (`@/components/ui/confidence-badge.tsx`) 신규 — 4단계(high/medium/low/unreliable) 일관 색상·아이콘. ForecastFunnelChart 헤더에 적용.
+- **색맹 대응** — WorkloadScatter 4분위에 색상 외 모양(triangle/square/diamond/circle) 추가 + 범례에도 모양 미리보기 (WCAG 1.4.1).
+
+#### 6. 코드 품질
+- `kpiService.calculateWeightedKPI` 반환에 누락됐던 `cancelledIssues`, `rejectedIssues` 카운트 추가 (v1.0.18 누락분).
+- 테스트 fixture 일괄 보완 (rejected, subAssignee, teamMonthsMid, totalManMonthsLow/Mid/High).
+- `.gitignore` 정리 — 일회성 작업 산출물 4건 추가.
+
+### 검증
+- TypeScript strict 빌드 통과
+- ESLint 0 errors (13 기존 warnings, 모두 신규 변경 무관)
+- vitest 298/298 통과
+- 진행 추이/예측 탭 전체 일관성 유지
+
+### 영향
+| 영역 | v1.0.19 까지 | v1.0.20 |
+|------|-------------|---------|
+| 1000+ 이슈 시 freeze | 가능 | **Worker offload — 0** |
+| issue-detail-drawer 응집도 | 1245줄 단일 | **3개 모듈 분리** |
+| 부팅 시 localStorage 정리 | 미실행 | **자동 1회 호출** |
+| 차트 색맹 접근성 | 색상만 | **+ 모양** |
+| Empty State 일관성 | 인라인 박스 | **공용 컴포넌트** |
+| 버튼 클릭 가능성 인지 | 보통 | **hover shadow + active scale** |
+
+### 빌드
+```bash
+npm run build          # 1.0.20 .exe + portable
+```
+
+---
+
 ## [1.0.19] 진행 추이/예측 — 취소·반려 일관 적용 (v1.0.18 후속)
 
 ### 적용 버전

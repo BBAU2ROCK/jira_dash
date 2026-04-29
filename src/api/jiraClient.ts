@@ -71,8 +71,45 @@ function getStatusFromAxiosError(e: unknown): number | undefined {
  * - 다국어/포맷 변형 5종을 순차 시도.
  * - **C4**: 401/403은 즉시 throw (5회 중복 인증 호출 차단)
  * - **H3**: 첫 변형에서 1건 이상 정상 수집되면 후속 변형 생략
+ *
+ * v1.0.20: 페이지네이션·sort·warning 헬퍼로 분해 — 가독성·재사용성 개선.
  */
-async function fetchEpicsForProjectKey(projectKey: string): Promise<JiraIssue[]> {
+
+const EPIC_FIELDS = [
+    'summary', 'description', 'status', 'assignee', 'reporter', 'priority',
+    'issuetype', 'created', 'timespent', 'worklog', 'comment', 'attachment',
+];
+
+const EPIC_PAGE_SIZE = 100;
+const MAX_PAGINATION_GUARD = 50;
+
+/** 단일 JQL 변형으로 페이지네이션 풀-페치. 결과는 byKey에 누적. */
+async function fetchAllPagesForJql(
+    jql: string,
+    byKey: Map<string, JiraIssue>
+): Promise<void> {
+    let nextPageToken: string | undefined;
+    let guard = 0;
+    do {
+        const payload: SearchJqlPayload = { jql, fields: EPIC_FIELDS, maxResults: EPIC_PAGE_SIZE };
+        if (nextPageToken) payload.nextPageToken = nextPageToken;
+        const response = await jiraClient.post('/search/jql', payload);
+        throwIfJiraSearchJqlPayloadErrors(response.data);
+        const data = response.data as SearchJqlResponse;
+        const issues = data.issues ?? [];
+        for (const issue of issues) {
+            if (issue?.key) byKey.set(issue.key, issue);
+        }
+        nextPageToken = data.nextPageToken;
+        const done = data.isLast === true || issues.length < EPIC_PAGE_SIZE || !nextPageToken;
+        if (done) break;
+        if (++guard > MAX_PAGINATION_GUARD) break;
+        // eslint-disable-next-line no-constant-condition
+    } while (true);
+}
+
+/** 5종 JQL 변형을 순차 시도. 401/403은 즉시 throw, 첫 성공 후 중단. */
+async function tryEpicJqlVariants(projectKey: string): Promise<Map<string, JiraIssue>> {
     const pk = projectKey.trim();
     const pkQ = quoteJqlStringLiteral(pk);
     const jqlVariants = [
@@ -82,36 +119,13 @@ async function fetchEpicsForProjectKey(projectKey: string): Promise<JiraIssue[]>
         `project = ${pk} AND issuetype = Epic ORDER BY created DESC`,
         `project = ${pkQ} AND issuetype = "Epic" ORDER BY created DESC`,
     ];
-    const fields = [
-        'summary', 'description', 'status', 'assignee', 'reporter', 'priority',
-        'issuetype', 'created', 'timespent', 'worklog', 'comment', 'attachment',
-    ];
-    const maxResults = 100;
     const byKey = new Map<string, JiraIssue>();
 
-    variantLoop: for (const jql of jqlVariants) {
-        let nextPageToken: string | undefined;
-        let guard = 0;
+    for (const jql of jqlVariants) {
         try {
-            do {
-                const payload: SearchJqlPayload = { jql, fields, maxResults };
-                if (nextPageToken) payload.nextPageToken = nextPageToken;
-                const response = await jiraClient.post('/search/jql', payload);
-                throwIfJiraSearchJqlPayloadErrors(response.data);
-                const data = response.data as SearchJqlResponse;
-                const issues = data.issues ?? [];
-                for (const issue of issues) {
-                    if (issue?.key) byKey.set(issue.key, issue);
-                }
-                nextPageToken = data.nextPageToken;
-                const done = data.isLast === true || issues.length < maxResults || !nextPageToken;
-                if (done) break;
-                if (++guard > 50) break;
-                // eslint-disable-next-line no-constant-condition
-            } while (true);
-
+            await fetchAllPagesForJql(jql, byKey);
             // H3: 이 변형에서 결과를 모았다면 다른 변형은 시도하지 않음
-            if (byKey.size > 0) break variantLoop;
+            if (byKey.size > 0) return byKey;
         } catch (e) {
             const status = getStatusFromAxiosError(e);
             // C4: 인증/권한 오류는 다른 변형으로도 동일하게 실패하므로 즉시 중단
@@ -121,6 +135,12 @@ async function fetchEpicsForProjectKey(projectKey: string): Promise<JiraIssue[]>
             console.warn('[jira] getEpicsForProject JQL 변형 실패(다음 변형 시도):', jql.slice(0, 72));
         }
     }
+    return byKey;
+}
+
+async function fetchEpicsForProjectKey(projectKey: string): Promise<JiraIssue[]> {
+    const pk = projectKey.trim();
+    const byKey = await tryEpicJqlVariants(pk);
 
     const list = Array.from(byKey.values()).sort((a, b) => {
         const ta = a.fields?.created ? Date.parse(a.fields.created) : 0;

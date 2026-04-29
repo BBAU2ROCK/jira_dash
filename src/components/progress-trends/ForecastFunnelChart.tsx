@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import type { TeamForecast } from '@/services/prediction/types';
 import { confidenceGuidance } from '@/services/prediction/confidence';
+import { ConfidenceBadge } from '@/components/ui/confidence-badge';
 
 interface Props {
     team: TeamForecast | null;
@@ -32,9 +33,12 @@ export function ForecastFunnelChart({ team }: Props) {
 
     return (
         <div className="rounded-lg border border-slate-200 bg-white p-4">
-            <div className="flex items-baseline justify-between">
+            <div className="flex items-baseline justify-between gap-2">
                 <h3 className="text-sm font-semibold text-slate-800">완료 확률 분포 (기준 시나리오)</h3>
-                <span className="text-xs text-slate-500">잔여 {realistic.remainingCount}건</span>
+                <div className="flex items-center gap-2">
+                    <ConfidenceBadge level={realistic.confidence} showLabel={false} />
+                    <span className="text-xs text-slate-500">잔여 {realistic.remainingCount}건</span>
+                </div>
             </div>
             <div className="mt-2 h-[180px] w-full" role="img" aria-label="P50/P85/P95 영업일 막대 차트">
                 <ResponsiveContainer width="100%" height="100%">

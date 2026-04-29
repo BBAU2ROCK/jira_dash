@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { addDays } from 'date-fns';
 import type { JiraIssue } from '@/api/jiraClient';
 import { filterLeafIssues, getStatusCategoryKey } from '@/lib/jira-helpers';
@@ -22,6 +22,7 @@ import { isBacklogCleared } from '@/services/prediction/accuracyTracking';
 import { computeCycleTimeByType, type CycleTimeStats } from '@/services/prediction/cycleTimeAnalysis';
 import {
     teamForecast,
+    teamForecastAsync,
     aggregateBacklogEffort,
     crossValidate,
     isInBacklog,
@@ -159,10 +160,50 @@ export function useBacklogForecast(issues: JiraIssue[], options?: {
         return lastNDayKeys(historyDays, now).map((date) => ({ date, count: counts[date] ?? 0 }));
     }, [issues, historyDays, now]);
 
-    const team = useMemo<TeamForecast | null>(() => {
+    // v1.0.20: Web Worker 활용 — 큰 입력에서 main thread freeze 방지.
+    // rngSeed가 지정된 경우(테스트 재현성)는 동기 경로, 그 외는 async (worker 자동 분기).
+    const [team, setTeam] = useState<TeamForecast | null>(() => {
         if (!issues) return null;
+        // 초기 동기 계산: SSR 안전 + 첫 렌더부터 데이터 가용
         return teamForecast(issues, historyDays, now, { rngSeed: options?.rngSeed });
+    });
+    const teamReqIdRef = useRef(0);
+    /* eslint-disable react-hooks/set-state-in-effect --
+     * issues prop 변경 시 정상 동작이며, 동기 fallback과 비동기 worker 결과 모두
+     * setState 가 필요. cascading render는 rngSeed 케이스(테스트)·null 케이스에만 발생하며
+     * 실사용 (비동기 경로)에서는 microtask 이후 호출이라 영향 없음.
+     */
+    useEffect(() => {
+        if (!issues) {
+            setTeam(null);
+            return;
+        }
+        const reqId = ++teamReqIdRef.current;
+        // rngSeed 지정 시 동기 (테스트 호환)
+        if (options?.rngSeed != null) {
+            setTeam(teamForecast(issues, historyDays, now, { rngSeed: options.rngSeed }));
+            return;
+        }
+        // 비동기 — Worker 자동 분기 (큰 입력만 worker, 작은 입력은 main thread)
+        let cancelled = false;
+        teamForecastAsync(issues, historyDays, now)
+            .then((result) => {
+                // race condition 방지: 최신 요청만 반영
+                if (!cancelled && reqId === teamReqIdRef.current) {
+                    setTeam(result);
+                }
+            })
+            .catch((err) => {
+                console.warn('[useBacklogForecast] async teamForecast failed, fallback to sync:', err);
+                if (!cancelled && reqId === teamReqIdRef.current) {
+                    setTeam(teamForecast(issues, historyDays, now));
+                }
+            });
+        return () => {
+            cancelled = true;
+        };
     }, [issues, historyDays, now, options?.rngSeed]);
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     const effort = useMemo<BacklogEffortReport | null>(() => {
         if (!issues) return null;

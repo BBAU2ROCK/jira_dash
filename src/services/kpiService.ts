@@ -384,6 +384,9 @@ export function calculateWeightedKPI(input: WeightedKpiInput): WeightedKpiMetric
         earlyIssues,
         compliantIssues,
         agreedDelayIssues,
+        // v1.0.20: weighted return에서 누락됐던 cancelled·rejected 카운트 명시
+        cancelledIssues: main.cancelledIssues + sub.cancelledIssues,
+        rejectedIssues: main.rejectedIssues + sub.rejectedIssues,
         noDueDateCount,
         completionRate: Math.round(completionRate),
         complianceRate: Math.round(complianceRate),

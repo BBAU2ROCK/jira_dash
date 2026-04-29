@@ -1,213 +1,28 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from '@/components/ui/sheet';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Calendar, User, Clock, AlertCircle, CheckCircle, Loader2, MessageSquare, GitCommit, Briefcase, RefreshCw, X, Bug, CircleCheck, Info, ChevronDown, Check, FileText, Paperclip } from 'lucide-react';
+import { Calendar, User, Clock, AlertCircle, CheckCircle, Loader2, MessageSquare, GitCommit, Briefcase, RefreshCw, X, ChevronDown, Check, FileText, Paperclip, Info } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger, PopoverAnchor } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { type JiraIssue, type CommentSegment, jiraApi, buildCommentAdf, adfToSegments, getAttachmentContentUrl } from '@/api/jiraClient';
+import { type JiraIssue, jiraApi, buildCommentAdf, adfToSegments, getAttachmentContentUrl } from '@/api/jiraClient';
 import { cn } from '@/lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { JIRA_CONFIG } from '@/config/jiraConfig';
 import { UNASSIGNED_LABEL } from '@/lib/jira-constants';
 import { useKpiRulesStore } from '@/stores/kpiRulesStore';
-
-/** CommentSegment[] → contentEditable innerHTML 변환 */
-function segmentsToHtml(segments: CommentSegment[]): string {
-    return segments.map(seg => {
-        if (seg.type === 'text') {
-            return seg.text
-                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-                .replace(/\n/g, '<br>');
-        }
-        const name = seg.displayName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        return `<span contenteditable="false" data-mention-id="${seg.accountId}" data-mention-name="${name}" class="mention-chip">@${name}</span>`;
-    }).join('');
-}
-
-/** contentEditable div → CommentSegment[] 추출 */
-function extractSegmentsFromEditor(el: HTMLDivElement): CommentSegment[] {
-    const segments: CommentSegment[] = [];
-    const pushText = (text: string) => {
-        if (!text) return;
-        const last = segments[segments.length - 1];
-        if (last?.type === 'text') last.text += text;
-        else segments.push({ type: 'text', text });
-    };
-    const walk = (node: Node, isFirstBlock: boolean) => {
-        if (node.nodeType === Node.TEXT_NODE) {
-            pushText((node.textContent ?? '').replace(/\u200B/g, ''));
-        } else if (node instanceof HTMLElement) {
-            if (node.dataset.mentionId) {
-                segments.push({ type: 'mention', accountId: node.dataset.mentionId, displayName: node.dataset.mentionName ?? '' });
-            } else if (node.tagName === 'BR') {
-                pushText('\n');
-            } else {
-                const isBlock = ['DIV', 'P'].includes(node.tagName);
-                if (isBlock && !isFirstBlock) pushText('\n');
-                node.childNodes.forEach((c, i) => walk(c, isBlock && i === 0));
-            }
-        }
-    };
-    el.childNodes.forEach((c, i) => walk(c, i === 0));
-    // 끝에 붙은 공백/개행 제거
-    const last = segments[segments.length - 1];
-    if (last?.type === 'text') last.text = last.text.replace(/[\n\u00A0\s]+$/, '');
-    return segments.filter(s => s.type !== 'text' || s.text.length > 0);
-}
-
-function IssueTypeIcon({ type, className }: { type: string; className?: string }) {
-    switch (type.toLowerCase()) {
-        case 'bug': return <Bug className={cn("text-red-500", className)} />;
-        case 'story': return <CheckCircle className={cn("text-emerald-500", className)} />;
-        case 'task': return <CircleCheck className={cn("text-blue-500", className)} />;
-        case 'sub-task':
-        case 'subtask':
-        case '하위 작업': return <CircleCheck className={cn("text-blue-400", className)} />;
-        case '할 일': return <CircleCheck className={cn("text-blue-500", className)} />;
-        case '결함': return <Bug className={cn("text-red-500", className)} />;
-        default: return <Info className={cn("text-slate-400", className)} />;
-    }
-}
-
-/** Atlassian Document Format (ADF) → plain text helper */
-function adfToText(body: any): string {
-    if (!body) return '';
-    if (typeof body === 'string') return body;
-
-    // Handle array of content
-    if (Array.isArray(body)) {
-        return body.map(adfToText).join('');
-    }
-
-    // Handle specific node types
-    switch (body.type) {
-        case 'text':
-            return body.text || '';
-        case 'mention':
-            return body.attrs?.text || '';
-        case 'hardBreak':
-            return '\n';
-        case 'paragraph':
-            return (body.content ? body.content.map(adfToText).join('') : '') + '\n';
-        case 'bulletList':
-        case 'orderedList':
-            return (body.content ? body.content.map(adfToText).join('') : '') + '\n';
-        case 'listItem':
-            return '• ' + (body.content ? body.content.map(adfToText).join('') : '') + '\n';
-        case 'codeBlock':
-            return '\n```\n' + (body.content ? body.content.map(adfToText).join('') : '') + '\n```\n';
-        case 'doc':
-            return body.content ? body.content.map(adfToText).join('') : '';
-        case 'media':
-        case 'mediaSingle':
-        case 'mediaGroup':
-            return ''; // §8: adfToText does not render media; use renderDescriptionAdf for inline display
-        default:
-            if (body.content) return adfToText(body.content);
-            return '';
-    }
-}
-
-/** Attachment info for description media resolution (§8, §8.6). */
-type AttachmentInfo = { id: string | number; filename?: string; mimeType?: string };
-
-/** Safe href: only http/https to avoid XSS. */
-function isSafeHref(href: string | undefined): boolean {
-    if (!href || typeof href !== 'string') return false;
-    const t = href.trim().toLowerCase();
-    return t.startsWith('https://') || t.startsWith('http://');
-}
-
-/** ADF → React nodes; media (id 또는 §8.6 파일명 폴백), link marks (§8.6). */
-function renderDescriptionAdf(
-    body: any,
-    attachments: AttachmentInfo[],
-    getUrl: (id: string | number) => string
-): React.ReactNode {
-    if (!body) return null;
-    if (typeof body === 'string') return body;
-
-    const attachmentIds = new Set(attachments.map(a => String(a.id)));
-    const attachmentMime = new Map(attachments.map(a => [String(a.id), a.mimeType]));
-    /** §8.6: 파일명(alt)으로 첨부 찾기 시 첫 일치 사용 */
-    const attachmentByFilename = new Map<string, AttachmentInfo>();
-    for (const a of attachments) {
-        if (a.filename && !attachmentByFilename.has(a.filename.trim())) {
-            attachmentByFilename.set(a.filename.trim(), a);
-        }
-    }
-
-    function isImage(id: string | number): boolean {
-        const mime = attachmentMime.get(String(id));
-        return !!mime?.startsWith('image/');
-    }
-
-    /** media 노드용 id 결정: id 매칭 실패 시 alt(파일명)으로 첨부 조회 */
-    function resolveMediaAttachmentId(id: string | number | undefined, alt: string): string | number | null {
-        if (id != null && attachmentIds.has(String(id))) return id;
-        if (!alt) return null;
-        const byFilename = attachmentByFilename.get(alt.trim()) ?? attachments.find(a => a.filename?.trim() === alt.trim());
-        return byFilename ? byFilename.id : null;
-    }
-
-    function renderNode(node: any): React.ReactNode {
-        if (!node) return null;
-        if (typeof node === 'string') return node;
-        if (Array.isArray(node)) return <>{node.map((n, i) => <React.Fragment key={i}>{renderNode(n)}</React.Fragment>)}</>;
-
-        switch (node.type) {
-            case 'text': {
-                const text = node.text ?? '';
-                const linkMark = node.marks?.find((m: any) => m.type === 'link');
-                const href = linkMark?.attrs?.href;
-                if (isSafeHref(href)) {
-                    return <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{text}</a>;
-                }
-                return text;
-            }
-            case 'mention':
-                return node.attrs?.text ?? '';
-            case 'hardBreak':
-                return <br />;
-            case 'paragraph':
-                return <p className="mb-1">{node.content?.map((n: any, i: number) => <React.Fragment key={i}>{renderNode(n)}</React.Fragment>)}</p>;
-            case 'bulletList':
-                return <ul className="list-disc pl-4 my-1">{node.content?.map((n: any, i: number) => <li key={i}>{renderNode(n)}</li>)}</ul>;
-            case 'orderedList':
-                return <ol className="list-decimal pl-4 my-1">{node.content?.map((n: any, i: number) => <li key={i}>{renderNode(n)}</li>)}</ol>;
-            case 'listItem':
-                return <>{node.content?.map((n: any, i: number) => <React.Fragment key={i}>{renderNode(n)}</React.Fragment>)}</>;
-            case 'codeBlock':
-                return <pre className="bg-slate-200 rounded p-2 text-xs my-1 overflow-x-auto"><code>{node.content?.map((n: any, i: number) => <React.Fragment key={i}>{renderNode(n)}</React.Fragment>)}</code></pre>;
-            case 'doc':
-                return <>{node.content?.map((n: any, i: number) => <React.Fragment key={i}>{renderNode(n)}</React.Fragment>)}</>;
-            case 'media': {
-                const alt = node.attrs?.alt || '첨부';
-                const resolvedId = resolveMediaAttachmentId(node.attrs?.id, alt);
-                if (resolvedId != null) {
-                    if (isImage(resolvedId)) {
-                        return <img src={getUrl(resolvedId)} alt={alt} className="max-w-full h-auto rounded my-1" />;
-                    }
-                    return <a href={getUrl(resolvedId)} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">[{alt} 다운로드]</a>;
-                }
-                return <span className="text-slate-500 text-sm">[이미지: {alt}]</span>;
-            }
-            case 'mediaSingle':
-                return <div className="my-1">{node.content?.map((n: any, i: number) => <React.Fragment key={i}>{renderNode(n)}</React.Fragment>)}</div>;
-            case 'mediaGroup':
-                return <div className="flex flex-wrap gap-2 my-1">{node.content?.map((n: any, i: number) => <React.Fragment key={i}>{renderNode(n)}</React.Fragment>)}</div>;
-            default:
-                if (node.content) return <>{node.content.map((n: any, i: number) => <React.Fragment key={i}>{renderNode(n)}</React.Fragment>)}</>;
-                return null;
-        }
-    }
-
-    return renderNode(body);
-}
+// v1.0.20: 분리된 helper / sub-components — 1245 → 약 900 줄 축소
+import {
+    segmentsToHtml,
+    extractSegmentsFromEditor,
+    IssueTypeIcon,
+    renderDescriptionAdf,
+    EmptyState,
+} from './issue-detail/helpers';
+import { ActivityItem } from './issue-detail/activity';
+import { EditableInfoRow } from './issue-detail/editable-info-row';
 
 interface IssueDetailDrawerProps {
     issue: JiraIssue | null;
@@ -218,10 +33,11 @@ interface IssueDetailDrawerProps {
 export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerProps) {
     const queryClient = useQueryClient();
     // v1.0.10 S5: store 필드 구독 — 필드 ID 변경 시 즉시 반영
-    const kpiFields = useKpiRulesStore((s) => s.rules.fields);
-    const plannedStartField = kpiFields?.plannedStart ?? JIRA_CONFIG.FIELDS.PLANNED_START;
-    const actualStartField = kpiFields?.actualStart ?? JIRA_CONFIG.FIELDS.ACTUAL_START;
-    const actualDoneField = kpiFields?.actualDone ?? JIRA_CONFIG.FIELDS.ACTUAL_DONE;
+    // v1.0.20: primitive selector로 분리 — fields 객체 reference 변경 시 불필요 리렌더 방지
+    const plannedStartField = useKpiRulesStore((s) => s.rules.fields?.plannedStart) ?? JIRA_CONFIG.FIELDS.PLANNED_START;
+    const actualStartField = useKpiRulesStore((s) => s.rules.fields?.actualStart) ?? JIRA_CONFIG.FIELDS.ACTUAL_START;
+    const actualDoneField = useKpiRulesStore((s) => s.rules.fields?.actualDone) ?? JIRA_CONFIG.FIELDS.ACTUAL_DONE;
+    const storeDifficultyField = useKpiRulesStore((s) => s.rules.fields?.difficulty);
 
     // 필드 목록(필드명 '난이도' → id 매핑용)
     const { data: allFields = [] } = useQuery({
@@ -235,8 +51,8 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
             (f) => f.name === '난이도' || (f.name && f.name.trim() === '난이도')
         );
         // v1.0.10 S5: 1순위 Jira 메타데이터, 2순위 store, 3순위 JIRA_CONFIG
-        return found?.id ?? kpiFields?.difficulty ?? JIRA_CONFIG.FIELDS.DIFFICULTY;
-    }, [allFields, kpiFields?.difficulty]);
+        return found?.id ?? storeDifficultyField ?? JIRA_CONFIG.FIELDS.DIFFICULTY;
+    }, [allFields, storeDifficultyField]);
 
     // 드로어가 열리면 이슈 상세(댓글/이력/업무로그, 난이도 필드 포함) 조회
     const {
@@ -1078,168 +894,3 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
     );
 }
 
-function ActivityItem({ item, onEditClick }: { item: any; onEditClick?: (commentId: string, body: any) => void }) {
-    const isCommentEditable = item.type === 'comment' && onEditClick;
-    const wrapper = (
-        <div
-            className={cn(
-                "border border-slate-200 rounded-lg p-4 space-y-2 bg-slate-50 shadow-sm",
-                isCommentEditable && "cursor-pointer hover:bg-slate-100 hover:border-slate-300 transition-colors"
-            )}
-            onClick={isCommentEditable ? () => onEditClick(item.id, item.body) : undefined}
-            role={isCommentEditable ? "button" : undefined}
-            tabIndex={isCommentEditable ? 0 : undefined}
-            onKeyDown={isCommentEditable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEditClick(item.id, item.body); } } : undefined}
-        >
-            <div className="flex justify-between items-start mb-2">
-                <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-slate-800">{item.author ?? 'Unknown'}</span>
-                    <Badge variant="outline" className={`text-[9px] px-1 h-3.5 border-none font-normal ${item.type === 'comment' ? 'bg-blue-500/10 text-blue-600' :
-                        item.type === 'worklog' ? 'bg-amber-500/10 text-amber-600' :
-                            'bg-slate-500/10 text-slate-600'
-                        }`}>
-                        {item.type === 'comment' ? '댓글' : item.type === 'worklog' ? '업무로그' : '이력'}
-                    </Badge>
-                    {item.type === 'worklog' && item.timeSpent && (
-                        <span className="text-[10px] text-amber-600 font-medium" title="로그시간">
-                            · {item.timeSpent}
-                        </span>
-                    )}
-                </div>
-                <span className="text-[11px] text-slate-500 ml-auto whitespace-nowrap">
-                        {(() => {
-                        try {
-                            return format(new Date(item.time), 'yyyy.MM.dd HH:mm');
-                        } catch {
-                            return '날짜 오류';
-                        }
-                    })()}
-                </span>
-            </div>
-            <div className="pl-6">
-                {item.type === 'comment' ? (
-                    <div className="text-sm text-slate-700 whitespace-pre-wrap">{adfToText(item.body)}</div>
-                ) : item.type === 'worklog' ? (
-                    <div className="text-sm text-slate-700 whitespace-pre-wrap">{adfToText(item.comment)}</div>
-                ) : (
-                    <HistoryItems items={item.items} />
-                )}
-            </div>
-        </div>
-    );
-    return wrapper;
-}
-
-function HistoryItems({ items }: { items: any[] }) {
-    if (!items || items.length === 0) return null;
-    return (
-        <div className="space-y-1.5 border-l-2 border-slate-300 pl-3 py-1">
-            {items.map((item, i) => (
-                <div key={i} className="text-[11px] text-slate-600 flex gap-1.5 flex-wrap items-center">
-                    <span className="font-bold text-slate-700">{item.field}</span>
-                    <span className="text-slate-500 line-through">{item.fromString || '(empty)'}</span>
-                    <span className="text-slate-400">→</span>
-                    <span className="font-medium text-slate-800">{item.toString || '(empty)'}</span>
-                </div>
-            ))}
-        </div>
-    );
-}
-
-/** Editable Info Row */
-interface EditableInfoRowProps {
-    icon: React.ReactNode;
-    label: string;
-    value: string | null | undefined;
-    type: 'date' | 'user';
-    onSave: (val: string) => void;
-}
-
-interface JiraUserSearchResult {
-    accountId: string;
-    displayName: string;
-    avatarUrls?: { '16x16'?: string };
-}
-
-function EditableInfoRow({ icon, label, value, type, onSave }: EditableInfoRowProps) {
-    const [isEditing, setIsEditing] = React.useState(false);
-    const [localValue, setLocalValue] = React.useState(value || '');
-    const [userQuery, setUserQuery] = React.useState('');
-    const [isSearching, setIsSearching] = React.useState(false);
-    const [searchResults, setSearchResults] = React.useState<JiraUserSearchResult[]>([]);
-
-    React.useEffect(() => { setLocalValue(value || ''); }, [value]);
-
-    const handleSave = () => { if (localValue !== value) onSave(localValue); setIsEditing(false); };
-
-    // M7: 사용자 검색 디바운스 (250ms)
-    React.useEffect(() => {
-        if (userQuery.length < 2) {
-            setSearchResults([]);
-            return;
-        }
-        const timer = setTimeout(() => {
-            setIsSearching(true);
-            jiraApi.searchUsers(userQuery)
-                .then((users: JiraUserSearchResult[]) => setSearchResults(users ?? []))
-                .catch(() => setSearchResults([]))
-                .finally(() => setIsSearching(false));
-        }, 250);
-        return () => clearTimeout(timer);
-    }, [userQuery]);
-
-    return (
-        <div className="flex items-start gap-2 group cursor-pointer min-h-[40px] px-2 py-1 rounded hover:bg-slate-100"
-            onClick={() => !isEditing && setIsEditing(true)}>
-            <span className="mt-1">{icon}</span>
-            <div className="min-w-0 flex-1">
-                <p className="text-[10px] uppercase font-semibold text-slate-500">{label}</p>
-                {isEditing ? (
-                    <div className="mt-1" onClick={e => e.stopPropagation()}>
-                        {type === 'date' ? (
-                            <input type="date" className="w-full text-sm border rounded px-1 h-7 bg-white border-slate-300 text-slate-900"
-                                value={localValue} onChange={e => setLocalValue(e.target.value)}
-                                onBlur={handleSave} autoFocus />
-                        ) : (
-                            <div className="relative">
-                                <input type="text" className="w-full text-sm border rounded px-1 h-7 bg-white border-slate-300 text-slate-900"
-                                    placeholder="Search user..." value={userQuery}
-                                    onChange={e => setUserQuery(e.target.value)} autoFocus />
-                                {userQuery.length >= 2 && (
-                                    <div className="absolute top-full left-0 w-full mt-1 bg-white border border-slate-200 rounded shadow-lg z-50 max-h-48 overflow-y-auto">
-                                        {isSearching ? <div className="p-2 text-xs text-center text-slate-500">Searching...</div> :
-                                            searchResults.map(user => (
-                                                <div key={user.accountId} className="px-2 py-1.5 text-xs hover:bg-slate-100 cursor-pointer flex items-center gap-2 text-slate-800"
-                                                    onClick={() => { onSave(user.accountId); setIsEditing(false); setUserQuery(''); }}>
-                                                    {user.avatarUrls?.['16x16'] && (
-                                                        <img src={user.avatarUrls['16x16']} className="w-4 h-4 rounded-full" alt="" />
-                                                    )}
-                                                    {user.displayName}
-                                                </div>
-                                            ))}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                ) : (
-                    <p className={cn("text-sm font-medium truncate", value ? "text-slate-800" : "text-slate-500 italic")}>
-                        {type === 'date' && value ? format(new Date(value), 'yyyy.MM.dd') : (value || '-')}
-                    </p>
-                )}
-            </div>
-        </div>
-    );
-}
-
-function EmptyState({ Icon, title, description }: { Icon: React.ElementType; title: string; description: string }) {
-    return (
-        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center animate-in fade-in zoom-in duration-300">
-            <div className="bg-slate-100 p-4 rounded-full mb-4">
-                <Icon className="h-8 w-8 text-slate-500" />
-            </div>
-            <h3 className="text-slate-700 font-medium mb-1">{title}</h3>
-            <p className="text-slate-600 text-sm max-w-[200px] leading-relaxed">{description}</p>
-        </div>
-    );
-}

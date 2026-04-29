@@ -1,7 +1,7 @@
 {
   "name": "01_jira_dash",
   "private": true,
-  "version": "1.0.19",
+  "version": "1.0.20",
   "description": "Jira Dashboard Application",
   "author": "Okestro",
   "type": "module",
@@ -106,7 +106,7 @@
       }
     ],
     "releaseInfo": {
-      "releaseNotes": "결함 KPI(개발·결함 에픽 매핑), 심각도 시각화, KPI 탭 UI·Git 원격 스크립트, npm run setup(Jira 예시 설정) 반영."
+      "releaseNotes": "v1.0.20 — Web Worker(Monte Carlo offload) 실제 연결, 큰 컴포넌트 분해, useMemo selector 안정화, UX 일관성(Empty State·hover·시간 표기·색맹 보조·truncate) 폴리싱."
     },
     "win": {
       "target": [

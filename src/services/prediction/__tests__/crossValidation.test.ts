@@ -30,9 +30,11 @@ function makeTeam(p85: number, confidence: ForecastResult['confidence'] = 'mediu
 function makeEffort(teamDays: number): BacklogEffortReport {
     return {
         totalHoursMid: teamDays * 8 * 5 * 0.65, // backwards
-        totalHoursLow: 0, totalHoursHigh: 0, totalManDaysMid: 0,
+        totalHoursLow: 0, totalHoursHigh: 0,
+        totalManDaysMid: 0, totalManDaysLow: 0, totalManDaysHigh: 0,
+        totalManMonthsMid: 0, totalManMonthsLow: 0, totalManMonthsHigh: 0,
         sourceMix: [], perIssue: [],
-        teamCapacityAssumption: { headcount: 5, utilization: 0.65, teamDaysMid: teamDays },
+        teamCapacityAssumption: { headcount: 5, utilization: 0.65, teamDaysMid: teamDays, teamMonthsMid: teamDays / 21 },
         cycleTimeFallbackOnly: false,
     };
 }

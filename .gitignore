@@ -34,6 +34,11 @@ jira-proxy-config.json
 # Claude Code 로컬 설정 (preview 서버·개인 권한)
 .claude/
 
-# 일회성 작업 결과 (CSV import / dedupe)
+# 일회성 작업 결과 (CSV import / dedupe / difficulty / sub-assignee)
 .import-result.json
 .dedupe-result.json
+.difficulty-update-result.json
+.sub-update-result.json
+# v3 휴리스틱 중간본 — v3.6만 유지하고 그 외는 작업 산출물
+scripts/estimate-difficulty-v3.cjs
+scripts/update-sub-assignees.cjs

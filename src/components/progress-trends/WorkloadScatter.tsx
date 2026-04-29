@@ -21,12 +21,35 @@ const QUADRANT_COLOR: Record<WorkloadQuadrant, string> = {
     fast:     '#10b981',  // 우하 — 고속
 };
 
+// v1.0.20 색맹 대응 — 색상에 더해 모양으로도 4분위 구분 가능 (WCAG 1.4.1).
+const QUADRANT_SHAPE: Record<WorkloadQuadrant, 'triangle' | 'square' | 'diamond' | 'circle'> = {
+    overload: 'triangle', // 위험 ↑
+    focus:    'square',   // 집중
+    capacity: 'diamond',  // 여유
+    fast:     'circle',   // 기본 (고속)
+};
+
 const QUADRANT_LABEL: Record<WorkloadQuadrant, string> = {
     overload: '과부하',
     focus: '집중 필요',
     capacity: '여유',
     fast: '고속',
 };
+
+/** 색맹 대응 보조: 4분위별 mini SVG 마커 (범례용) */
+function QuadrantMarker({ quadrant }: { quadrant: WorkloadQuadrant }) {
+    const color = QUADRANT_COLOR[quadrant];
+    const shape = QUADRANT_SHAPE[quadrant];
+    const common = { fill: color, stroke: color };
+    return (
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden>
+            {shape === 'circle' && <circle cx="5" cy="5" r="4" {...common} />}
+            {shape === 'square' && <rect x="1" y="1" width="8" height="8" {...common} />}
+            {shape === 'triangle' && <polygon points="5,1 9,9 1,9" {...common} />}
+            {shape === 'diamond' && <polygon points="5,1 9,5 5,9 1,5" {...common} />}
+        </svg>
+    );
+}
 
 interface Props {
     team: TeamForecast | null;
@@ -83,7 +106,7 @@ export function WorkloadScatter({ team }: Props) {
                 <div className="flex items-center gap-3 text-[10px] text-slate-500">
                     {(['overload', 'focus', 'capacity', 'fast'] as WorkloadQuadrant[]).map((q) => (
                         <span key={q} className="flex items-center gap-1">
-                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: QUADRANT_COLOR[q] }} />
+                            <QuadrantMarker quadrant={q} />
                             {QUADRANT_LABEL[q]}
                         </span>
                     ))}
@@ -135,7 +158,13 @@ export function WorkloadScatter({ team }: Props) {
                         />
                         {(Object.keys(grouped) as WorkloadQuadrant[]).map((q) =>
                             grouped[q].length > 0 ? (
-                                <Scatter key={q} name={QUADRANT_LABEL[q]} data={grouped[q]} fill={QUADRANT_COLOR[q]} />
+                                <Scatter
+                                    key={q}
+                                    name={QUADRANT_LABEL[q]}
+                                    data={grouped[q]}
+                                    fill={QUADRANT_COLOR[q]}
+                                    shape={QUADRANT_SHAPE[q]}
+                                />
                             ) : null
                         )}
                     </ScatterChart>

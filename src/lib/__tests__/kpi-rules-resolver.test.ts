@@ -47,7 +47,7 @@ describe('kpi-rules-resolver (v1.0.10)', () => {
             useKpiRulesStore.setState({
                 rules: {
                     ...useKpiRulesStore.getState().rules,
-                    statusNames: { onHold: '대기중', cancelled: '폐기' },
+                    statusNames: { onHold: '대기중', cancelled: '폐기', rejected: '반려' },
                 },
             });
             expect(resolveOnHoldStatus()).toBe('대기중');
@@ -110,6 +110,7 @@ describe('kpi-rules-resolver (v1.0.10)', () => {
                         actualStart: 'cf_as',
                         actualDone: 'cf_ad',
                         difficulty: 'cf_df',
+                        subAssignee: 'cf_sa',
                     },
                 },
             });

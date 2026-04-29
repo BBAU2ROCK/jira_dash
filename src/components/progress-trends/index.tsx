@@ -2,6 +2,7 @@ import { useDisplayPreferenceStore } from '@/stores/displayPreferenceStore';
 import { useBacklogForecast } from '@/hooks/useBacklogForecast';
 import { useDefectKpiAggregation } from '@/hooks/useDefectKpiAggregation';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
 import { cn } from '@/lib/utils';
 import {
     AlertCircle,
@@ -173,15 +174,17 @@ export function ProgressTrends({ issues, selectedEpicIds, epics }: ProgressTrend
 
             {/* 백로그 비어있을 때 안내 (분석은 계속 진행) */}
             {!hasActiveBacklog && hasCompletionData && (
-                <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-                    🎉 활성 백로그가 없습니다. 미래 예측(ETA·Funnel·Sprint)은 표시할 데이터가 없지만,
-                    완료 데이터 기반 분석(일별 추이·공수·담당자별·정확도)은 그대로 제공됩니다.
-                </div>
+                <EmptyState
+                    variant="success"
+                    title="🎉 활성 백로그가 없습니다"
+                    description="미래 예측(ETA·Funnel·Sprint)은 표시할 데이터가 없지만, 완료 데이터 기반 분석(일별 추이·공수·담당자별·정확도)은 그대로 제공됩니다."
+                />
             )}
             {!hasActiveBacklog && !hasCompletionData && (
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                    선택한 에픽에 활성/완료 이슈가 모두 없습니다. 다른 에픽을 선택해 보세요.
-                </div>
+                <EmptyState
+                    title="선택한 에픽에 활성/완료 이슈가 모두 없습니다"
+                    description="다른 에픽을 선택해 보세요."
+                />
             )}
 
             {/* ───── 2. 일일 활동 (완료 데이터 — 활성 0이어도 표시) ───── */}
