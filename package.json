@@ -1,7 +1,7 @@
 {
   "name": "01_jira_dash",
   "private": true,
-  "version": "1.0.24",
+  "version": "1.0.25",
   "description": "Jira Dashboard Application",
   "author": "Okestro",
   "type": "module",
@@ -106,7 +106,7 @@
       }
     ],
     "releaseInfo": {
-      "releaseNotes": "v1.0.24 — 프로젝트 통계 다크 핫픽스: StatCard/BarStat/ClickCell/RateBadge inline hex → Tailwind 토큰, 7-카드 한 줄(grid-cols-7), 다이얼로그 폭 1180→95vw·max 1600px (시원한 화면)."
+      "releaseNotes": "v1.0.25 — 담당자별 현황·KPI 성과 표 다크 핫픽스: thead·본 row·sub-row·selectedGroup 패널·GradeCard 모두 inline hex → Tailwind 토큰. 등급별 색 헬퍼(gradeTextClass)로 추출."
     },
     "win": {
       "target": [

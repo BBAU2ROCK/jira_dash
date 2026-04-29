@@ -4,6 +4,78 @@
 
 ---
 
+## [1.0.25] 담당자별 현황·KPI 성과 표 다크 핫픽스
+
+### 적용 버전
+- 앱 버전: **1.0.25**
+
+### 배경
+v1.0.24에서 7개 KPI 카드를 처리했으나 **담당자별 현황 표** 및 **KPI 성과 표** 영역에 또 다른 inline hex (`backgroundColor: '#ffffff'`, `color: '#1e293b'`, `'#64748b'`, `'#475569'` 등) 잔존:
+- thead 배경 #f8fafc, 라벨 hex 6종
+- 본 row `bg #ffffff` + hover `#f8fafc`
+- sub-row `#faf5ff` (보라 라이트)
+- 등급(S/A/B/C/D) 색상 hex 직접 비교 (#4f46e5, #2563eb, #16a34a 등)
+- selectedGroup 슬라이드 패널 전체 inline
+- 난이도 버튼 hex
+- GradeCard 4색 매핑 hex
+
+→ 다크 모드에서 라이트 색 그대로 노출, 가독성 박살. 사용자 두 번째 지적: "프로젝트 현황의 담당자별 현황 색은 원래 이래?" + "kpi도 마찬가지잖아."
+
+### 핵심 변경
+
+#### 1. 담당자별 현황 표 (status 탭)
+- thead `bg #f8fafc` → `bg-muted/40 border-b border-border text-muted-foreground`
+- 라벨 hex (#15803d/#1d4ed8/#475569/#b91c1c/#0e7490/#2563eb/#64748b) → 의미 색 토큰 (`text-green-700 dark:text-green-400` 등)
+- 본 row `bg #ffffff` + hover handler → `bg-card hover:bg-accent/40 transition-colors`
+- User icon `color #94a3b8` → `text-muted-foreground`
+- 이름 `color #1e293b` → `text-foreground`
+- sub-row `bg #faf5ff` → `bg-violet-50 dark:bg-violet-950/30`
+- sub-row `└` 표시 → 다크 variant 추가
+
+#### 2. selectedGroup 슬라이드 패널
+- `borderTop #e2e8f0` + `bg #f8fafc` → `border-t border-border bg-muted/40`
+- 제목 색 `#1e293b` → `text-foreground`
+- 카운트 배지 `#e2e8f0/#475569` → `bg-muted text-foreground/80`
+- 닫기 버튼 hover hex → `hover:text-foreground transition-colors`
+- 난이도 버튼 (라벨+카운트+퍼센트) → `bg-card border-border hover:bg-accent` + `tabular-nums`
+- 이슈 카드 `bg #ffffff border #e2e8f0 hover #f1f5f9` → `bg-card border-border hover:bg-accent/40`
+- 상태 배지 `bg #f8fafc color #475569` → `bg-muted/40 text-foreground/80`
+
+#### 3. KPI 성과 표
+- thead inline → `bg-muted/40 border-b border-border text-muted-foreground`
+- 본 row `bg #ffffff` + hover → `bg-card hover:bg-accent/40 transition-colors`
+- User icon `#94a3b8` → `text-muted-foreground`
+- **등급별 색 헬퍼** `gradeTextClass(grade, type)` 신규 — S/A/그외 + total/completion/compliance 매트릭스로 클래스 반환 (ex. `text-indigo-600 dark:text-indigo-400`)
+- 종합/완료율/준수율/조기보너스 모두 hex → 헬퍼 또는 `text-amber-600 dark:text-amber-400`
+- (점수) 라벨 `#64748b` → `text-muted-foreground tabular-nums`
+- KPI sub-row `bg #faf5ff` → `bg-violet-50 dark:bg-violet-950/30`
+- 협업 등급 색 hex → `text-violet-600 dark:text-violet-400` 등
+
+#### 4. GradeCard
+- 4색 매핑 (blue/green/amber/rose) hex → Tailwind 토큰 + dark variant
+- inline `style={{ padding: 20, borderRadius: 12 }}` → `rounded-xl p-5`
+- 32px 등급 숫자 `fontSize: 32, fontWeight: 800` → `text-[32px] font-extrabold tabular-nums leading-none`
+
+#### 5. PieChart 범례 칩
+- inline hex → `bg-muted/40 border-border hover:bg-accent` + tabular-nums
+
+### 영향
+| 영역 | v1.0.24 | v1.0.25 |
+|------|---------|---------|
+| 담당자별 표 행 배경 | 흰색(#ffffff) 그대로 | **bg-card 자동** |
+| 표 라벨 색 | hex hard-code | **의미 토큰 + dark variant** |
+| 등급 S/A 색 | hex 비교 inline | **헬퍼 함수 단일화** |
+| sub-row 보라 톤 | #faf5ff (라이트만) | **dark:bg-violet-950/30** |
+| selectedGroup 패널 | 전부 inline | **모두 토큰** |
+| GradeCard 4색 | hex 매핑 | **Tailwind 클래스 객체** |
+
+### 검증
+- TypeScript strict 빌드 통과
+- ESLint 0 errors
+- vitest 298/298 통과
+
+---
+
 ## [1.0.24] 프로젝트 통계 다크 핫픽스 + 다이얼로그 폭 확장
 
 ### 적용 버전

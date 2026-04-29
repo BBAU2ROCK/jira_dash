@@ -503,12 +503,11 @@ export function ProjectStatsDialog({
                                             {overallSegments.map(seg => (
                                                 <button key={seg.label}
                                                     onClick={() => openGroup(seg.label, seg.label === '완료' ? done : seg.label === '진행' ? inProg : seg.label === '대기' ? todo : seg.label === '보류' ? onHold : seg.label === '취소' ? cancelled : rejected, seg.color)}
-                                                    style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 9999, padding: '2px 8px', cursor: 'pointer' }}
-                                                    className="flex items-center gap-1.5 text-[11px] hover:opacity-80 transition-opacity"
+                                                    className="flex items-center gap-1.5 text-[11px] rounded-full px-2 py-0.5 bg-muted/40 border border-border hover:bg-accent hover:border-accent-foreground/20 cursor-pointer transition-colors"
                                                 >
                                                     <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: seg.color }} />
-                                                    <span style={{ color: '#475569' }}>{seg.label}</span>
-                                                    <span style={{ color: '#0f172a', fontWeight: 700, marginLeft: 2 }}>{seg.value}</span>
+                                                    <span className="text-foreground/80">{seg.label}</span>
+                                                    <span className="text-foreground font-bold ml-0.5 tabular-nums">{seg.value}</span>
                                                 </button>
                                             ))}
                                         </div>
@@ -552,23 +551,24 @@ export function ProjectStatsDialog({
                             <section className="space-y-4">
                                 <SectionTitle>담당자별 현황</SectionTitle>
 
-                                <div className="overflow-x-auto rounded-lg border">
+                                <div className="overflow-x-auto rounded-lg border border-border">
                                     <table className="w-full text-sm">
                                         <thead>
-                                            <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 11, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                            {/* v1.0.25: thead inline hex → Tailwind 토큰 (다크 자동 대응) */}
+                                            <tr className="bg-muted/40 border-b border-border text-[11px] uppercase tracking-wider text-muted-foreground">
                                                 <th className="px-4 py-3 text-left w-36">담당자</th>
                                                 <th className="px-3 py-3 text-center w-28">분포</th>
                                                 <th className="px-3 py-3 text-center">전체</th>
-                                                <th className="px-3 py-3 text-center" style={{ color: '#15803d' }}>완료</th>
-                                                <th className="px-3 py-3 text-center" style={{ color: '#1d4ed8' }}>진행</th>
-                                                <th className="px-3 py-3 text-center" style={{ color: '#475569' }}>대기</th>
-                                                <th className="px-3 py-3 text-center" style={{ color: '#b91c1c' }}>지연</th>
-                                                <th className="px-3 py-3 text-center" style={{ color: '#0e7490' }}>조기완료</th>
-                                                <th className="px-3 py-3 text-center" style={{ color: '#2563eb' }}>로그 있음</th>
-                                                <th className="px-3 py-3 text-center" style={{ color: '#64748b' }}>로그 없음</th>
-                                                <th className="px-3 py-3 text-center" style={{ color: '#475569' }}>기록 시간</th>
+                                                <th className="px-3 py-3 text-center text-green-700 dark:text-green-400">완료</th>
+                                                <th className="px-3 py-3 text-center text-blue-700 dark:text-blue-400">진행</th>
+                                                <th className="px-3 py-3 text-center text-foreground/80">대기</th>
+                                                <th className="px-3 py-3 text-center text-red-700 dark:text-red-400">지연</th>
+                                                <th className="px-3 py-3 text-center text-cyan-700 dark:text-cyan-400">조기완료</th>
+                                                <th className="px-3 py-3 text-center text-blue-700 dark:text-blue-400">로그 있음</th>
+                                                <th className="px-3 py-3 text-center text-muted-foreground">로그 없음</th>
+                                                <th className="px-3 py-3 text-center text-foreground/80">기록 시간</th>
                                                 <th className="px-3 py-3 text-center">진척률</th>
-                                                <th className="px-3 py-3 text-center" style={{ color: '#15803d' }}>준수율</th>
+                                                <th className="px-3 py-3 text-center text-green-700 dark:text-green-400">준수율</th>
                                                 <th className="px-3 py-3 text-center">지연율</th>
                                                 <th className="px-3 py-3 text-center">조기완료율</th>
                                             </tr>
@@ -592,16 +592,12 @@ export function ProjectStatsDialog({
 
                                                 return (
                                                     <React.Fragment key={a.name}>
-                                                    {/* 메인 담당자 행 */}
-                                                    <tr
-                                                        style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: '#ffffff', transition: 'background-color 0.15s' }}
-                                                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f8fafc')}
-                                                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#ffffff')}
-                                                    >
+                                                    {/* 메인 담당자 행 — v1.0.25: inline hex → Tailwind 토큰 */}
+                                                    <tr className="border-b border-border/50 bg-card hover:bg-accent/40 transition-colors">
                                                         <td className="px-4 py-3">
                                                             <div className="flex items-center gap-2">
-                                                                <User className="w-3.5 h-3.5 shrink-0" style={{ color: '#94a3b8' }} />
-                                                                <span style={{ fontWeight: 500, color: '#1e293b', fontSize: 12 }}>{a.name}</span>
+                                                                <User className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+                                                                <span className="font-medium text-foreground text-xs">{a.name}</span>
                                                             </div>
                                                         </td>
                                                         <td className="px-3 py-3">
@@ -668,11 +664,11 @@ export function ProjectStatsDialog({
                                                         });
                                                         const sharedN = c.sharedIssues.length;
                                                         return (
-                                                            <tr key={`${a.name}__sub__${c.subKey}`} style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: '#faf5ff' }}>
+                                                            <tr key={`${a.name}__sub__${c.subKey}`} className="border-b border-border/50 bg-violet-50 dark:bg-violet-950/30">
                                                                 <td className="pl-7 pr-2 py-1">
                                                                     <div className="flex items-center gap-1 whitespace-nowrap">
-                                                                        <span className="text-violet-400 text-[10px] leading-none">└</span>
-                                                                        <span className="text-[8px] leading-none text-violet-700 dark:text-violet-300 bg-violet-100 border border-violet-200 dark:border-violet-900/60 rounded px-1 py-px font-semibold tracking-tight">서브</span>
+                                                                        <span className="text-violet-400 dark:text-violet-500 text-[10px] leading-none">└</span>
+                                                                        <span className="text-[8px] leading-none text-violet-700 dark:text-violet-300 bg-violet-100 dark:bg-violet-900/40 border border-violet-200 dark:border-violet-900/60 rounded px-1 py-px font-semibold tracking-tight">서브</span>
                                                                         <span className="text-[10px] text-foreground/80 truncate" title={c.subDisplayName}>{c.subDisplayName}</span>
                                                                     </div>
                                                                 </td>
@@ -719,26 +715,26 @@ export function ProjectStatsDialog({
 
                         {/* ── 이슈 목록 슬라이드 패널 ──────────────────────────────── */}
                         {selectedGroup && (
-                            <div style={{ borderTop: '1px solid #e2e8f0', backgroundColor: '#f8fafc', padding: '16px 24px' }}
-                                className="sticky bottom-0 max-h-[340px] overflow-y-auto">
-                                <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
-                                    <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, color: '#1e293b' }}>
+                            <div className="sticky bottom-0 max-h-[340px] overflow-y-auto border-t border-border bg-muted/40 px-6 py-4">
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="m-0 text-[13px] font-semibold flex items-center gap-2 text-foreground">
                                         <ChevronRight className="w-4 h-4" style={{ color: selectedGroup.color }} />
                                         <span style={{ color: selectedGroup.color }}>{selectedGroup.title}</span>
-                                        <span style={{ display: 'inline-block', backgroundColor: '#e2e8f0', color: '#475569', borderRadius: 9999, padding: '1px 8px', fontSize: 11, fontWeight: 500, marginLeft: 4 }}>
+                                        <span className="inline-block bg-muted text-foreground/80 rounded-full px-2 py-0.5 text-[11px] font-medium ml-1 tabular-nums">
                                             {selectedGroup.issues.length}개
                                         </span>
                                     </h3>
-                                    <button onClick={() => setSelectedGroup(null)}
-                                        style={{ color: '#94a3b8', cursor: 'pointer', background: 'none', border: 'none', display: 'flex', alignItems: 'center' }}
-                                        onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.color = '#475569')}
-                                        onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.color = '#94a3b8')}>
+                                    <button
+                                        onClick={() => setSelectedGroup(null)}
+                                        className="text-muted-foreground hover:text-foreground transition-colors flex items-center bg-transparent border-0 cursor-pointer"
+                                        aria-label="닫기"
+                                    >
                                         <X className="w-4 h-4" />
                                     </button>
                                 </div>
                                 {difficultyBreakdown.length > 0 && (
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10, alignItems: 'center' }}>
-                                        <span style={{ fontSize: 11, fontWeight: 600, color: '#64748b', marginRight: 4 }}>난이도</span>
+                                    <div className="flex flex-wrap gap-2 mb-2.5 items-center">
+                                        <span className="text-[11px] font-semibold text-muted-foreground mr-1">난이도</span>
                                         {difficultyBreakdown.map(({ name, count, pct }) => {
                                             const keys = difficultyNameToKeys[name] ?? [];
                                             const handleClick = () => {
@@ -747,32 +743,25 @@ export function ProjectStatsDialog({
                                                     onClose();
                                                 }
                                             };
+                                            const enabled = !!onShowIssuesInList && keys.length > 0;
                                             return (
                                                 <button
                                                     key={name}
                                                     type="button"
                                                     onClick={handleClick}
-                                                    disabled={!onShowIssuesInList || keys.length === 0}
-                                                    style={{
-                                                        display: 'inline-block',
-                                                        border: '1px solid #e2e8f0',
-                                                        borderRadius: 6,
-                                                        padding: '4px 10px',
-                                                        fontSize: 12,
-                                                        color: '#475569',
-                                                        backgroundColor: '#fff',
-                                                        whiteSpace: 'nowrap',
-                                                        cursor: onShowIssuesInList && keys.length > 0 ? 'pointer' : 'default'
-                                                    }}
-                                                    className={onShowIssuesInList && keys.length > 0 ? 'hover:bg-muted/40 hover:border-border transition-colors' : ''}
+                                                    disabled={!enabled}
+                                                    className={cn(
+                                                        'inline-block rounded-md border border-border px-2.5 py-1 text-xs text-foreground/80 bg-card whitespace-nowrap',
+                                                        enabled ? 'cursor-pointer hover:bg-accent hover:border-accent-foreground/20 transition-colors' : 'cursor-default opacity-70'
+                                                    )}
                                                 >
-                                                    {name} {count}건 ({pct}%)
+                                                    {name} <span className="tabular-nums">{count}</span>건 (<span className="tabular-nums">{pct}</span>%)
                                                 </button>
                                             );
                                         })}
                                     </div>
                                 )}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                <div className="flex flex-col gap-1.5">
                                     {selectedGroup.issues.map(issue => {
                                         const handleIssueClick = () => {
                                             if (onShowIssuesInList) {
@@ -787,32 +776,27 @@ export function ProjectStatsDialog({
                                             tabIndex={onShowIssuesInList ? 0 : undefined}
                                             onClick={onShowIssuesInList ? handleIssueClick : undefined}
                                             onKeyDown={onShowIssuesInList ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleIssueClick(); } } : undefined}
-                                            style={{
-                                                display: 'flex', alignItems: 'center', gap: 12, backgroundColor: '#ffffff',
-                                                border: '1px solid #e2e8f0', borderRadius: 6, padding: '8px 12px', fontSize: 13,
-                                                cursor: onShowIssuesInList ? 'pointer' : 'default'
-                                            }}
-                                            onMouseEnter={e => ((e.currentTarget as HTMLDivElement).style.backgroundColor = onShowIssuesInList ? '#f1f5f9' : '#f8fafc')}
-                                            onMouseLeave={e => ((e.currentTarget as HTMLDivElement).style.backgroundColor = '#ffffff')}>
-                                            <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: selectedGroup.color, whiteSpace: 'nowrap' }}>
+                                            className={cn(
+                                                'flex items-center gap-3 rounded-md border border-border bg-card px-3 py-2 text-[13px]',
+                                                onShowIssuesInList ? 'cursor-pointer hover:bg-accent/40 hover:border-accent-foreground/20 transition-colors' : 'cursor-default'
+                                            )}
+                                        >
+                                            <span className="font-mono text-[11px] font-bold whitespace-nowrap tabular-nums" style={{ color: selectedGroup.color }}>
                                                 {issue.key}
                                             </span>
-                                            <span style={{ color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                                            <span className="text-foreground/90 truncate flex-1">
                                                 {issue.fields.summary}
                                             </span>
-                                            <span style={{
-                                                display: 'inline-block', border: '1px solid #e2e8f0', borderRadius: 4, padding: '1px 6px',
-                                                fontSize: 11, color: '#475569', backgroundColor: '#f8fafc', whiteSpace: 'nowrap'
-                                            }}>
+                                            <span className="inline-block border border-border rounded px-1.5 py-px text-[11px] text-foreground/80 bg-muted/40 whitespace-nowrap">
                                                 {issue.fields.status?.name ?? '—'}
                                             </span>
                                             {issue.fields.assignee && (
-                                                <span style={{ fontSize: 11, color: '#94a3b8', whiteSpace: 'nowrap' }}>
+                                                <span className="text-[11px] text-muted-foreground whitespace-nowrap">
                                                     {issue.fields.assignee.displayName}
                                                 </span>
                                             )}
                                             {issue.fields.duedate && (
-                                                <span style={{ fontSize: 11, color: '#94a3b8', whiteSpace: 'nowrap' }}>
+                                                <span className="text-[11px] text-muted-foreground whitespace-nowrap tabular-nums">
                                                     ~{issue.fields.duedate.slice(0, 10).replace(/-/g, '.')}
                                                 </span>
                                             )}
@@ -1145,8 +1129,9 @@ export function ProjectStatsDialog({
                                 <SectionTitle>담당자별 성과 분석</SectionTitle>
                                 <div className="border rounded-lg overflow-x-auto text-sm bg-card mt-4">
                                     <table className="w-full min-w-[1100px]">
-                                        <thead style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                                            <tr style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                        {/* v1.0.25: KPI 탭 thead inline hex → Tailwind 토큰 */}
+                                        <thead className="bg-muted/40 border-b border-border">
+                                            <tr className="text-[11px] uppercase tracking-wider text-muted-foreground">
                                                 <th className="px-4 py-3 text-left font-medium">담당자</th>
                                                 <th className="px-4 py-3 text-center font-bold text-indigo-700 dark:text-indigo-300">종합 등급</th>
                                                 <th className="px-4 py-3 text-center font-medium text-blue-700 dark:text-blue-300">기능 개발 완료율</th>
@@ -1175,45 +1160,44 @@ export function ProjectStatsDialog({
                                                 const dRow = defectKpiByDisplayName.get(a.name);
                                                 return (
                                                     <React.Fragment key={a.name}>
-                                                    <tr style={{ backgroundColor: '#ffffff', transition: 'background-color 0.15s' }}
-                                                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f8fafc')}
-                                                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#ffffff')}>
+                                                    {/* v1.0.25: KPI 본 row inline → Tailwind 토큰 + 등급별 색은 헬퍼 함수로 */}
+                                                    <tr className="bg-card hover:bg-accent/40 transition-colors">
                                                         <td className="px-4 py-3 font-medium text-foreground/90">
                                                             <div className="flex items-center gap-2">
-                                                                <User className="w-3.5 h-3.5 shrink-0" style={{ color: '#94a3b8' }} />
+                                                                <User className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
                                                                 {a.name}
                                                             </div>
                                                         </td>
                                                         <td className="px-4 py-3 text-center">
                                                             <div className="flex flex-col items-center">
-                                                                <span style={{ fontSize: 16, fontWeight: 800, color: kpi.grades.total === 'S' ? '#4f46e5' : kpi.grades.total === 'A' ? '#2563eb' : '#334155' }}>
+                                                                <span className={cn('text-base font-extrabold tabular-nums', gradeTextClass(kpi.grades.total, 'total'))}>
                                                                     {kpi.grades.total}
                                                                 </span>
-                                                                <span style={{ fontSize: 11, color: '#64748b' }}>({kpi.totalScore}점)</span>
+                                                                <span className="text-[11px] text-muted-foreground tabular-nums">({kpi.totalScore}점)</span>
                                                             </div>
                                                         </td>
                                                         <td className="px-4 py-3 text-center">
                                                             <div className="flex flex-col items-center">
-                                                                <span style={{ fontSize: 14, fontWeight: 700, color: kpi.grades.completion === 'S' ? '#4f46e5' : kpi.grades.completion === 'A' ? '#2563eb' : '#475569' }}>
+                                                                <span className={cn('text-sm font-bold tabular-nums', gradeTextClass(kpi.grades.completion, 'completion'))}>
                                                                     {kpi.grades.completion}
                                                                 </span>
-                                                                <span style={{ fontSize: 11, color: '#64748b' }}>{kpi.completionRate}%</span>
+                                                                <span className="text-[11px] text-muted-foreground tabular-nums">{kpi.completionRate}%</span>
                                                             </div>
                                                         </td>
                                                         <td className="px-4 py-3 text-center">
                                                             <div className="flex flex-col items-center">
-                                                                <span style={{ fontSize: 14, fontWeight: 700, color: kpi.grades.compliance === 'S' ? '#16a34a' : kpi.grades.compliance === 'A' ? '#15803d' : '#475569' }}>
+                                                                <span className={cn('text-sm font-bold tabular-nums', gradeTextClass(kpi.grades.compliance, 'compliance'))}>
                                                                     {kpi.grades.compliance}
                                                                 </span>
-                                                                <span style={{ fontSize: 11, color: '#64748b' }}>{kpi.complianceRate}%</span>
+                                                                <span className="text-[11px] text-muted-foreground tabular-nums">{kpi.complianceRate}%</span>
                                                             </div>
                                                         </td>
                                                         <td className="px-4 py-3 text-center">
                                                             <div className="flex flex-col items-center">
-                                                                <span style={{ fontSize: 14, fontWeight: 700, color: '#d97706' }}>
+                                                                <span className="text-sm font-bold text-amber-600 dark:text-amber-400 tabular-nums">
                                                                     +{kpi.grades.earlyBonus}
                                                                 </span>
-                                                                <span style={{ fontSize: 11, color: '#64748b' }}>{kpi.earlyRate}%</span>
+                                                                <span className="text-[11px] text-muted-foreground tabular-nums">{kpi.earlyRate}%</span>
                                                             </div>
                                                         </td>
                                                         <td className="px-4 py-3 text-center text-muted-foreground">
@@ -1251,11 +1235,11 @@ export function ProjectStatsDialog({
                                                         });
                                                         const sharedN = c.sharedIssues.length;
                                                         return (
-                                                            <tr key={`${a.name}__kpi_sub__${c.subKey}`} style={{ backgroundColor: '#faf5ff', borderBottom: '1px solid #f1f5f9' }}>
+                                                            <tr key={`${a.name}__kpi_sub__${c.subKey}`} className="bg-violet-50 dark:bg-violet-950/30 border-b border-border/50">
                                                                 <td className="pl-7 pr-2 py-1">
                                                                     <div className="flex items-center gap-1 whitespace-nowrap">
-                                                                        <span className="text-violet-400 text-[10px] leading-none">└</span>
-                                                                        <span className="text-[8px] leading-none text-violet-700 dark:text-violet-300 bg-violet-100 border border-violet-200 dark:border-violet-900/60 rounded px-1 py-px font-semibold tracking-tight">서브</span>
+                                                                        <span className="text-violet-400 dark:text-violet-500 text-[10px] leading-none">└</span>
+                                                                        <span className="text-[8px] leading-none text-violet-700 dark:text-violet-300 bg-violet-100 dark:bg-violet-900/40 border border-violet-200 dark:border-violet-900/60 rounded px-1 py-px font-semibold tracking-tight">서브</span>
                                                                         <span className="text-[10px] text-foreground/80 truncate max-w-[80px]" title={c.subDisplayName}>{c.subDisplayName}</span>
                                                                         <span className="text-[9px] text-muted-foreground" title={`${a.name}와 함께한 task ${sharedN}건 (가중 ${(sharedN * SUB_ASSIGNEE_WEIGHT).toFixed(1)}점)`}>
                                                                             ({sharedN}×{SUB_ASSIGNEE_WEIGHT})
@@ -1264,10 +1248,10 @@ export function ProjectStatsDialog({
                                                                 </td>
                                                                 <td className="px-4 py-2 text-center">
                                                                     <div className="flex flex-col items-center">
-                                                                        <span style={{ fontSize: 14, fontWeight: 700, color: collabKpi.grades.total === 'S' ? '#4f46e5' : collabKpi.grades.total === 'A' ? '#2563eb' : '#7c3aed' }}>
+                                                                        <span className={cn('text-sm font-bold tabular-nums', collabKpi.grades.total === 'S' ? 'text-indigo-600 dark:text-indigo-400' : collabKpi.grades.total === 'A' ? 'text-blue-600 dark:text-blue-400' : 'text-violet-600 dark:text-violet-400')}>
                                                                             {collabKpi.grades.total}
                                                                         </span>
-                                                                        <span style={{ fontSize: 10, color: '#7c3aed' }}>({collabKpi.totalScore}점)</span>
+                                                                        <span className="text-[10px] text-violet-600 dark:text-violet-400 tabular-nums">({collabKpi.totalScore}점)</span>
                                                                     </div>
                                                                 </td>
                                                                 <td className="px-4 py-2 text-center">
@@ -1531,6 +1515,23 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 }
 
 /**
+ * KPI 등급 → Tailwind 텍스트 색 (다크 자동 대응).
+ * v1.0.25: 등급별 색을 헬퍼로 추출. 'total'/'completion'은 indigo·blue, 'compliance'는 green 계열.
+ */
+function gradeTextClass(grade: string, type: 'total' | 'completion' | 'compliance'): string {
+    if (type === 'compliance') {
+        if (grade === 'S') return 'text-green-600 dark:text-green-400';
+        if (grade === 'A') return 'text-green-700 dark:text-green-400';
+        return 'text-foreground/80';
+    }
+    // total / completion
+    if (grade === 'S') return 'text-indigo-600 dark:text-indigo-400';
+    if (grade === 'A') return 'text-blue-600 dark:text-blue-400';
+    if (type === 'total') return 'text-foreground';
+    return 'text-foreground/80';
+}
+
+/**
  * StatCard — v1.0.24: inline hex 색상 → Tailwind 토큰 (다크 모드 자동 대응).
  * KPI 대시보드 / 프로젝트 현황 카드.
  */
@@ -1655,24 +1656,25 @@ function GradeCard({
     desc: string;
     tooltip?: string;
 }) {
+    // v1.0.25: GradeCard inline hex → Tailwind 토큰
     const cfg = {
-        blue: { bg: '#eff6ff', text: '#1d4ed8', border: '#bfdbfe' },
-        green: { bg: '#f0fdf4', text: '#15803d', border: '#bbf7d0' },
-        amber: { bg: '#fffbeb', text: '#b45309', border: '#fde68a' },
-        rose: { bg: '#fff1f2', text: '#be123c', border: '#fecdd3' },
+        blue:  { bg: 'bg-blue-50 dark:bg-blue-950/30',   border: 'border-blue-200 dark:border-blue-900/60',   text: 'text-blue-700 dark:text-blue-300' },
+        green: { bg: 'bg-green-50 dark:bg-green-950/30', border: 'border-green-200 dark:border-green-900/60', text: 'text-green-700 dark:text-green-300' },
+        amber: { bg: 'bg-amber-50 dark:bg-amber-950/30', border: 'border-amber-200 dark:border-amber-900/60', text: 'text-amber-700 dark:text-amber-300' },
+        rose:  { bg: 'bg-rose-50 dark:bg-rose-950/30',   border: 'border-rose-200 dark:border-rose-900/60',   text: 'text-rose-700 dark:text-rose-300' },
     }[color];
 
     const rateBracket = displayRate !== undefined ? displayRate : `${rate}%`;
 
     return (
-        <div style={{ backgroundColor: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: 12, padding: 20 }}>
+        <div className={cn('rounded-xl border p-5', cfg.bg, cfg.border)}>
             <div className="flex items-center mb-2">
                 <h3 className="m-0 text-[13px] font-semibold text-muted-foreground">{title}</h3>
                 {tooltip && <InfoTooltip content={tooltip} />}
             </div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
-                <span style={{ fontSize: 32, fontWeight: 800, color: cfg.text }}>{grade}</span>
-                <span style={{ fontSize: 14, fontWeight: 600, color: cfg.text }}>({rateBracket})</span>
+            <div className="flex items-baseline gap-2 mb-1">
+                <span className={cn('text-[32px] font-extrabold tabular-nums leading-none', cfg.text)}>{grade}</span>
+                <span className={cn('text-sm font-semibold tabular-nums', cfg.text)}>({rateBracket})</span>
             </div>
             <p className="m-0 text-[12px] leading-5 text-muted-foreground">{desc}</p>
         </div>
