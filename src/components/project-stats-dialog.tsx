@@ -650,15 +650,15 @@ export function ProjectStatsDialog({
                                                         const sharedN = c.sharedIssues.length;
                                                         return (
                                                             <tr key={`${a.name}__sub__${c.subKey}`} style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: '#faf5ff' }}>
-                                                                <td className="pl-10 pr-4 py-2">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className="text-violet-400 text-xs">└─</span>
-                                                                        <span className="text-[9px] text-violet-700 bg-violet-100 border border-violet-200 rounded px-1 py-0.5 font-bold tracking-wide">서브</span>
-                                                                        <span style={{ fontWeight: 500, color: '#475569', fontSize: 11 }}>{c.subDisplayName}</span>
+                                                                <td className="pl-7 pr-2 py-1">
+                                                                    <div className="flex items-center gap-1 whitespace-nowrap">
+                                                                        <span className="text-violet-400 text-[10px] leading-none">└</span>
+                                                                        <span className="text-[8px] leading-none text-violet-700 bg-violet-100 border border-violet-200 rounded px-1 py-px font-semibold tracking-tight">서브</span>
+                                                                        <span className="text-[10px] text-slate-600 truncate" title={c.subDisplayName}>{c.subDisplayName}</span>
                                                                     </div>
                                                                 </td>
-                                                                <td className="px-3 py-2 text-center text-[10px] text-slate-500">
-                                                                    가중 {(sharedN * SUB_ASSIGNEE_WEIGHT).toFixed(1)}점
+                                                                <td className="px-2 py-1 text-center text-[9px] text-slate-500 whitespace-nowrap">
+                                                                    가중 {(sharedN * SUB_ASSIGNEE_WEIGHT).toFixed(1)}
                                                                 </td>
                                                                 {/* 협업 카운트 */}
                                                                 <td className="px-3 py-2 text-center">
@@ -1233,13 +1233,13 @@ export function ProjectStatsDialog({
                                                         const sharedN = c.sharedIssues.length;
                                                         return (
                                                             <tr key={`${a.name}__kpi_sub__${c.subKey}`} style={{ backgroundColor: '#faf5ff', borderBottom: '1px solid #f1f5f9' }}>
-                                                                <td className="pl-10 pr-4 py-2">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className="text-violet-400 text-xs">└─</span>
-                                                                        <span className="text-[9px] text-violet-700 bg-violet-100 border border-violet-200 rounded px-1 py-0.5 font-bold tracking-wide">서브</span>
-                                                                        <span style={{ fontWeight: 500, color: '#475569', fontSize: 11 }}>{c.subDisplayName}</span>
-                                                                        <span className="text-[10px] text-slate-400" title={`${a.name}와 함께한 task ${sharedN}건 (가중 ${(sharedN * SUB_ASSIGNEE_WEIGHT).toFixed(1)}점)`}>
-                                                                            ({sharedN}건 × {SUB_ASSIGNEE_WEIGHT})
+                                                                <td className="pl-7 pr-2 py-1">
+                                                                    <div className="flex items-center gap-1 whitespace-nowrap">
+                                                                        <span className="text-violet-400 text-[10px] leading-none">└</span>
+                                                                        <span className="text-[8px] leading-none text-violet-700 bg-violet-100 border border-violet-200 rounded px-1 py-px font-semibold tracking-tight">서브</span>
+                                                                        <span className="text-[10px] text-slate-600 truncate max-w-[80px]" title={c.subDisplayName}>{c.subDisplayName}</span>
+                                                                        <span className="text-[9px] text-slate-400" title={`${a.name}와 함께한 task ${sharedN}건 (가중 ${(sharedN * SUB_ASSIGNEE_WEIGHT).toFixed(1)}점)`}>
+                                                                            ({sharedN}×{SUB_ASSIGNEE_WEIGHT})
                                                                         </span>
                                                                     </div>
                                                                 </td>
