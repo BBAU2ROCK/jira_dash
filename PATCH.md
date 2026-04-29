@@ -4,6 +4,86 @@
 
 ---
 
+## [1.0.17] Hotfix — 난이도 필드 ID 수정 (10017 → 11624) + 312건 난이도 일괄 등록
+
+### 적용 버전
+- 앱 버전: **1.0.17**
+- 패치 반영일: 2026년 4월
+
+### 발견된 버그
+v1.0.10에서 도입한 store 필드 ID 시스템이 잘못된 값으로 설정돼 있었음:
+
+| 항목 | 잘못된 값 | 실제 IGMU 값 |
+|------|---------|------------|
+| `JIRA_CONFIG.FIELDS.DIFFICULTY` | `customfield_10017` | **`customfield_11624`** |
+
+**증상**:
+- 프로젝트 통계의 분포 컬럼 작은 원이 모두 `-` (난이도 데이터 없음)
+- DifficultyMiniPie 컴포넌트가 빈 fallback 표시
+- 사용자가 어제 v1.0.16 분석 시 발견 — "어제 import한 313건 모두 난이도 비어있음"
+
+**원인**:
+실제 Jira /editmeta 응답에서 난이도 필드는:
+```
+customfield_11624 (option select: 상/중/하)
+allowedValues: id=12151(상), id=12150(중), id=12152(하)
+```
+
+### 수정
+- `jiraConfig.ts` `FIELDS.DIFFICULTY`: `customfield_10017` → `customfield_11624`
+- 주석에 정확한 schema 명시 (option select + allowedValues)
+
+### 동시 작업 — 312건 난이도 일괄 등록
+
+`04_TROMBONE_API_FIRST` 코드 베이스 정밀 분석 + IGMU-538 자식 312건의 summary 휴리스틱 매칭 → 난이도 추정:
+
+#### 분포
+```
+상 (Hard)  : 93건 (30%) — 외부 통합·실행·워크플로
+중 (Medium): 29건 (9%)  — 매핑·다중 엔티티
+하 (Easy)  : 190건 (61%) — 단순 CRUD
+```
+
+#### 도메인별 패턴
+- 워크플로우 관리 (18건) — 100% 상 (워크플로우 엔진)
+- 결과물 연계 (10건) — 100% 상 (외부 시스템 통합)
+- 테스트 작업 (16건) — 75% 상 (Sonar/JUnit 통합)
+- Nexus/ArgoCd/오브젝트스토리지/클러스터/툴체인 — 100% 하 (도구 관리 페이지)
+
+#### 휴리스틱 룰
+```
+점수 = (Hard 키워드 × 3) + (Medium × 1.5) + (Easy × -1)
+       + 동작 가중 (실행+1, 모니터링+1.5, 조회-0.5, 등록-0.3)
+       + baseline 2
+
+  ≥ 5점  → 상  (외부 통합·워크플로)
+  3~4점  → 중  (매핑·다중 엔티티)
+  ≤ 2점  → 하  (단순 CRUD)
+```
+
+#### 작성된 도구 (재사용 가능)
+- `scripts/analyze-domain-complexity.cjs` — 04_TROMBONE_API_FIRST 도메인 라인·컨트롤러 카운트
+- `scripts/estimate-difficulty.cjs` — IGMU-538 자식 휴리스틱 분류
+- `scripts/update-difficulty.cjs` — Jira customfield_11624 일괄 업데이트
+
+#### 검증
+- 312/312 PUT 성공
+- IGMU-1053 sample 검증: `{ value: '하', id: '12152' }` 정상 반영
+
+### 영향
+**v1.0.17 부터 자동 반영**:
+- 프로젝트 통계 분포 컬럼 작은 원: 회색 `-` → **상/중/하 색상 파이차트** 정상 표시
+- 난이도 별 색상: 상=빨강 / 중=주황 / 하=초록
+- 진행 추이/예측 탭의 effort 추정에 난이도 출처 활성화 가능
+
+### 빌드
+```bash
+npm run build          # 1.0.17 .exe + portable 생성
+npm test               # vitest 298/298 통과
+```
+
+---
+
 ## [1.0.16] 진행 추이/예측 — 용어 단순화·일/월 단위·데이터 충족 현황 카드
 
 ### 적용 버전

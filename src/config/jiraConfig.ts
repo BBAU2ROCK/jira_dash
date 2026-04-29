@@ -12,8 +12,12 @@ export const JIRA_CONFIG = {
         PLANNED_START: 'customfield_11481',
         ACTUAL_START: 'customfield_11484',
         ACTUAL_DONE: 'customfield_11485',
-        /** 난이도 (커스텀 필드 id는 Jira 인스턴스별로 다를 수 있음. 필요 시 변경) */
-        DIFFICULTY: 'customfield_10017',
+        /**
+         * 난이도 (option select: 상/중/하).
+         * v1.0.17 fix: customfield_10017 → customfield_11624 (실제 IGMU 인스턴스 값).
+         * /editmeta로 확인된 정확한 ID. KPI 규칙에서 변경 가능.
+         */
+        DIFFICULTY: 'customfield_11624',
         /**
          * v1.0.14: 서브담당자 (다중 사용자 array). 협업·페어 프로그래밍에서 보조 인원 표시.
          *
