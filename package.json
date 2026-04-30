@@ -1,7 +1,7 @@
 {
   "name": "01_jira_dash",
   "private": true,
-  "version": "1.0.29",
+  "version": "1.0.30",
   "description": "Jira Dashboard Application",
   "author": "Okestro",
   "type": "module",
@@ -106,7 +106,7 @@
       }
     ],
     "releaseInfo": {
-      "releaseNotes": "v1.0.29 — 진행 추이/예측 회고: 매핑 자동 모드 전환 (매핑 없으면 사이드바 기준, 있으면 매핑 dev 에픽 기준). 회고 섹션 헤더 모드 배지(🔗 매핑 기반 / 📂 사이드바 선택). EpicDefectCard 4분기 정교화 (로딩/fetch에러/매핑0/에픽 미매핑)."
+      "releaseNotes": "v1.0.30 — 회고 영역 정정: v1.0.29 자동 모드 전환 롤백. 좌측 에픽 회고는 항상 사이드바 선택 기반(IGMU-538), 우측 결함 회고만 매핑된 결함 데이터(TQ-605) 결합. 헤더 배지 제거. EpicDefectCard 4분기 메시지 유지."
     },
     "win": {
       "target": [

@@ -4,7 +4,68 @@
 
 ---
 
-## [1.0.29] 회고 영역 매핑 자동 모드 전환
+## [1.0.30] 회고 영역 정정 — 사이드바 선택 기반 일관성 회복
+
+### 적용 버전
+- 앱 버전: **1.0.30**
+
+### 배경
+v1.0.29의 자동 모드 전환이 사용자 의도와 충돌:
+- 사이드바 IGMU-538 (현재 v3.0.5.2_PPP) 선택
+- 매핑 IGMU-47 ↔ TQ-605 (이전 v3.0.5.1) 등록
+- v1.0.29 자동 모드 → 회고 좌측이 **IGMU-47 (이전 버전)** KPI 표시 ❌
+
+사용자 명확화:
+> "사이드바에서 에픽을 선택해야 모든게 표시가 되는데, 선택한 상황에서는 프로젝트 통계에서도 사이드바에서 선택한 에픽 기준이고, 프로젝트 통계의 KPI 성과 탭과, 예측/회고 탭에서 회고 영역은 KPI 성과 탭에서 맵핑한 정보가 있는 경우 해당 정보를 기반으로 표시"
+
+### 통일 원칙 (확정)
+```
+모든 영역 = 사이드바 선택 = 기본 기준
+결함 데이터(매핑 의존) 영역만 매핑 정보 결합:
+  • KPI 성과 탭 → 결함 KPI 섹션 (이미 매핑 기반 작동)
+  • 진행 추이/예측 탭 → 회고 우측 (v1.0.30 정정)
+매핑 없음 → 친화적 안내 메시지
+```
+
+### 핵심 변경 (v1.0.29 일부 롤백)
+
+#### 1. `progress-trends/index.tsx` — retroEpicKeys/retroIssues 롤백
+```ts
+// v1.0.29 (잘못된 방향)
+const retroMode = mappingCount > 0 ? 'mapping' : 'sidebar';
+const retroEpicKeys = retroMode === 'mapping' ? mappedDevEpicKeys : selectedEpicIds;
+const retroIssues = retroMode === 'mapping' ? Array.from(devIssuesByEpic.values()).flat() : issues;
+
+// v1.0.30 (정정)
+const retro = analyzeEpicsRetrospective(issues, selectedEpicIds, defectStatsByDevEpic);
+```
+
+#### 2. 회고 섹션 헤더 모드 배지 제거
+- v1.0.29의 "🔗 매핑 기반" / "📂 사이드바 선택 기반" 배지 → 삭제 (혼란만 가중)
+- subtitle만 명확화: "좌: 사이드바 선택 에픽 KPI · cycle time / 우: 매핑된 결함 회고 (있으면 표시)"
+
+#### 3. EpicDefectCard 4분기 메시지 유지 (v1.0.29 좋은 변경)
+- 로딩 / fetch 에러 / 매핑 0건 / 이 에픽 미매핑 — 그대로
+- 사용자가 즉시 진단 가능
+
+#### 4. useDefectKpiAggregation 노출 강화는 그대로 유지
+- `devIssuesByEpic`, `mappedDevEpicKeys`, `mappings` — 다른 곳에서 활용 가능 (예: 매니저 콘솔의 진단 정보)
+
+### 사용자 시나리오 (정상화)
+| 매핑 | 사이드바 | 좌측 (에픽 회고) | 우측 (결함 회고) |
+|------|--------|-----------|------------|
+| 없음 | IGMU-538 | **IGMU-538 KPI** ✓ | "결함 매핑 미등록" |
+| IGMU-47 ↔ TQ-605 | IGMU-538 | **IGMU-538 KPI** ✓ | "이 에픽 미매핑 — IGMU-538 매핑 추가하세요" |
+| IGMU-538 ↔ TQ-605 | IGMU-538 | **IGMU-538 KPI** ✓ | **TQ-605 결함** ✓ |
+
+### 검증
+- TypeScript strict 통과
+- ESLint 0 errors
+- vitest 25 files / 320 tests 통과
+
+---
+
+## [1.0.29] 회고 영역 매핑 자동 모드 전환 (v1.0.30에서 일부 롤백)
 
 ### 적용 버전
 - 앱 버전: **1.0.29**
