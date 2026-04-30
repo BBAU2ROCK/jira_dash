@@ -23,7 +23,8 @@ export const useDisplayPreferenceStore = create<DisplayPreferenceState>()(
             setAnonymizeMode: (v) => set({ anonymizeMode: v }),
             toggleAnonymizeMode: () => set({ anonymizeMode: !get().anonymizeMode }),
 
-            theme: 'system',
+            // v1.0.27: default 'dark' (전 'system')
+            theme: 'dark',
             setTheme: (theme) => set({ theme }),
             cycleTheme: () => {
                 const order: ThemeMode[] = ['light', 'dark', 'system'];

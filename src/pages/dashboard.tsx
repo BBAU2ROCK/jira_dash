@@ -60,12 +60,17 @@ export function Dashboard() {
     const dashboardProjectKey = useKpiRulesStore((s) => s.rules.dashboardProjectKey);
 
     // Fetch all epics — v1.0.12 hotfix: projectKey를 queryFn에 명시 전달
-    //   (이전엔 jiraApi.getEpics() 파라미터 생략 → 항상 JIRA_CONFIG 값 사용, store 무시됨)
+    //   v1.0.27: staleTime / refetchInterval 명시 (장시간 idle 후에도 신선한 데이터 유지)
     const { data: epics, isLoading: epicsLoading, error: epicsError } = useQuery({
         queryKey: ['epics', dashboardProjectKey ?? 'IGMU'],
         queryFn: () => jiraApi.getEpics(dashboardProjectKey),
-        refetchOnWindowFocus: false,
-        retry: 2,
+        refetchOnWindowFocus: true,           // focus 복귀 시 자동 새로고침
+        refetchOnReconnect: true,              // 네트워크 복구 시 자동 재요청
+        refetchInterval: 15 * 60 * 1000,      // 15분마다 백그라운드 갱신
+        staleTime: 5 * 60 * 1000,             // 5분 fresh
+        gcTime: 30 * 60 * 1000,               // 30분 캐시 보관
+        retry: 3,
+        retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
     });
 
     // 필드 목록(필드명 '난이도' → id 매핑, 에픽 이슈 조회 시 난이도 필드 포함용)
@@ -83,6 +88,7 @@ export function Dashboard() {
     }, [allFields]);
 
     // Fetch issues for all selected epics (난이도 필드 id 반영)
+    // v1.0.27: keepalive — focus/reconnect/interval 모두 활성화
     const { data: allIssues, isLoading: issuesLoading, error: issuesError, refetch, isFetching } = useQuery({
         queryKey: ['issues', selectedEpicIds, difficultyFieldId],
         queryFn: async () => {
@@ -99,7 +105,13 @@ export function Dashboard() {
             return uniqueIssues;
         },
         enabled: selectedEpicIds.length > 0,
-        refetchOnWindowFocus: false,
+        refetchOnWindowFocus: true,           // focus 복귀 자동 새로고침
+        refetchOnReconnect: true,              // 네트워크 복구 자동 재요청
+        refetchInterval: 15 * 60 * 1000,      // 15분 백그라운드 갱신
+        staleTime: 5 * 60 * 1000,
+        gcTime: 30 * 60 * 1000,
+        retry: 3,
+        retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
     });
 
     const issues = allIssues || [];

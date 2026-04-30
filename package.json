@@ -1,7 +1,7 @@
 {
   "name": "01_jira_dash",
   "private": true,
-  "version": "1.0.26",
+  "version": "1.0.27",
   "description": "Jira Dashboard Application",
   "author": "Okestro",
   "type": "module",
@@ -106,7 +106,7 @@
       }
     ],
     "releaseInfo": {
-      "releaseNotes": "v1.0.26 — 이슈 상세 드로어 X 중복 제거 + 다크 마감: Sheet 기본 absolute close 제거(헤더 자체 close로 일원화), drawer 헤더 close 토큰화, 탭 트리거 bg-slate-700→bg-primary, status chip hover/focus 토큰, mention chip / activity badge / 이슈 key 다크 variant."
+      "releaseNotes": "v1.0.27 — 다크모드 default + 네트워크 keepalive: 테마 초기값 system→dark, useJiraKeepalive(10분 ping + focus/online 감지), ConnectionIndicator(우하단 상태 표시), 핵심 useQuery refetchInterval 15분/staleTime 5분/retry 3회 backoff, Electron powerSaveBlocker로 앱 일시정지 방지."
     },
     "win": {
       "target": [

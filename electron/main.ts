@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, session } from 'electron'
+import { app, BrowserWindow, Menu, ipcMain, session, powerSaveBlocker } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import fs from 'node:fs/promises'
@@ -190,6 +190,15 @@ function installCspHeaders(): void {
 app.whenReady().then(async () => {
     await loadJiraConfig();
     installCspHeaders();
+
+    // v1.0.27: 사용 중에는 시스템 절전 모드 진입 방지 — 장시간 idle 시 네트워크 끊김 방지.
+    // 'prevent-app-suspension': 앱 백그라운드/스로틀링은 막지만 화면 끔(monitor sleep)은 허용.
+    try {
+        const blockerId = powerSaveBlocker.start('prevent-app-suspension');
+        console.log('[main] powerSaveBlocker started:', blockerId);
+    } catch (e) {
+        console.warn('[main] powerSaveBlocker failed:', e);
+    }
 
     ipcMain.handle('jira-config:get', () => Promise.resolve({ ...jiraConfig }));
 

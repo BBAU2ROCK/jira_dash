@@ -4,6 +4,75 @@
 
 ---
 
+## [1.0.27] 다크모드 default + 네트워크 keepalive (장시간 idle 끊김 방지)
+
+### 적용 버전
+- 앱 버전: **1.0.27**
+
+### 배경
+사용자 피드백:
+1. **다크모드를 default로 했으면** — 현재는 'system' (OS 따라감), 사용자는 다크를 원함
+2. **장시간 사용하지 않아도 네트워크 끊김 방지** — 화면 idle 시 Jira 세션·proxy 연결이 끊어지는 것 같음
+
+원인 분석:
+- Atlassian 세션 token 무활동 시 만료
+- Electron BrowserWindow background throttling 발생 가능
+- React Query staleTime 미설정 + refetchOnWindowFocus=false 로 자동 갱신 없음
+- Network drop 시 자동 재시도 없음
+
+### 핵심 변경
+
+#### 1. 다크모드 default
+- `displayPreferenceStore.ts`: theme 초기값 `'system'` → **`'dark'`**
+- 신규 사용자/스토어 초기화 시 다크가 기본 적용. 사용자가 토글하면 그 선택이 persist 유지.
+
+#### 2. useJiraKeepalive hook 신규 — `src/hooks/useJiraKeepalive.ts`
+- **10분마다** 가벼운 `jiraApi.getFields()` ping → Atlassian 세션 갱신 유도
+- **window focus** 이벤트 → 즉시 ping (탭/모니터 복귀 시)
+- **online/offline** 이벤트 → 네트워크 복구 즉시 재연결
+- 상태 반환: `lastPingAt`, `isStale`, `isOnline`
+
+#### 3. ConnectionIndicator 컴포넌트 — `src/components/ui/connection-indicator.tsx`
+- 우하단 미세 indicator (Wifi 아이콘 + "온라인"/"세션 갱신"/"오프라인")
+- 색상 토큰: 정상 emerald / stale amber / offline red (다크 자동 대응)
+- hover 시 마지막 ping 시각 tooltip
+- App.tsx 글로벌 배치 (모든 화면에서 보임)
+
+#### 4. React Query keepalive 옵션 일관 적용 — `dashboard.tsx`
+**epics + issues 두 핵심 쿼리에 적용:**
+```ts
+refetchOnWindowFocus: true,       // 창 복귀 자동 새로고침
+refetchOnReconnect: true,          // 네트워크 복구 자동 재요청
+refetchInterval: 15 * 60 * 1000,  // 15분 백그라운드 갱신
+staleTime: 5 * 60 * 1000,         // 5분 fresh
+gcTime: 30 * 60 * 1000,            // 30분 캐시 보관
+retry: 3,
+retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),  // exponential backoff
+```
+
+#### 5. Electron powerSaveBlocker — `electron/main.ts`
+- `app.whenReady()` 시점에 `powerSaveBlocker.start('prevent-app-suspension')` 호출
+- 앱 백그라운드 throttling 방지 (시스템 모니터 끔은 허용)
+- 사용자가 자리 비워도 네트워크 작업·타이머 정상 동작
+
+### 영향
+| 영역 | v1.0.26 | v1.0.27 |
+|------|---------|---------|
+| 신규 사용자 첫 접속 | system 모드 (OS 따라) | **다크 모드** |
+| 30분 idle 후 작업 | 401 / 끊김 가능 | **자동 ping + 자동 refetch** |
+| Window focus 복귀 | 데이터 stale | **즉시 새로고침** |
+| 네트워크 drop → 복구 | 수동 새로고침 필요 | **자동 재연결** |
+| 일시 500/429 에러 | 즉시 실패 | **3회 exponential backoff (1s→2s→4s→8s)** |
+| 연결 상태 가시성 | 없음 | **우하단 indicator** |
+| 시스템 절전 | 앱 throttle | **prevent-app-suspension** |
+
+### 검증
+- TypeScript strict 빌드 통과
+- ESLint 0 errors
+- vitest 298/298 통과
+
+---
+
 ## [1.0.26] 이슈 상세 드로어 — X 중복 제거 + 다크 마감
 
 ### 적용 버전
