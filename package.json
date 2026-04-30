@@ -1,7 +1,7 @@
 {
   "name": "01_jira_dash",
   "private": true,
-  "version": "1.0.27",
+  "version": "1.0.28",
   "description": "Jira Dashboard Application",
   "author": "Okestro",
   "type": "module",
@@ -106,7 +106,7 @@
       }
     ],
     "releaseInfo": {
-      "releaseNotes": "v1.0.27 — 다크모드 default + 네트워크 keepalive: 테마 초기값 system→dark, useJiraKeepalive(10분 ping + focus/online 감지), ConnectionIndicator(우하단 상태 표시), 핵심 useQuery refetchInterval 15분/staleTime 5분/retry 3회 backoff, Electron powerSaveBlocker로 앱 일시정지 방지."
+      "releaseNotes": "v1.0.28 — 매니저 콘솔(신규): 일일 브리프(어제·오늘·내일 핵심 지표), 리스크 보드(6 위험 카드 — 마감임박/Stale/미배정/보류장기/과부하/Scope creep), 1:1 미팅 준비(담당자 자동 요약·격려·코칭). 헤더에 위험 카운트 빨강 배지. 추가 API 호출 0건."
     },
     "win": {
       "target": [

@@ -4,6 +4,7 @@ import { jiraApi, type JiraIssue } from '@/api/jiraClient';
 import { filterLeafIssues } from '@/lib/jira-helpers';
 import { Sidebar } from '@/components/layout/sidebar';
 import { cn } from '@/lib/utils';
+import { ManagerConsole, useManagerRiskCount } from '@/components/manager-console';
 import { IssueList } from '@/components/issue-list';
 import { IssueDetailDrawer } from '@/components/issue-detail-drawer';
 import { ProjectStatsDialog } from '@/components/project-stats-dialog';
@@ -11,7 +12,7 @@ import { JiraSettingsDialog, type JiraConfig } from '@/components/jira-settings-
 import { useKpiRulesStore } from '@/stores/kpiRulesStore';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
-import { BarChart3, RefreshCw, AlertCircle, Settings, Bug, Layers, Sparkles, MousePointerClick } from 'lucide-react';
+import { BarChart3, RefreshCw, AlertCircle, Settings, Bug, Layers, Sparkles, MousePointerClick, Briefcase } from 'lucide-react';
 import { useEpicMappingStore } from '@/stores/epicMappingStore';
 import { DefectKpiDashboard } from '@/components/defect-kpi-dashboard';
 import { useDefectKpiAggregation } from '@/hooks/useDefectKpiAggregation';
@@ -28,6 +29,8 @@ export function Dashboard() {
     /** 프로젝트 통계 담당자별 현황에서 난이도/이슈 클릭 시 이슈 목록에 표시할 키만 제한 */
     const [focusIssueKeys, setFocusIssueKeys] = React.useState<string[] | null>(null);
     const [defectKpiOpen, setDefectKpiOpen] = React.useState(false);
+    // v1.0.28: Manager Console
+    const [managerOpen, setManagerOpen] = React.useState(false);
 
     const epicMappings = useEpicMappingStore((s) => s.mappings);
     const mappingCount = epicMappings.length;
@@ -115,6 +118,8 @@ export function Dashboard() {
     });
 
     const issues = allIssues || [];
+    // v1.0.28: 매니저 콘솔 위험 카운트 (헤더 배지)
+    const managerRiskCount = useManagerRiskCount(issues);
     // 건수 규칙: 할 일만 있으면 카운트, 하위 작업 있으면 부모 제외·하위만 반영 (통계/KPI 동일)
     const workItems = filterLeafIssues(issues);
     const totalSP = workItems.reduce((sum, issue) => sum + (issue.fields.customfield_10016 || 0), 0);
@@ -225,6 +230,26 @@ export function Dashboard() {
                             <Bug className="h-4 w-4 mr-1.5" />
                             <span className="hidden sm:inline">결함 KPI</span>
                         </Button>
+                        {/* v1.0.28: 매니저 콘솔 — 위험 카운트 배지 자동 표시 */}
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setManagerOpen(true)}
+                            disabled={!issues || issues.length === 0}
+                            title="매니저 콘솔 — 일일 브리프·리스크 보드·1:1 미팅 준비"
+                            className="h-8 relative"
+                        >
+                            <Briefcase className="h-4 w-4 mr-1.5" />
+                            <span className="hidden sm:inline">매니저</span>
+                            {managerRiskCount > 0 && (
+                                <span
+                                    className="absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 dark:bg-red-600 text-white text-[10px] font-bold tabular-nums px-1 shadow-sm"
+                                    aria-label={`위험 ${managerRiskCount}건`}
+                                >
+                                    {managerRiskCount > 99 ? '99+' : managerRiskCount}
+                                </span>
+                            )}
+                        </Button>
                         <Button
                             variant="default"
                             size="sm"
@@ -327,6 +352,19 @@ export function Dashboard() {
                 defectSeverityFieldResolved={defectKpi.defectSeverityFieldResolved}
                 mappingCount={defectKpi.mappingCount}
                 onRefresh={() => void defectKpi.refetch()}
+            />
+
+            {/* v1.0.28: 매니저 콘솔 — 일일 브리프 + 리스크 보드 + 1:1 준비 */}
+            <ManagerConsole
+                open={managerOpen}
+                onClose={() => setManagerOpen(false)}
+                issues={issues}
+                selectedEpicCount={selectedEpicIds.length}
+                onIssueClick={(issue) => {
+                    setSelectedIssue(issue);
+                    setDrawerOpen(true);
+                }}
+                onIssueKeysFocus={(keys) => setFocusIssueKeys(keys.length > 0 ? keys : null)}
             />
 
             <ProjectStatsDialog

@@ -306,7 +306,7 @@ export const jiraApi = {
                 'customfield_11481', 'customfield_11484', 'customfield_11485',
                 // v1.0.14: 서브담당자 (다중 user)
                 JIRA_CONFIG.FIELDS.SUB_ASSIGNEE,
-                'duedate', 'created', 'resolutiondate', 'timespent', 'worklog', 'comment', 'attachment'
+                'duedate', 'created', 'updated', 'resolutiondate', 'timespent', 'worklog', 'comment', 'attachment'
             ],
             maxResults: 100
         });
