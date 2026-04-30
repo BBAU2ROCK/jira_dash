@@ -118,6 +118,8 @@ export function useDefectKpiAggregation() {
         queryFn: async (): Promise<{
             merged: DefectKpiDeveloperRow[];
             byDevEpic: Map<string, DefectStatsByDevEpic>;
+            // v1.0.29: 매핑된 dev 에픽의 raw issues 노출 — 회고 영역 매핑 모드 분석용
+            devIssuesByEpic: Map<string, JiraIssue[]>;
         }> => {
             const extra = [workerFieldId, severityFieldId].filter(Boolean) as string[];
             // H1: 매핑별 fetch를 병렬 처리
@@ -168,15 +170,17 @@ export function useDefectKpiAggregation() {
                         trendDirection,
                         topAffectedPeople,
                     };
-                    return { perAssigneeRows: perAssignee, stats };
+                    return { perAssigneeRows: perAssignee, stats, devEpicKey: m.devEpicKey, devIssues };
                 })
             );
             const byDevEpic = new Map<string, DefectStatsByDevEpic>();
+            const devIssuesByEpic = new Map<string, JiraIssue[]>();
             for (const r of perMapping) {
                 byDevEpic.set(r.stats.devEpicKey, r.stats);
+                devIssuesByEpic.set(r.devEpicKey, r.devIssues);
             }
             const merged = mergeDefectKpiRows(perMapping.map((r) => r.perAssigneeRows));
-            return { merged, byDevEpic };
+            return { merged, byDevEpic, devIssuesByEpic };
         },
         staleTime: 2 * 60 * 1000,
     });
@@ -192,6 +196,12 @@ export function useDefectKpiAggregation() {
     return {
         rows: query.data?.merged ?? [],
         defectStatsByDevEpic: query.data?.byDevEpic ?? new Map<string, DefectStatsByDevEpic>(),
+        // v1.0.29: 매핑 모드에서 회고 좌측 분석용 raw issues
+        devIssuesByEpic: query.data?.devIssuesByEpic ?? new Map<string, JiraIssue[]>(),
+        // 매핑된 모든 dev 에픽 키 목록 (정렬 보장)
+        mappedDevEpicKeys: mappings.map((m) => m.devEpicKey),
+        // 매핑 정보 (UI 안내용)
+        mappings,
         isLoading: fieldsLoading || query.isLoading,
         isFetching: query.isFetching,
         error: query.error,

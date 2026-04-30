@@ -113,8 +113,17 @@ export function ProgressTrends({ issues, selectedEpicIds, epics }: ProgressTrend
     const hasCompletionData = (counts?.completed90d ?? 0) > 0;
     const scopeMeta = team ? scopeStatusMeta(team.scopeStatus) : null;
 
-    // 회고 분석 (Tier 4) — 선택 에픽 안의 task 통계 + 결함 매핑 통합
-    const retro = analyzeEpicsRetrospective(issues, selectedEpicIds, defectKpi.defectStatsByDevEpic);
+    // v1.0.29: 회고 분석 — 매핑 있으면 매핑 dev 에픽 기반, 없으면 사이드바 선택 기반
+    const retroMode: 'mapping' | 'sidebar' = defectKpi.mappingCount > 0 ? 'mapping' : 'sidebar';
+    const retroEpicKeys = retroMode === 'mapping'
+        ? defectKpi.mappedDevEpicKeys
+        : selectedEpicIds;
+    // 매핑 모드일 때는 useDefectKpiAggregation이 fetch한 dev 이슈를 사용,
+    // 사이드바 모드일 때는 dashboard fetch 결과(issues prop) 사용
+    const retroIssues = retroMode === 'mapping'
+        ? Array.from(defectKpi.devIssuesByEpic.values()).flat()
+        : issues;
+    const retro = analyzeEpicsRetrospective(retroIssues, retroEpicKeys, defectKpi.defectStatsByDevEpic);
 
     return (
         <div className="space-y-4">
@@ -306,15 +315,45 @@ export function ProgressTrends({ issues, selectedEpicIds, epics }: ProgressTrend
                 title="에픽 회고 + 결함 회고"
                 subtitle="좌: KPI · 완료율 · 정시율 · cycle time · 담당자 분해 / 우: 결함 수 · Defect Density · 심각도"
                 accent="indigo"
+                headerRight={
+                    /* v1.0.29: 회고 모드 안내 배지 — 매핑 기반 vs 사이드바 선택 */
+                    retroMode === 'mapping' ? (
+                        <span
+                            className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium bg-indigo-50 dark:bg-indigo-950/30 border-indigo-200 dark:border-indigo-900/60 text-indigo-700 dark:text-indigo-300"
+                            title={`매핑된 ${defectKpi.mappingCount}개 에픽 기반 분석 — 사이드바 선택과 별개`}
+                        >
+                            🔗 매핑 기반 ({defectKpi.mappedDevEpicKeys.slice(0, 2).join(', ')}{defectKpi.mappedDevEpicKeys.length > 2 ? ` 외 ${defectKpi.mappedDevEpicKeys.length - 2}` : ''})
+                        </span>
+                    ) : (
+                        <span
+                            className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium bg-muted/40 border-border text-muted-foreground"
+                            title="결함 매핑 미등록 — 사이드바 선택 에픽 기반 분석. 매핑 등록 시 자동 매핑 모드 전환."
+                        >
+                            📂 사이드바 선택 기반
+                        </span>
+                    )
+                }
             >
                 {retro.perEpic.length === 0 ? (
-                    <div className="text-sm text-muted-foreground py-4">선택된 에픽이 없습니다.</div>
+                    <div className="text-sm text-muted-foreground py-4">
+                        {retroMode === 'mapping'
+                            ? '매핑된 에픽이 없습니다. KPI 성과 탭에서 매핑을 등록하세요.'
+                            : '선택된 에픽이 없습니다.'}
+                    </div>
                 ) : (
                     <div className="space-y-3">
                         {retro.perEpic.map((s) => (
                             <div key={s.epicKey} className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-3">
                                 <EpicRetroCard summary={s} />
-                                <EpicDefectCard summary={s} />
+                                <EpicDefectCard
+                                    summary={s}
+                                    mappingDiag={{
+                                        mappingCount: defectKpi.mappingCount,
+                                        mappedDevEpicKeys: defectKpi.mappedDevEpicKeys,
+                                        isLoading: defectKpi.isLoading,
+                                        hasError: !!defectKpi.error,
+                                    }}
+                                />
                             </div>
                         ))}
                     </div>

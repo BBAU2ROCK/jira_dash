@@ -4,6 +4,70 @@
 
 ---
 
+## [1.0.29] 회고 영역 매핑 자동 모드 전환
+
+### 적용 버전
+- 앱 버전: **1.0.29**
+
+### 배경
+사용자 피드백:
+> "결함 KPI를 위한 매핑이 없을 시에는 사이드바 선택 기반으로 표출하고, 매핑이 되어 있을 때는 매핑 기반 정보로 표출하는 건 어때?"
+
+직전까지 회고 영역(진행 추이/예측 → "B. 회고")의 데이터 흐름:
+- 좌측 (에픽 회고): 사이드바 선택 에픽 기준
+- 우측 (결함 회고): 매핑 기준 (단, 사이드바 선택 ∩ 매핑 dev 에픽 일치 시에만 표시)
+→ **두 영역의 데이터 소스가 달라** 사용자가 IGMU-538 선택 + 매핑 IGMU-47 ↔ TQ-605 일 때 결함 회고 "매핑 미등록" 잘못 표시.
+
+### 핵심 변경
+
+#### 1. 회고 영역 자동 모드 전환 — `progress-trends/index.tsx`
+```ts
+const retroMode = defectKpi.mappingCount > 0 ? 'mapping' : 'sidebar';
+const retroEpicKeys = retroMode === 'mapping'
+    ? defectKpi.mappedDevEpicKeys     // 매핑된 dev 에픽 (예: IGMU-47)
+    : selectedEpicIds;                  // 사이드바 선택 (예: IGMU-538)
+const retroIssues = retroMode === 'mapping'
+    ? Array.from(defectKpi.devIssuesByEpic.values()).flat()
+    : issues;
+```
+**사이드바 선택과 매핑이 다른 경우** 매핑 기반으로 자동 전환 — 좌·우 회고 카드 모두 정상 표시.
+
+#### 2. useDefectKpiAggregation 노출 강화 — `useDefectKpiAggregation.ts`
+- 신규: `devIssuesByEpic: Map<string, JiraIssue[]>` — 매핑된 dev 에픽의 raw issues
+- 신규: `mappedDevEpicKeys: string[]` — 매핑된 모든 dev 에픽 키
+- 신규: `mappings` — 진단 메시지용
+
+#### 3. 회고 섹션 헤더 모드 배지 (CategorySection.headerRight)
+- **🔗 매핑 기반 (IGMU-47, ... 외 N)** — 인디고 톤
+- **📂 사이드바 선택 기반** — 무채색 톤
+- title 툴팁으로 상세 안내
+
+#### 4. EpicDefectCard 분기 메시지 4가지 정교화
+| 케이스 | 조건 | 메시지 |
+|--------|------|------|
+| 로딩 | `isLoading` | 스피너 + "결함 데이터 로딩 중..." |
+| Fetch 에러 | `hasError` | 빨강 + "Jira 권한 또는 네트워크 문제. 새로고침으로 재시도" |
+| 매핑 0건 | `mappingCount === 0` | "결함 매핑 미등록 → KPI 탭" (기존 메시지 유지) |
+| 에픽 매핑 X | `mappingCount > 0` 인데 이 에픽 매핑 X | **"이 에픽은 매핑되지 않음 + 현재 등록 매핑 목록 + 추가 안내"** |
+
+### 사용자 시나리오
+| 매핑 | 사이드바 | 회고 모드 | 좌측 (에픽 회고) | 우측 (결함 회고) |
+|------|--------|---------|-----------|------------|
+| 0건 | IGMU-538 | 사이드바 | IGMU-538 KPI | "매핑 미등록" |
+| IGMU-47 ↔ TQ-605 | IGMU-538 | **매핑** | **IGMU-47 KPI** ✓ | **TQ-605 결함** ✓ |
+| IGMU-47, IGMU-538 매핑 2건 | 무관 | **매핑** | 두 에픽 KPI | 두 결함 데이터 |
+
+### 영향 (이슈 목록은 사이드바 기준 그대로)
+- IssueList(메인 화면 이슈 목록)는 사이드바 선택 기반 유지 — 매핑된 dev 에픽 외 다른 에픽도 자유롭게 탐색 가능.
+- KPI 성과 탭의 결함 KPI는 v1.0.28과 동일 (변경 없음).
+
+### 검증
+- TypeScript strict 통과
+- ESLint 0 errors
+- vitest 25 files / 320 tests 통과
+
+---
+
 ## [1.0.28] 매니저 콘솔 — 일일 브리프 + 리스크 보드 + 1:1 미팅 준비
 
 ### 적용 버전

@@ -1,7 +1,7 @@
 {
   "name": "01_jira_dash",
   "private": true,
-  "version": "1.0.28",
+  "version": "1.0.29",
   "description": "Jira Dashboard Application",
   "author": "Okestro",
   "type": "module",
@@ -106,7 +106,7 @@
       }
     ],
     "releaseInfo": {
-      "releaseNotes": "v1.0.28 — 매니저 콘솔(신규): 일일 브리프(어제·오늘·내일 핵심 지표), 리스크 보드(6 위험 카드 — 마감임박/Stale/미배정/보류장기/과부하/Scope creep), 1:1 미팅 준비(담당자 자동 요약·격려·코칭). 헤더에 위험 카운트 빨강 배지. 추가 API 호출 0건."
+      "releaseNotes": "v1.0.29 — 진행 추이/예측 회고: 매핑 자동 모드 전환 (매핑 없으면 사이드바 기준, 있으면 매핑 dev 에픽 기준). 회고 섹션 헤더 모드 배지(🔗 매핑 기반 / 📂 사이드바 선택). EpicDefectCard 4분기 정교화 (로딩/fetch에러/매핑0/에픽 미매핑)."
     },
     "win": {
       "target": [

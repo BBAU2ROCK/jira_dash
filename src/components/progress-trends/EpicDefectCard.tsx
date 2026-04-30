@@ -32,6 +32,13 @@ function typeColor(name: string): string {
 
 interface Props {
     summary: EpicRetroSummary;
+    /** v1.0.29: 매핑 진단 정보 — Card에서 분기 메시지 정확화 */
+    mappingDiag?: {
+        mappingCount: number;
+        mappedDevEpicKeys: string[];
+        isLoading?: boolean;
+        hasError?: boolean;
+    };
 }
 
 /**
@@ -45,7 +52,7 @@ interface Props {
  *   5. 집중 담당자 상위 3명
  *   6. 자동 권고 (최대 3건)
  */
-export function EpicDefectCard({ summary }: Props) {
+export function EpicDefectCard({ summary, mappingDiag }: Props) {
     const stats = summary.defectStats;
     const anonymizeMode = useDisplayPreferenceStore((s) => s.anonymizeMode);
     const anonMap = React.useMemo(
@@ -212,12 +219,52 @@ export function EpicDefectCard({ summary }: Props) {
                     </div>
                 </div>
             ) : (
-                <div className="flex-1 flex flex-col justify-center items-center text-center text-sm text-muted-foreground gap-2 py-6">
-                    <AlertTriangle className="h-6 w-6 text-amber-500" />
-                    <span className="font-semibold">결함 매핑 미등록</span>
-                    <p className="text-xs text-muted-foreground leading-relaxed max-w-[200px]">
-                        KPI 성과 탭 → 결함 KPI → 「개발 ↔ 결함 에픽 매핑」에서 등록하면 에픽별 결함 회고가 표시됩니다.
-                    </p>
+                /* v1.0.29: 4가지 분기 정확화 — 사용자가 즉시 진단 가능 */
+                <div className="flex-1 flex flex-col justify-center items-center text-center text-sm gap-2 py-6">
+                    {mappingDiag?.isLoading ? (
+                        // 케이스 1: 결함 데이터 로딩 중
+                        <>
+                            <div className="h-6 w-6 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+                            <span className="font-semibold text-foreground/80">결함 데이터 로딩 중...</span>
+                        </>
+                    ) : mappingDiag?.hasError ? (
+                        // 케이스 2: fetch 에러
+                        <>
+                            <AlertTriangle className="h-6 w-6 text-red-500" />
+                            <span className="font-semibold text-red-700 dark:text-red-300">결함 데이터 fetch 실패</span>
+                            <p className="text-xs text-muted-foreground leading-relaxed max-w-[220px]">
+                                Jira 권한 또는 네트워크 문제일 수 있습니다. 우측 상단 새로고침으로 재시도하세요.
+                            </p>
+                        </>
+                    ) : !mappingDiag || mappingDiag.mappingCount === 0 ? (
+                        // 케이스 3: 매핑 자체 미등록
+                        <>
+                            <AlertTriangle className="h-6 w-6 text-amber-500" />
+                            <span className="font-semibold text-foreground/80">결함 매핑 미등록</span>
+                            <p className="text-xs text-muted-foreground leading-relaxed max-w-[220px]">
+                                KPI 성과 탭 → 결함 KPI → 「개발 ↔ 결함 에픽 매핑」에서 등록하면 에픽별 결함 회고가 표시됩니다.
+                            </p>
+                        </>
+                    ) : (
+                        // 케이스 4: 매핑은 있는데 이 에픽이 매핑되지 않음
+                        <>
+                            <AlertTriangle className="h-6 w-6 text-amber-500" />
+                            <span className="font-semibold text-foreground/80">이 에픽은 매핑되지 않음</span>
+                            <p className="text-xs text-muted-foreground leading-relaxed max-w-[260px]">
+                                <span className="font-mono text-amber-700 dark:text-amber-300">{summary.epicKey}</span>이 결함 에픽과 매핑되어 있지 않습니다.
+                            </p>
+                            <p className="text-[11px] text-muted-foreground leading-relaxed max-w-[260px] mt-1">
+                                현재 등록된 매핑:{' '}
+                                <span className="font-mono text-foreground/90">
+                                    {mappingDiag.mappedDevEpicKeys.slice(0, 3).join(', ')}
+                                    {mappingDiag.mappedDevEpicKeys.length > 3 && ` 외 ${mappingDiag.mappedDevEpicKeys.length - 3}`}
+                                </span>
+                            </p>
+                            <p className="text-[10px] text-muted-foreground/80 mt-1">
+                                KPI 성과 탭 → 결함 KPI에서 <span className="font-mono">{summary.epicKey}</span> ↔ 결함 에픽 매핑을 추가하세요.
+                            </p>
+                        </>
+                    )}
                 </div>
             )}
         </div>
