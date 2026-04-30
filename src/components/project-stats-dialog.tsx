@@ -49,6 +49,10 @@ interface ProjectStatsDialogProps {
     /** false이면 Jira에서「결함 심각도」커스텀 필드 id를 찾지 못함(우선순위와 무관) */
     defectKpiSeverityFieldOk?: boolean;
     defectKpiMappingCount?: number;
+    /** v1.0.31: 매핑된 dev 에픽 issues — KPI 성과 탭이 매핑 모드로 분기할 때 사용 */
+    mappingDevIssues?: JiraIssue[];
+    /** 매핑된 dev 에픽 키 목록 (헤더 안내용) */
+    mappedDevEpicKeys?: string[];
 }
 
 interface IssueGroup {
@@ -87,6 +91,8 @@ export function ProjectStatsDialog({
     defectKpiWorkerOk = false,
     defectKpiSeverityFieldOk = true,
     defectKpiMappingCount = 0,
+    mappingDevIssues = [],
+    mappedDevEpicKeys = [],
 }: ProjectStatsDialogProps) {
     // K4: kpiRulesStore 구독 — 규칙 변경 시 GradeCard 툴팁 자동 재렌더
     const kpiRules = useKpiRulesStore((s) => s.rules);
@@ -270,6 +276,112 @@ export function ProjectStatsDialog({
             kpi: calculateKPI(a.total)
         })).sort((a, b) => b.kpi.totalScore - a.kpi.totalScore);
     }, [assignees]);
+
+    /* ────────────────────────────────────────────────────────────────────────────
+     * v1.0.31: KPI 성과 탭 매핑 모드
+     *  - 매핑이 있으면 KPI 성과 탭은 매핑된 dev 에픽 issues를 기반으로 평가
+     *  - 매핑 없으면 사이드바 선택 기반 (기존 변수 그대로)
+     *  - 프로젝트 현황 탭은 항상 사이드바 기준 (기존 leafIssues/assignees 사용)
+     * ──────────────────────────────────────────────────────────────────────────── */
+    const isKpiMappingMode = mappingDevIssues.length > 0;
+    const kpiTabIssues = isKpiMappingMode ? mappingDevIssues : issues;
+    const kpiTabLeafIssues = React.useMemo(() => filterLeafIssues(kpiTabIssues), [kpiTabIssues]);
+    const kpiTabKpiMetrics = React.useMemo(() => calculateKPI(kpiTabLeafIssues), [kpiTabLeafIssues]);
+
+    // 매핑 모드 담당자 분석 — assignees Map 재빌드 (사이드바 기준 assigneeMap 로직과 동일하지만 kpiTab issues 사용)
+    const kpiTabAssigneesWithKPI = React.useMemo(() => {
+        if (!isKpiMappingMode) return assigneesWithKPI;
+
+        const map = new Map<string, AssigneeStats>();
+        const parentsWithChildren = new Set<string>();
+        kpiTabIssues.forEach((i) => {
+            if (i.fields.parent?.key) parentsWithChildren.add(i.fields.parent.key);
+            if ((i.fields.subtasks?.length ?? 0) > 0) parentsWithChildren.add(i.key);
+        });
+
+        kpiTabLeafIssues.forEach((issue) => {
+            const name = issue.fields.assignee?.displayName ?? UNASSIGNED_LABEL;
+            if (!map.has(name)) {
+                map.set(name, {
+                    name,
+                    total: [], done: [], inProgress: [], todo: [], delayed: [],
+                    earlyDone: [], compliant: [], withWorklog: [], withoutWorklog: [],
+                    totalTimeSpent: 0,
+                    collaborations: [],
+                });
+            }
+            const s = map.get(name)!;
+            s.total.push(issue);
+            const cat = getStatusCategoryKey(issue);
+            const onHold = (issue.fields.status?.name?.trim() ?? '') === onHoldName;
+            const isCancel = (issue.fields.status?.name?.trim() ?? '') === cancelledName;
+            const isReject = (issue.fields.status?.name?.trim() ?? '') === rejectedName;
+            const isDoneAssignee = (cat === 'done' && !isCancel && !isReject) || onHold;
+            if (isDoneAssignee) {
+                s.done.push(issue);
+                if (cat === 'done') {
+                    if (issue.fields.duedate && issue.fields.resolutiondate &&
+                        new Date(issue.fields.resolutiondate) < new Date(issue.fields.duedate)) {
+                        s.earlyDone.push(issue);
+                    }
+                    const isVerificationDelay = issue.fields.labels?.includes(JIRA_CONFIG.LABELS.VERIFICATION_DELAY);
+                    if (issue.fields.duedate && issue.fields.resolutiondate) {
+                        const due = endOfLocalDay(issue.fields.duedate);
+                        const resolved = new Date(issue.fields.resolutiondate);
+                        if ((due && resolved <= due) || isVerificationDelay) {
+                            s.compliant.push(issue);
+                        }
+                    } else {
+                        s.compliant.push(issue);
+                    }
+                }
+            } else if (cat === 'indeterminate') {
+                s.inProgress.push(issue);
+            } else {
+                s.todo.push(issue);
+            }
+            if (issue.fields.duedate && new Date(issue.fields.duedate) < today && !isDoneAssignee) {
+                s.delayed.push(issue);
+            }
+            const ts = issue.fields.timespent || 0;
+            if (ts > 0) {
+                s.withWorklog.push(issue);
+                s.totalTimeSpent += ts;
+            } else {
+                s.withoutWorklog.push(issue);
+            }
+        });
+        // 부모(non-leaf) 업무로그 합산
+        kpiTabIssues.forEach((issue) => {
+            if (!parentsWithChildren.has(issue.key)) return;
+            const ts = issue.fields.timespent || 0;
+            if (ts <= 0) return;
+            const name = issue.fields.assignee?.displayName ?? UNASSIGNED_LABEL;
+            if (!map.has(name)) {
+                map.set(name, {
+                    name,
+                    total: [], done: [], inProgress: [], todo: [], delayed: [],
+                    earlyDone: [], compliant: [], withWorklog: [], withoutWorklog: [],
+                    totalTimeSpent: 0,
+                    collaborations: [],
+                });
+            }
+            map.get(name)!.totalTimeSpent += ts;
+        });
+        // 협업 그래프
+        const collabs = buildMainCollaborations(kpiTabLeafIssues);
+        for (const [n, c] of collabs) {
+            const s = map.get(n);
+            if (s) s.collaborations = c;
+        }
+        const arr = Array.from(map.values()).sort((a, b) => b.total.length - a.total.length);
+        return arr.map((a) => ({ ...a, kpi: calculateKPI(a.total) }))
+            .sort((a, b) => b.kpi.totalScore - a.kpi.totalScore);
+    }, [isKpiMappingMode, assigneesWithKPI, kpiTabIssues, kpiTabLeafIssues, today, onHoldName, cancelledName, rejectedName]);
+
+    /** KPI 탭에서 표시할 KPI 데이터 (매핑 모드면 매핑 dev 기반) */
+    const displayKpi = isKpiMappingMode ? kpiTabKpiMetrics : kpiMetrics;
+    const displayAssigneesWithKPI = isKpiMappingMode ? kpiTabAssigneesWithKPI : assigneesWithKPI;
 
     const defectKpiByDisplayName = React.useMemo(() => {
         const m = new Map<string, DefectKpiDeveloperRow>();
@@ -810,25 +922,39 @@ export function ProjectStatsDialog({
 
                     <TabsContent value="kpi" className="flex-1 overflow-y-auto p-0 m-0 border-0 focus-visible:ring-0 focus-visible:outline-none">
                         <div className="px-6 py-6 space-y-8 text-[13px] leading-5 text-foreground/90">
+                            {/* v1.0.31: 매핑 모드 안내 배지 — 사용자가 어떤 데이터 기반인지 즉시 인지 */}
+                            {isKpiMappingMode && (
+                                <div className="flex items-center gap-2 rounded-lg border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50 dark:bg-indigo-950/30 px-4 py-2.5 text-xs">
+                                    <span className="text-indigo-600 dark:text-indigo-400 text-base">🔗</span>
+                                    <div className="flex-1">
+                                        <span className="font-semibold text-indigo-700 dark:text-indigo-300">매핑 기반 KPI 평가</span>
+                                        <span className="text-indigo-700/80 dark:text-indigo-400/80 ml-2">
+                                            매핑된 {mappedDevEpicKeys.length}개 에픽 (
+                                            <span className="font-mono">{mappedDevEpicKeys.slice(0, 3).join(', ')}{mappedDevEpicKeys.length > 3 ? ` 외 ${mappedDevEpicKeys.length - 3}` : ''}</span>
+                                            ) 기준 — 당시의 등급 평가 내용
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
                             <section>
                                 <SectionTitle>KPI 등급 평가는 팀 전체 기준입니다</SectionTitle>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mt-4">
                                     {/* K4: 툴팁은 kpiRules 구독 → store 변경 시 즉시 동적 반영 */}
-                                    <GradeCard title="기능 개발 완료율" grade={kpiMetrics.grades.completion}
-                                        rate={kpiMetrics.completionRate} color="blue"
+                                    <GradeCard title="기능 개발 완료율" grade={displayKpi.grades.completion}
+                                        rate={displayKpi.completionRate} color="blue"
                                         desc="계획 대비 완료된 기능 수 (연기 합의 제외)"
                                         tooltip={completionTooltip(kpiRules)} />
-                                    <GradeCard title="일정 준수율" grade={kpiMetrics.grades.compliance}
-                                        rate={kpiMetrics.complianceRate} color="green"
+                                    <GradeCard title="일정 준수율" grade={displayKpi.grades.compliance}
+                                        rate={displayKpi.complianceRate} color="green"
                                         desc={
-                                            kpiMetrics.noDueDateCount > 0
-                                                ? `기한 내 완료 비율 (기한 미설정 ${kpiMetrics.noDueDateCount}건 준수 처리)`
+                                            displayKpi.noDueDateCount > 0
+                                                ? `기한 내 완료 비율 (기한 미설정 ${displayKpi.noDueDateCount}건 준수 처리)`
                                                 : '총 계획 기능 중 기한 내 완료된 기능의 비율'
                                         }
-                                        tooltip={complianceTooltip(kpiRules, kpiMetrics.noDueDateCount)} />
-                                    <GradeCard title="조기 종료 가점" grade={`+${kpiMetrics.grades.earlyBonus}`}
-                                        rate={kpiMetrics.earlyRate} color="amber"
-                                        desc={`조기 완료율 ${kpiMetrics.earlyRate}% 달성`}
+                                        tooltip={complianceTooltip(kpiRules, displayKpi.noDueDateCount)} />
+                                    <GradeCard title="조기 종료 가점" grade={`+${displayKpi.grades.earlyBonus}`}
+                                        rate={displayKpi.earlyRate} color="amber"
+                                        desc={`조기 완료율 ${displayKpi.earlyRate}% 달성`}
                                         tooltip={earlyBonusTooltip(kpiRules)} />
                                     <GradeCard
                                         title="팀 결함 밀도"
@@ -864,32 +990,32 @@ export function ProjectStatsDialog({
                                         <tbody className="divide-y divide-border/50">
                                             <tr>
                                                 <td className="px-6 py-3 text-foreground/90">전체 대상 이슈</td>
-                                                <td className="px-6 py-3 text-right font-semibold">{kpiMetrics.totalIssues} 개</td>
+                                                <td className="px-6 py-3 text-right font-semibold">{displayKpi.totalIssues} 개</td>
                                                 <td className="px-6 py-3 text-muted-foreground text-xs">총 계획된 기능 수</td>
                                             </tr>
                                             <tr>
                                                 <td className="px-6 py-3 text-foreground/90">연기 합의 이슈</td>
-                                                <td className="px-6 py-3 text-right font-semibold text-muted-foreground">{kpiMetrics.agreedDelayIssues} 개</td>
+                                                <td className="px-6 py-3 text-right font-semibold text-muted-foreground">{displayKpi.agreedDelayIssues} 개</td>
                                                 <td className="px-6 py-3 text-muted-foreground text-xs">완료율 계산 시 모수에서 제외</td>
                                             </tr>
                                             <tr>
                                                 <td className="px-6 py-3 text-foreground/90">개발 완료 (조정 후)</td>
-                                                <td className="px-6 py-3 text-right font-semibold text-blue-600">{kpiMetrics.completedIssues} 개</td>
+                                                <td className="px-6 py-3 text-right font-semibold text-blue-600">{displayKpi.completedIssues} 개</td>
                                                 <td className="px-6 py-3 text-muted-foreground text-xs">최종 완료된 기능 수</td>
                                             </tr>
                                             <tr>
                                                 <td className="px-6 py-3 text-foreground/90">일정 준수 완료</td>
-                                                <td className="px-6 py-3 text-right font-semibold text-green-600">{kpiMetrics.compliantIssues} 개</td>
+                                                <td className="px-6 py-3 text-right font-semibold text-green-600">{displayKpi.compliantIssues} 개</td>
                                                 <td className="px-6 py-3 text-muted-foreground text-xs">완료 예정일 이내 완료</td>
                                             </tr>
                                             <tr>
                                                 <td className="px-6 py-3 text-foreground/90">조기 완료</td>
-                                                <td className="px-6 py-3 text-right font-semibold text-amber-600">{kpiMetrics.earlyIssues} 개</td>
+                                                <td className="px-6 py-3 text-right font-semibold text-amber-600">{displayKpi.earlyIssues} 개</td>
                                                 <td className="px-6 py-3 text-muted-foreground text-xs">완료 예정일보다 하루 이상 빨리 완료</td>
                                             </tr>
                                             <tr>
                                                 <td className="px-6 py-3 text-foreground/90">지연 완료</td>
-                                                <td className="px-6 py-3 text-right font-semibold text-red-600">{kpiMetrics.delayedIssues} 개</td>
+                                                <td className="px-6 py-3 text-right font-semibold text-red-600">{displayKpi.delayedIssues} 개</td>
                                                 <td className="px-6 py-3 text-muted-foreground text-xs">완료 예정일을 초과하여 완료</td>
                                             </tr>
                                             <tr className="bg-muted/40/90">
@@ -1153,7 +1279,7 @@ export function ProjectStatsDialog({
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-border/50">
-                                            {assigneesWithKPI.map(a => {
+                                            {displayAssigneesWithKPI.map(a => {
                                                 const kpi = a.kpi;
                                                 const delayPct = kpi.totalIssues > 0 ? Math.round((kpi.delayedIssues / kpi.totalIssues) * 100) : 0;
                                                 // K8: UNASSIGNED_LABEL 통일. 과거 '미할당'/'미배정' 분기 로직 제거.

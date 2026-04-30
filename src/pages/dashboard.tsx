@@ -378,6 +378,9 @@ export function Dashboard() {
                 defectKpiWorkerOk={defectKpi.workerFieldResolved}
                 defectKpiSeverityFieldOk={defectKpi.defectSeverityFieldResolved}
                 defectKpiMappingCount={defectKpi.mappingCount}
+                /* v1.0.31: 매핑 dev 에픽 issues — KPI 성과 탭이 매핑 모드로 분기할 때 사용 */
+                mappingDevIssues={Array.from(defectKpi.devIssuesByEpic.values()).flat()}
+                mappedDevEpicKeys={defectKpi.mappedDevEpicKeys}
                 onShowIssuesInList={(keys) => {
                     setStatsOpen(false);
                     setFocusIssueKeys(keys.length > 0 ? keys : null);

@@ -4,7 +4,86 @@
 
 ---
 
-## [1.0.30] 회고 영역 정정 — 사이드바 선택 기반 일관성 회복
+## [1.0.31] KPI 성과 탭 + 회고 영역 매핑 자동 모드
+
+### 적용 버전
+- 앱 버전: **1.0.31**
+
+### 배경
+사용자 정정:
+> "프로젝트 통계의 KPI 성과 탭과, 예측/회고 탭에서 회고 영역은 KPI 성과 탭에서 맵핑한 정보가 있는 경우 해당 정보를 기반으로 표시"
+> "담당자별 성과 분석도 매핑 정보를 기반으로 당시의 내용을 보여주고"
+
+v1.0.30에서 회고 영역만 사이드바 기준으로 롤백한 것은 **사용자의 처음 의도를 잘못 해석**한 것. 다시 매핑 모드 자동 전환 적용. 이번에는 KPI 성과 탭 전체(4 카드 + 상세 산출 + 담당자 표)도 동일 원칙 적용.
+
+### 통일 원칙 (확정)
+```
+이슈 목록 / 프로젝트 현황 / 진행 추이      = 사이드바 선택 기준
+KPI 성과 탭 / 회고 영역                    = 매핑 있으면 매핑 dev 에픽 기준 (당시 평가)
+                                            매핑 없으면 사이드바 기준
+```
+
+### 핵심 변경
+
+#### 1. dashboard.tsx — ProjectStatsDialog props 추가
+- `mappingDevIssues={Array.from(devIssuesByEpic.values()).flat()}`
+- `mappedDevEpicKeys={defectKpi.mappedDevEpicKeys}`
+
+#### 2. project-stats-dialog.tsx — KPI 탭 전용 매핑 모드 변수
+```ts
+const isKpiMappingMode = mappingDevIssues.length > 0;
+const kpiTabIssues = isKpiMappingMode ? mappingDevIssues : issues;
+const kpiTabLeafIssues = filterLeafIssues(kpiTabIssues);
+const kpiTabKpiMetrics = calculateKPI(kpiTabLeafIssues);
+
+// 담당자 분석 — 매핑 모드일 때 assignees Map 인라인 재빌드
+const kpiTabAssigneesWithKPI = useMemo(() => {
+    if (!isKpiMappingMode) return assigneesWithKPI;
+    // ... assignees Map 재빌드 + collaborations + worklog 합산
+}, [...]);
+
+const displayKpi = isKpiMappingMode ? kpiTabKpiMetrics : kpiMetrics;
+const displayAssigneesWithKPI = isKpiMappingMode ? kpiTabAssigneesWithKPI : assigneesWithKPI;
+```
+- KPI 탭 내 16 곳의 `kpiMetrics.*` → `displayKpi.*` 자동 일괄 교체
+- 담당자 표 1 곳의 `assigneesWithKPI` → `displayAssigneesWithKPI`
+- 프로젝트 현황 탭은 그대로 (변경 없음, 사이드바 기준 유지)
+
+#### 3. progress-trends/index.tsx — 회고 영역 매핑 모드 자동 전환 복원
+```ts
+const retroMode = defectKpi.mappingCount > 0 ? 'mapping' : 'sidebar';
+const retroEpicKeys = retroMode === 'mapping' ? defectKpi.mappedDevEpicKeys : selectedEpicIds;
+const retroIssues = retroMode === 'mapping'
+    ? Array.from(defectKpi.devIssuesByEpic.values()).flat()
+    : issues;
+const retro = analyzeEpicsRetrospective(retroIssues, retroEpicKeys, defectKpi.defectStatsByDevEpic);
+```
+
+#### 4. 두 영역 모드 안내 배지 (통일)
+- **KPI 성과 탭 상단**: 매핑 모드일 때 인디고 박스
+  ```
+  🔗 매핑 기반 KPI 평가
+  매핑된 1개 에픽 (IGMU-47) 기준 — 당시의 등급 평가 내용
+  ```
+- **진행 추이/예측 → 회고 섹션 헤더 우측**: 작은 배지
+  - `🔗 매핑 기반 (IGMU-47)` 인디고 / `📂 사이드바 선택 기반` 무채색
+- subtitle도 모드별 다르게 안내
+
+### 사용자 시나리오 (정상화)
+| 매핑 | 사이드바 | KPI 성과 탭 | 회고 영역 |
+|------|--------|----------|---------|
+| 없음 | IGMU-538 | IGMU-538 KPI (사이드바 기준) | IGMU-538 회고 (사이드바 기준) |
+| **IGMU-47 ↔ TQ-605** | IGMU-538 | **IGMU-47 KPI** ✓ + 결함 KPI ✓ | **IGMU-47 회고 + TQ-605 결함** ✓ |
+| 둘 다 매핑 | 무관 | 두 에픽 통합 KPI | 두 에픽 회고 |
+
+### 검증
+- TypeScript strict 통과
+- ESLint 0 errors (15 기존 warnings)
+- vitest 25 files / 320 tests 통과
+
+---
+
+## [1.0.30] 회고 영역 정정 (v1.0.31에서 다시 자동 모드 적용)
 
 ### 적용 버전
 - 앱 버전: **1.0.30**
