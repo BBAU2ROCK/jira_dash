@@ -89,10 +89,9 @@ export function useManagerBrief(issues: JiraIssue[] | null | undefined, nowOpt?:
         for (const i of leaf) {
             const created = parseLocalDay(i.fields.created ?? null);
             const due = parseLocalDay(i.fields.duedate ?? null);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const planStart = parseLocalDay((i.fields as any)[plannedStartField] ?? null);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const actualDone = parseLocalDay((i.fields as any)[actualDoneField] ?? null)
+            // dynamic custom field access — JiraIssue.fields는 [key: string]: any 인덱스 시그니처 보유.
+            const planStart = parseLocalDay(i.fields[plannedStartField] as string | undefined ?? null);
+            const actualDone = parseLocalDay(i.fields[actualDoneField] as string | undefined ?? null)
                 ?? parseLocalDay(i.fields.resolutiondate ?? null);
 
             // 어제 신규

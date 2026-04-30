@@ -251,6 +251,7 @@ export interface JiraIssue {
         customfield_11485?: string; // 실제완료일 (Actual Done Date)
         duedate?: string;           // 완료 예정일 (Due Date)
         created: string;            // 이슈 생성일
+        updated?: string;           // v1.0.28: 최근 변경 시각 (Stale 감지용)
         resolutiondate?: string;    // 실제 완료일
         comment?: {
             comments: Array<{

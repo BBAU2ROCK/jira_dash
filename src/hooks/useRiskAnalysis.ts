@@ -130,9 +130,7 @@ export function useRiskAnalysis(issues: JiraIssue[] | null | undefined, opts: Op
         // ── 카드 2: Stale (updated N일 무변동) ──
         const stale: RiskItem[] = [];
         for (const i of active) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const updatedRaw = (i.fields as any).updated as string | undefined;
-            const updated = parseLocalDay(updatedRaw ?? null) ?? parseLocalDay(i.fields.created ?? null);
+            const updated = parseLocalDay(i.fields.updated ?? null) ?? parseLocalDay(i.fields.created ?? null);
             if (!updated) continue;
             const daysSince = Math.floor((today - updated.getTime()) / DAY_MS);
             if (daysSince >= staleDays) {
@@ -166,9 +164,7 @@ export function useRiskAnalysis(issues: JiraIssue[] | null | undefined, opts: Op
         const longOnHold: RiskItem[] = [];
         for (const i of leaf) {
             if (!isOnHold(i)) continue;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const updatedRaw = (i.fields as any).updated as string | undefined;
-            const updated = parseLocalDay(updatedRaw ?? null) ?? parseLocalDay(i.fields.created ?? null);
+            const updated = parseLocalDay(i.fields.updated ?? null) ?? parseLocalDay(i.fields.created ?? null);
             if (!updated) continue;
             const daysSince = Math.floor((today - updated.getTime()) / DAY_MS);
             if (daysSince >= longOnHoldDays) {
