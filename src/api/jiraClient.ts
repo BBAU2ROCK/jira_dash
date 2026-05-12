@@ -24,6 +24,35 @@ export const jiraClient = axios.create({
         'Content-Type': 'application/json',
         'Accept': 'application/json',
     },
+    // v1.0.51: 30초 timeout — 프록시 stall 시 무한 hang 방지.
+    // useQuery(retry:3)는 timeout 또는 5xx에서 자동 재시도.
+    timeout: 30_000,
+});
+
+/**
+ * v1.0.51: 일시적 429 / 5xx에 대해 1회 자동 재시도 (backoff 1s).
+ * 영구 오류 (401/403/404)는 즉시 throw — useQuery에서 사용자에게 안내.
+ */
+jiraClient.interceptors.response.use(undefined, async (error: unknown) => {
+    const err = error as {
+        config?: { __retried?: boolean; method?: string };
+        response?: { status?: number };
+        code?: string;
+    };
+    const cfg = err?.config;
+    const status = err?.response?.status;
+    const isIdempotent = !cfg?.method || ['get', 'head', 'options'].includes(cfg.method.toLowerCase());
+    const retriable =
+        isIdempotent && !cfg?.__retried && (
+            status === 429 ||
+            (status != null && status >= 500 && status < 600) ||
+            err?.code === 'ECONNABORTED' ||
+            err?.code === 'ETIMEDOUT'
+        );
+    if (!retriable) return Promise.reject(error);
+    if (cfg) cfg.__retried = true;
+    await new Promise((r) => setTimeout(r, 1000));
+    return jiraClient.request(cfg ?? {});
 });
 
 /** 첨부파일 다운로드 URL (프록시 경유). */

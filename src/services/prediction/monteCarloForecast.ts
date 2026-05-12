@@ -31,6 +31,13 @@ export interface MonteCarloResult {
     /** 입력 잔여 0 또는 historical 빈 배열로 시뮬레이션 못한 경우 true */
     aborted: boolean;
     abortReason?: 'no-remaining' | 'no-history';
+    /**
+     * v1.0.50 (H10): maxDays 한계에 도달한 trial 비율 (0~1).
+     *   - 0이면 모든 trial이 정상 종료
+     *   - >0.5 이면 시뮬레이션이 사실상 "끝나지 않음" — UI는 "예측 불가" 표시 권장
+     *   - aborted=true 인 경우 0
+     */
+    cappedRate: number;
 }
 
 /**
@@ -51,10 +58,10 @@ export function monteCarloForecast(
     const N = historicalThroughput.length;
 
     if (remainingCount <= 0) {
-        return { daysToComplete: [], aborted: true, abortReason: 'no-remaining' };
+        return { daysToComplete: [], aborted: true, abortReason: 'no-remaining', cappedRate: 0 };
     }
     if (N === 0) {
-        return { daysToComplete: [], aborted: true, abortReason: 'no-history' };
+        return { daysToComplete: [], aborted: true, abortReason: 'no-history', cappedRate: 0 };
     }
 
     const creationN = options.creationHistory?.length ?? 0;
@@ -62,6 +69,7 @@ export function monteCarloForecast(
     const creation = options.creationHistory ?? [];
 
     const results: number[] = new Array(trials);
+    let cappedTrials = 0;
     for (let t = 0; t < trials; t++) {
         let remaining = remainingCount;
         let days = 0;
@@ -73,20 +81,33 @@ export function monteCarloForecast(
             remaining -= historicalThroughput[Math.floor(rng() * N)];
             days++;
         }
+        if (days >= maxDays && remaining > 0) cappedTrials++;
         results[t] = days;
     }
-    return { daysToComplete: results, aborted: false };
+    return {
+        daysToComplete: results,
+        aborted: false,
+        cappedRate: trials > 0 ? cappedTrials / trials : 0,
+    };
 }
 
 /**
  * 정렬되지 않은 배열에서 백분위 값 추출.
  * @param p 0~100 백분위
+ *
+ * v1.0.50: 내부적으로 `lib/statistics.percentile`(linear interpolation, 0~1)을 호출.
+ *   - 빈 배열은 NaN 반환 (legacy 호환 — lib/statistics는 0 반환).
+ *   - p=100/0 경계는 양쪽 동일.
+ *   - 중간값은 linear 보간 결과로 통일 (기존 nearest-rank 대비 약간의 부드러움).
+ *
+ * **신규 코드는 `lib/statistics.percentile(sorted, p∈[0,1])` 직접 사용 권장.**
+ * 이 함수는 deprecated 별칭이지만 MC 결과 컨슈머 호환을 위해 보존.
  */
+import { percentile as percentileLinear } from '@/lib/statistics';
 export function percentile(arr: number[], p: number): number {
     if (arr.length === 0) return NaN;
     const sorted = [...arr].sort((a, b) => a - b);
-    const idx = Math.ceil((p / 100) * sorted.length) - 1;
-    return sorted[Math.max(0, Math.min(sorted.length - 1, idx))];
+    return percentileLinear(sorted, p / 100);
 }
 
 /**
@@ -117,7 +138,17 @@ export async function monteCarloForecastAsync(
     options: Omit<MonteCarloOptions, 'rng'> = {}
 ): Promise<MonteCarloResult> {
     const trials = options.trials ?? 10_000;
-    const workSize = remainingCount * historicalThroughput.length * (trials / 1000);
+    const maxDays = options.maxDays ?? 365;
+    // v1.0.50 (H9): worker 분기 비용 추정을 실제 부하 비례로 변경.
+    //   기존: remaining × history.length × trials/1000 — 실제 비용과 무관한 식
+    //   신규: trials × expectedDays — expectedDays = min(maxDays, remaining/max(mean,1))
+    //   throughput mean이 0에 가까우면 expectedDays = maxDays로 cap.
+    const histSum = historicalThroughput.reduce((a, b) => a + b, 0);
+    const histMean = historicalThroughput.length > 0 ? histSum / historicalThroughput.length : 0;
+    const expectedDays = histMean > 0
+        ? Math.min(maxDays, Math.ceil(remainingCount / histMean))
+        : maxDays;
+    const workSize = trials * expectedDays;
     if (workSize < MONTE_CARLO_WORKER_THRESHOLD || typeof Worker === 'undefined') {
         return monteCarloForecast(remainingCount, historicalThroughput, options);
     }

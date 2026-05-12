@@ -10,7 +10,7 @@ import type { JiraIssue } from '@/api/jiraClient';
 import { calculateKPI } from '@/services/kpiService';
 import { filterLeafIssues, getStatusCategoryKey, isBusinessDone } from '@/lib/jira-helpers';
 import { parseLocalDay } from '@/lib/date-utils';
-import { resolveCancelledStatus, resolveRejectedStatus, resolveOnHoldStatus } from '@/lib/kpi-rules-resolver';
+import { resolveCancelledStatus, resolveRejectedStatus, resolveOnHoldStatus, resolveFields } from '@/lib/kpi-rules-resolver';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 
@@ -49,6 +49,7 @@ export function OneOnOnePrep({ issues, onIssueClick, onIssueKeysFocus }: Props) 
         const cancelledName = resolveCancelledStatus();
         const rejectedName = resolveRejectedStatus();
         const onHoldName = resolveOnHoldStatus();
+        const difficultyField = resolveFields().DIFFICULTY;  // v1.0.49: customfield 하드코딩 제거
 
         const isCompleted = (i: JiraIssue) => {
             if (!isBusinessDone(i)) return false;
@@ -87,7 +88,10 @@ export function OneOnOnePrep({ issues, onIssueClick, onIssueKeysFocus }: Props) 
         if (recentDone.length >= 5) praises.push(`최근 2주간 ${recentDone.length}건 완료 — 안정적 처리량`);
         if (kpi.earlyIssues > 0) praises.push(`조기 완료 ${kpi.earlyIssues}건 — 일정 여유 확보`);
         if (kpi.complianceRate >= 80) praises.push(`일정 준수율 ${kpi.complianceRate}% — 매우 우수`);
-        if (recentDone.some((i) => (i.fields as any).customfield_11624?.value === '상')) {
+        if (recentDone.some((i) => {
+            const v = (i.fields as Record<string, unknown>)[difficultyField] as { value?: string } | undefined;
+            return v?.value === '상';
+        })) {
             praises.push('난이도 \'상\' task 완료 — 도전 영역 진행 중');
         }
 

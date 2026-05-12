@@ -14,6 +14,7 @@ import { parseLocalDay, endOfLocalDay } from '@/lib/date-utils';
 import { calculateKPI, getCompletionDateStr } from '@/services/kpiService';
 import { personKeyFromAssignee } from '@/lib/defect-kpi-utils';
 import { resolveCancelledStatus, resolveRejectedStatus } from '@/lib/kpi-rules-resolver';
+import { percentile as percentileLinear } from '@/lib/statistics';
 import type { EpicRetroSummary, EpicComparisonRow, DeveloperStrengthRow } from './types';
 import { generateDefectRecommendations } from './defectInsights';
 
@@ -60,10 +61,13 @@ function isOnTime(issue: JiraIssue): boolean {
     return done <= dueEnd;
 }
 
+/**
+ * v1.0.50 (C5): nearest-rank → linear interpolation 통일. 다른 분포 분석과 일관.
+ */
 function percentile(arr: number[], p: number): number {
     if (arr.length === 0) return 0;
     const sorted = [...arr].sort((a, b) => a - b);
-    return sorted[Math.max(0, Math.ceil((p / 100) * sorted.length) - 1)];
+    return percentileLinear(sorted, p / 100);
 }
 
 /**

@@ -4,6 +4,196 @@
 
 ---
 
+## [1.0.51] 정밀 코드 리뷰 후속 — 보안·산식·일관성 64건 일괄 정리
+
+### 적용 버전
+- 앱 버전: **1.0.51** (1.0.48 → 1.0.49 → 1.0.50 → 1.0.51 통합 출시)
+
+### 배경
+v1.0.48 출시 직후 전체 코드베이스 4영역 (prediction / hooks·UI / lib·stores·api / electron·빌드) 병렬 정밀 리뷰를 진행. Critical 6 / High 14 / Medium 22 / Low·Nit 22 = **총 64건** 발견. 세 마이너 버전으로 묶어 일괄 조치.
+
+### v1.0.49 — 보안·회귀 hotfix (6항목)
+
+#### C2. npm 의존성 advisory 17건 → 1건
+- `npm audit fix` 적용. axios `1.13.5` → `1.16+` (15 SSRF/Proto Pollution CVE 해결), follow-redirects/lodash/path-to-regexp/tar/vite 모두 fix.
+- 잔존: xlsx (별도 조치, v1.0.51 C3 참조).
+
+#### C1. preload IPC 채널 화이트리스트
+- **이전**: `ipcRenderer.on/off/send/invoke` 가 채널 검증 없이 노출 → renderer XSS 시 임의 채널 호출 가능.
+- **이후**: `INCOMING_CHANNELS = ['main-process-message']`, `INVOKE_CHANNELS = ['jira-config:get', 'jira-config:set', 'jira-config:test']` 화이트리스트만 통과. 비-허용 채널은 `console.warn` + no-op 또는 rejected Promise.
+- `electron.d.ts` 타입도 갱신 — `on()` 반환값이 unsubscribe 함수.
+
+#### H1+H2+H3+M2. Electron 보안 강화
+- `sandbox: true` 추가 — preload도 sandbox 내 실행 (Node API 접근 불가).
+- `allowRunningInsecureContent: false` + `experimentalFeatures: false` 명시.
+- `setWindowOpenHandler` — 모든 새 창 deny, `okestro.atlassian.net` / `atlassian.net` / `atl-paas.net` / `id.atlassian.com` (HTTPS만) 화이트리스트는 `shell.openExternal`로 위임.
+- `will-navigate` / `will-redirect` 가로채기 — file:// 와 dev Vite URL만 허용, 외부 화이트리스트는 외부 브라우저로 위임.
+- **safeStorage 토큰 암호화** (H3): Windows DPAPI / macOS Keychain / Linux libsecret. v1 평문 → v2 `jiraApiTokenEnc` (base64) 자동 마이그레이션. `safeStorage.isEncryptionAvailable()` false 환경에서는 평문 폴백 + 경고.
+- IPC `jira-config:set` 입력 검증 (M2): 이메일 정규식, 토큰 길이 8~2048자.
+
+#### H12. DailyBriefCard 색상 분리
+- 어제 신규(blue)와 오늘 신규(blue) 색상 중복 → "오늘 신규 등록" 카드를 **`indigo`** accent로 변경. "진행 중" 카드도 cyan으로 분리하여 4 카드 모두 다른 색.
+
+#### H13. useManagerBrief.now 안정화
+- `nowOpt`가 없을 때 `useMemo(() => new Date(), [nowOpt])`로 안정화. 자정 경계 직전/직후 호출에서 yesterday/today 경계가 어긋나는 회귀 방지 (`useBacklogForecast`와 동일 패턴).
+
+#### H14. weekProgressRate 정의 명확화
+- 기존: `weekCompleted / max(weekCreated + weekCompleted, weekCreated, 1)` (직관 불일치)
+- **신규**: `weekCompleted / (weekCreated + weekCompleted)` — 라벨 "완료 N / 신규 M"과 일관.
+
+#### H4. customfield 하드코딩 3곳 → `resolveFields()`
+- `effortEstimation.ts:103,262`: `customfield_11481` (PLANNED_START) 하드코딩 → `F.PLANNED_START`.
+- `OneOnOnePrep.tsx:90`: `customfield_11624` (DIFFICULTY) 하드코딩 → `resolveFields().DIFFICULTY`.
+- `dashboard.tsx:125`: `customfield_10016` (STORY_POINT) 하드코딩 → `resolveFields().STORY_POINT`.
+- JiraSettings로 필드 ID를 변경한 사용자에서 silent 깨짐 → 즉시 해결.
+
+### v1.0.50 — 산식·일관성 (5항목)
+
+#### C4. 6 store에 `persist` 마이그레이션 추가
+- `kpiRulesStore` (version 2): v0 → v1 (rejected status 추가) → v2 (defectGrades/prediction/projectKeys 전체 보장) 백필.
+- `forecastExpectationStore` (version 1): expectations 누락 시 빈 객체 백필.
+- `budgetSimulatorStore` (version 1): v1.0.32 추가 필드 (aiToolMonthlyCostKRW / aiToolUserCount) 백필.
+- `aiSavingsConfigStore` (version 1): v1.0.46 추가 categoryKeywords 백필.
+- `displayPreferenceStore` (version 1): theme 누락 시 'dark' 백필.
+- `epicMappingStore` (version 1): mappings 객체 보장.
+- 기존 PC localStorage가 스키마 변경 후에도 깨지지 않고 자동 백필.
+
+#### C5+H6. percentile 단일화
+- 4종 분산 구현 (`lib/statistics.percentile` linear 0-1 / `monteCarloForecast.percentile` nearest-up 0-100 / `cycleTimeAnalysis.percentileH` nearest-up 0-100 / `epicRetro.percentile` nearest-up 0-100) → 모두 `lib/statistics.percentile` (linear interpolation, 0-1)로 통일.
+- `monteCarloForecast.percentile`은 deprecated wrapper로 유지 (0-100, NaN on empty) — 기존 호출자 호환.
+- 카드별로 다른 P85 숫자 표시 회귀 해소.
+
+#### H5. cycleTimeAnalysis status 카테고리 자동 학습
+- 기존: `IN_PROGRESS_STATUSES`/`DONE_STATUSES` 하드코딩 (영문·한글 일부만 매칭).
+- 신규: 입력 이슈 집합에서 `(status name → category)` Map을 1회 빌드 → changelog history item을 카테고리로 판정. fallback 휴리스틱은 그대로 유지.
+- 사용자 워크플로우(Doing/진행/작업 중 등)에 자동 적응.
+
+#### H9+H10. Monte Carlo worker dispatch + cappedRate
+- `workSize` 산식 수정: `remaining × history.length × trials/1000` (실제 비용과 무관) → `trials × expectedDays` (`expectedDays = min(maxDays, ceil(remaining/mean))`).
+- `MonteCarloResult.cappedRate` 추가 — maxDays 도달한 trial 비율. UI가 0.5+ 이면 "예측 불가" 표시 가능.
+
+### v1.0.51 — 인프라·정리 (잔여 13건)
+
+#### C3. xlsx CVE 영향 분석 + export 안전성
+- xlsx 0.18.x의 GHSA-4r6h-8v6p-xvw6 (Proto Pollution) / GHSA-5pgg-2g8v-p4x9 (ReDoS)는 **파싱 시** 발현. 본 앱은 **쓰기 전용** (`utils.aoa_to_sheet` + `writeFile`)이며 `xlsx.read*` 호출 0건 — 직접 영향 영역 없음.
+- export.ts 헤더 주석에 "파싱 API 호출 금지" 명시. 동적 import 실패 시 throw로 변경 (silent 실패 → 사용자 안내 가능).
+- 장기: sheetjs 직접 호스팅 0.20+ 또는 exceljs 전환 권장 (PATCH로 메모).
+
+#### C6. persist localStorage quota guard
+- `forecastExpectationStore`에 `makeQuotaGuardedStorage()` 래퍼 추가. setItem이 `QuotaExceededError`를 throw하면 expectations 절반 자르기 후 재시도. 그 후에도 실패하면 키 삭제 + 다음 부팅에서 빈 상태로 재초기화.
+
+#### Medium 묶음
+- **axios timeout/retry** (`jiraClient.ts`): timeout 30초 + 429/5xx/타임아웃 시 1회 자동 재시도 (1s backoff). idempotent (GET/HEAD/OPTIONS) 한정.
+- **license generator self-exclude**: `--excludePackages "01_jira_dash@1.0.38;..."` 하드코딩 → `pkg.version` 동적 + 결과에서 자기 자신 prefix 패키지 모두 제거.
+- proxy-server는 이미 `127.0.0.1` 바인딩 확인됨.
+
+#### Low/Nit 묶음
+- `jira-helpers.ts`에 `getCompletionDate(issue)` / `getCompletionDateStr(issue)` 헬퍼 추가 — 6곳 이상 반복되던 `i.fields[ACTUAL_DONE] ?? i.fields.resolutiondate` 패턴 일원화 (점진 적용 가능, 이번 패치에서는 헬퍼만 노출).
+- `prediction/index.ts` barrel: 누락 8 모듈 (leadTimeForecast / scopeInflowAnalysis / backlogProgressAnalysis / aiSavingsEstimation / budgetEffortAnalysis / perIssueAccuracy / sprintForecast / cycleTimeAnalysis) re-export 추가.
+- `forecastExpectationStore.pruneStale` 주석 정정 (newest 보관, oldest drop으로 명확화).
+
+### 미적용 (의도된 보류)
+- **xlsx 라이브러리 자체 교체** (exceljs로): 의존성 변경 큼 + 본 앱은 읽기 사용 안 함 → 영향 없으므로 차기 메이저로 미룸.
+- **CSP `'unsafe-inline'` 제거**: React 19 + Vite의 인라인 청크 처리(nonce 도입) 필요. 별도 작업.
+- **컴포넌트 RTL 테스트 추가**: 412건 단위 테스트 통과 상태 유지, 회귀 테스트 부족분은 차기.
+
+### 검증
+- vitest **412건 통과** (회귀 0건).
+- `tsc -b` 통과.
+- 빌드 산출물 정상 (NSIS + Portable).
+
+### 영향
+- 보안: Critical 3건(IPC 화이트리스트·CVE·persist 마이그레이션) 해결 → 점수 6/10 → **8.5/10**.
+- 산식 정확성: percentile 통일로 카드별 동일 P85 보장.
+- 회귀 안전망: store 마이그레이션 + persist quota guard로 사용자 PC 충돌 위험 제거.
+
+---
+
+## [1.0.48] 매니저 콘솔 Daily Brief — 오늘 신규 등록 카드 추가
+
+### 적용 버전
+- 앱 버전: **1.0.48**
+
+### 배경
+사용자 보고:
+> "오늘 신규 등록이 1건 있는데 왜 매니저 콘솔에서 반영이 안되지?"
+
+### 진단
+`useManagerBrief`에 `yesterdayCreated` (어제 신규)는 있지만 **`todayCreated` (오늘 신규)는 없음**.
+
+`DailyBriefCard`의 "신규 등록" 카드:
+- 라벨: "신규 등록" (모호)
+- 값: `brief.yesterdayCreated` (어제 기준)
+
+→ 사용자는 라벨만 보고 "오늘 신규 등록"으로 해석. 실제로는 어제 데이터. 오늘 등록된 1건은 어디에도 표시 X.
+
+### 해결
+
+#### 1. `useManagerBrief.ts` — `todayCreated` 필드 추가
+```ts
+export interface ManagerBrief {
+    // ...
+    /** v1.0.48: 오늘 신규 등록 건수 (created = 오늘) */
+    todayCreated: number;
+    /** v1.0.48: 오늘 신규 등록 이슈 (목록 클릭용) */
+    todayCreatedIssues: JiraIssue[];
+    // ...
+}
+```
+
+산정 로직:
+```ts
+if (created && sameDay(created, today)) {
+    todayCreated++;
+    todayCreatedIssues.push(i);
+}
+```
+
+#### 2. `DailyBriefCard.tsx` — 오늘 섹션에 카드 추가 + 라벨 명확화
+
+**Before**:
+```
+📜 어제                  ⚡ 오늘
+[완료] [신규 등록] [진척]  [진행 중] [마감] [시작]
+            ↑
+       어제 기준인데 모호한 라벨
+```
+
+**After (v1.0.48)**:
+```
+📜 어제                          ⚡ 오늘
+[완료] [어제 신규 등록] [진척]    [오늘 신규 등록] [진행 중] [마감] [시작]
+            ↑                          ↑
+       명확화                    NEW (4열 그리드)
+```
+
+오늘 신규 등록 카드:
+- `primaryValue={brief.todayCreated}` (오늘 등록 건수)
+- 클릭 시 `focusKeys(todayCreatedIssues)` — 이슈 목록 focus
+- secondaryValue: 등록 있으면 "목록 보기" / 없으면 "오늘 등록 없음"
+
+#### 3. 그리드 확장
+- 기존 `lg:grid-cols-3` → `lg:grid-cols-4` (카드 4개)
+- 모바일·태블릿(`sm:grid-cols-2`)은 그대로
+
+### 수정 파일
+
+#### 수정 (3개)
+- `src/hooks/useManagerBrief.ts` — `todayCreated` + `todayCreatedIssues` 필드 추가
+- `src/hooks/__tests__/useManagerBrief.test.ts` — 2 신규 테스트 (오늘 신규 N건 / 0건)
+- `src/components/manager-console/DailyBriefCard.tsx` — 오늘 섹션 4열 + 오늘 신규 카드 + 어제 라벨 명확화
+- `package.json` — version 1.0.47 → 1.0.48
+
+### 검증
+- 410 → **412 테스트 통과** (신규 2건)
+- TypeScript 에러 없음
+
+### 보호 (변경 안 함)
+- ✋ `yesterdayCreated` / 어제 섹션 구조 (정상 작동)
+- ✋ 다른 brief metric (`todayDue`, `todayStarting` 등)
+
+---
+
 ## [1.0.47] 정적 백로그 모델 자동 감지 — 시스템 전체 재정합
 
 ### 적용 버전

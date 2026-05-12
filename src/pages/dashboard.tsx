@@ -10,6 +10,7 @@ import { IssueDetailDrawer } from '@/components/issue-detail-drawer';
 import { ProjectStatsDialog } from '@/components/project-stats-dialog';
 import { JiraSettingsDialog, type JiraConfig } from '@/components/jira-settings-dialog';
 import { useKpiRulesStore } from '@/stores/kpiRulesStore';
+import { resolveFields } from '@/lib/kpi-rules-resolver';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { BarChart3, RefreshCw, AlertCircle, Settings, Bug, Layers, Sparkles, MousePointerClick, Briefcase } from 'lucide-react';
@@ -122,7 +123,12 @@ export function Dashboard() {
     const managerRiskCount = useManagerRiskCount(issues);
     // 건수 규칙: 할 일만 있으면 카운트, 하위 작업 있으면 부모 제외·하위만 반영 (통계/KPI 동일)
     const workItems = filterLeafIssues(issues);
-    const totalSP = workItems.reduce((sum, issue) => sum + (issue.fields.customfield_10016 || 0), 0);
+    // v1.0.49: STORY_POINT 필드 ID 하드코딩 제거 — resolveFields() 사용
+    const storyPointField = resolveFields().STORY_POINT;
+    const totalSP = workItems.reduce((sum, issue) => {
+        const sp = (issue.fields as Record<string, unknown>)[storyPointField];
+        return sum + (typeof sp === 'number' ? sp : 0);
+    }, 0);
     const issueCount = workItems.length;
 
     // Toggle Epic selection

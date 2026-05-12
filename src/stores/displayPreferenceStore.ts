@@ -40,6 +40,16 @@ export const useDisplayPreferenceStore = create<DisplayPreferenceState>()(
                     ? window.localStorage
                     : { getItem: () => null, setItem: () => {}, removeItem: () => {} }
             ),
+            // v1.0.50: theme(v1.0.21 추가) 누락 시 'dark' 백필
+            version: 1,
+            migrate: (persistedState: unknown, _oldVersion: number) => {
+                const s = (persistedState ?? {}) as Partial<DisplayPreferenceState>;
+                return {
+                    ...s,
+                    anonymizeMode: s.anonymizeMode ?? false,
+                    theme: s.theme ?? 'dark',
+                };
+            },
         }
     )
 );

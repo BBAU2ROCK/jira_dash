@@ -85,6 +85,29 @@ describe('useManagerBrief', () => {
         expect(result.current.yesterdayCreated).toBe(2);
     });
 
+    it('v1.0.48: 오늘 신규 등록', () => {
+        const issues = [
+            makeIssue({ key: 'TODAY-1', created: '2026-04-30' }),
+            makeIssue({ key: 'TODAY-2', created: '2026-04-30' }),
+            makeIssue({ key: 'TODAY-3', created: '2026-04-30' }),
+            makeIssue({ created: '2026-04-29' }), // 어제
+            makeIssue({ created: '2026-05-01' }), // 내일
+        ];
+        const { result } = renderHook(() => useManagerBrief(issues, NOW));
+        expect(result.current.todayCreated).toBe(3);
+        expect(result.current.todayCreatedIssues).toHaveLength(3);
+        expect(result.current.todayCreatedIssues.map((i) => i.key).sort()).toEqual(['TODAY-1', 'TODAY-2', 'TODAY-3']);
+    });
+
+    it('v1.0.48: 오늘 신규 0건', () => {
+        const issues = [
+            makeIssue({ created: '2026-04-29' }), // 어제만 있음
+        ];
+        const { result } = renderHook(() => useManagerBrief(issues, NOW));
+        expect(result.current.todayCreated).toBe(0);
+        expect(result.current.todayCreatedIssues).toHaveLength(0);
+    });
+
     it('오늘 마감 (D-0) 미완료만', () => {
         const issues = [
             makeIssue({ duedate: '2026-04-30' }),  // 오늘 마감, 미완료

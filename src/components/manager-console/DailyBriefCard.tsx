@@ -18,7 +18,7 @@ interface Props {
 interface KpiCardProps {
     title: string;
     Icon: React.ElementType;
-    accent: 'green' | 'blue' | 'amber' | 'red' | 'purple';
+    accent: 'green' | 'blue' | 'amber' | 'red' | 'purple' | 'indigo' | 'cyan';
     primaryValue: number | string;
     primaryLabel?: string;
     secondaryValue?: string;
@@ -31,6 +31,9 @@ const ACCENT: Record<KpiCardProps['accent'], { bg: string; border: string; iconT
     amber:  { bg: 'bg-amber-50 dark:bg-amber-950/30',   border: 'border-amber-200 dark:border-amber-900/60',   iconText: 'text-amber-600 dark:text-amber-400',   primary: 'text-amber-700 dark:text-amber-300' },
     red:    { bg: 'bg-red-50 dark:bg-red-950/30',       border: 'border-red-200 dark:border-red-900/60',       iconText: 'text-red-600 dark:text-red-400',       primary: 'text-red-700 dark:text-red-300' },
     purple: { bg: 'bg-purple-50 dark:bg-purple-950/30', border: 'border-purple-200 dark:border-purple-900/60', iconText: 'text-purple-600 dark:text-purple-400', primary: 'text-purple-700 dark:text-purple-300' },
+    // v1.0.49: "오늘 신규" 카드를 어제(blue)와 시각 분리하기 위해 indigo 추가
+    indigo: { bg: 'bg-indigo-50 dark:bg-indigo-950/30', border: 'border-indigo-200 dark:border-indigo-900/60', iconText: 'text-indigo-600 dark:text-indigo-400', primary: 'text-indigo-700 dark:text-indigo-300' },
+    cyan:   { bg: 'bg-cyan-50 dark:bg-cyan-950/30',     border: 'border-cyan-200 dark:border-cyan-900/60',     iconText: 'text-cyan-600 dark:text-cyan-400',     primary: 'text-cyan-700 dark:text-cyan-300' },
 };
 
 function KpiCard({ title, Icon, accent, primaryValue, primaryLabel, secondaryValue, onClick }: KpiCardProps) {
@@ -100,7 +103,7 @@ export function DailyBriefCard({ brief, onIssueClick, onIssueKeysFocus }: Props)
                         onClick={brief.yesterdayCompletedIssues.length > 0 ? () => focusKeys(brief.yesterdayCompletedIssues) : undefined}
                     />
                     <KpiCard
-                        title="신규 등록"
+                        title="어제 신규 등록"
                         Icon={Plus}
                         accent="blue"
                         primaryValue={brief.yesterdayCreated}
@@ -117,14 +120,23 @@ export function DailyBriefCard({ brief, onIssueClick, onIssueKeysFocus }: Props)
                 </div>
             </section>
 
-            {/* 오늘 — 액션 */}
+            {/* 오늘 — 액션 (v1.0.48: '오늘 신규 등록' 카드 추가 → 4열) */}
             <section>
                 <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">⚡ 오늘</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <KpiCard
+                        title="오늘 신규 등록"
+                        Icon={Plus}
+                        accent="indigo"
+                        primaryValue={brief.todayCreated}
+                        primaryLabel="건"
+                        secondaryValue={brief.todayCreatedIssues.length > 0 ? '목록 보기' : '오늘 등록 없음'}
+                        onClick={brief.todayCreatedIssues.length > 0 ? () => focusKeys(brief.todayCreatedIssues) : undefined}
+                    />
                     <KpiCard
                         title="진행 중"
                         Icon={ListChecks}
-                        accent="blue"
+                        accent="cyan"
                         primaryValue={brief.todayInProgress}
                         primaryLabel="건"
                     />

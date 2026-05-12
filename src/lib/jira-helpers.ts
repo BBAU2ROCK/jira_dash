@@ -1,5 +1,6 @@
 import { type JiraIssue } from '../api/jiraClient';
 import { resolveFields } from './kpi-rules-resolver';
+import { parseLocalDay } from './date-utils';
 
 /** 일부 이슈/필드 조합에서 statusCategory가 없을 수 있음 — 옵셔널 체이닝으로 크래시 방지 */
 export function getStatusCategoryKey(issue: JiraIssue): string | undefined {
@@ -28,6 +29,35 @@ export function isBusinessDone(issue: JiraIssue): boolean {
     const actualDone = issue.fields[actualField];
     if (typeof actualDone === 'string' && actualDone.trim().length > 0) return true;
     return false;
+}
+
+/**
+ * v1.0.51: 완료일 추출 통합 헬퍼.
+ *
+ * "실제완료일(ACTUAL_DONE customfield)이 있으면 우선, 없으면 resolutiondate"
+ * 패턴이 useBacklogForecast / kpiService / effortEstimation / scopeInflowAnalysis 등
+ * 6곳 이상 반복되던 것을 일원화. resolveFields()로 필드 ID는 store 우선.
+ *
+ * @returns parseLocalDay 결과 (시간을 0:00으로 truncate한 Date) 또는 null
+ */
+export function getCompletionDate(issue: JiraIssue): Date | null {
+    const actualField = resolveFields().ACTUAL_DONE;
+    const actual = issue.fields[actualField];
+    if (typeof actual === 'string' && actual.trim().length > 0) {
+        const parsed = parseLocalDay(actual);
+        if (parsed) return parsed;
+    }
+    return parseLocalDay(issue.fields.resolutiondate ?? null);
+}
+
+/**
+ * v1.0.51: 완료일 ISO 문자열 추출 (date 비교 없이 사용처용).
+ */
+export function getCompletionDateStr(issue: JiraIssue): string | null {
+    const actualField = resolveFields().ACTUAL_DONE;
+    const actual = issue.fields[actualField];
+    if (typeof actual === 'string' && actual.trim().length > 0) return actual;
+    return issue.fields.resolutiondate ?? null;
 }
 
 /**

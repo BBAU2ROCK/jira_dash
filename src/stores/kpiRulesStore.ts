@@ -203,6 +203,32 @@ export const useKpiRulesStore = create<KpiRulesState>()(
                     ? window.localStorage
                     : { getItem: () => null, setItem: () => {}, removeItem: () => {} }
             ),
+            // v1.0.50: 스키마 마이그레이션.
+            // v0 (≤1.0.17): statusNames.rejected, prediction, projectKeys 없음
+            // v1 (1.0.18~1.0.49): statusNames.rejected 도입
+            // v2 (1.0.50+): defectGrades 명시, prediction 전체 보장, persist version 도입
+            version: 2,
+            migrate: (persistedState: unknown, oldVersion: number) => {
+                const state = persistedState as { rules?: Partial<KpiRuleSet>; archive?: unknown };
+                if (!state?.rules) return state;
+                const def = getDefaultRuleSet();
+                const r = { ...state.rules };
+                if (oldVersion < 1) {
+                    r.statusNames = { ...def.statusNames, ...(r.statusNames ?? {}) };
+                }
+                if (oldVersion < 2) {
+                    r.defectGrades = { ...def.defectGrades, ...(r.defectGrades ?? {}) };
+                    r.weights = { ...def.weights, ...(r.weights ?? {}) };
+                    r.earlyBonus = r.earlyBonus && r.earlyBonus.length > 0 ? r.earlyBonus : def.earlyBonus;
+                    r.labels = { ...def.labels, ...(r.labels ?? {}) };
+                    r.fields = { ...def.fields, ...(r.fields ?? {}) };
+                    r.prediction = { ...def.prediction, ...(r.prediction ?? {}) };
+                    r.projectKeys = r.projectKeys && r.projectKeys.length > 0 ? r.projectKeys : def.projectKeys;
+                    r.dashboardProjectKey = r.dashboardProjectKey ?? def.dashboardProjectKey;
+                    r.weekStartsOn = r.weekStartsOn ?? def.weekStartsOn;
+                }
+                return { ...state, rules: r };
+            },
         }
     )
 );

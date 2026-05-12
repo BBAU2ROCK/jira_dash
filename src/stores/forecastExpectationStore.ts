@@ -10,7 +10,65 @@
  * 정직성: 5건 미만이면 'insufficient'.
  */
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
+
+/**
+ * v1.0.51 (C6): localStorage quota guard.
+ *
+ * localStorage는 일반적으로 5~10MB 제한. forecast expectations + KPI archive + 기타
+ * persist store가 누적되면 setItem이 QuotaExceededError를 던질 수 있다. 그 경우 무손실
+ * 복구: 가장 오래된 expectations 절반을 잘라낸 뒤 재시도.
+ */
+function makeQuotaGuardedStorage(): StateStorage {
+    const ls = typeof window !== 'undefined' && window.localStorage ? window.localStorage : null;
+    if (!ls) {
+        return { getItem: () => null, setItem: () => undefined, removeItem: () => undefined };
+    }
+    return {
+        getItem: (name) => ls.getItem(name),
+        removeItem: (name) => ls.removeItem(name),
+        setItem: (name, value) => {
+            try {
+                ls.setItem(name, value);
+            } catch (e) {
+                const isQuota =
+                    e instanceof Error &&
+                    /quota|exceeded|NS_ERROR_DOM_QUOTA/i.test(e.name + e.message);
+                if (!isQuota) throw e;
+                // forecast store JSON에서 expectations 절반 자르기 → 재시도
+                try {
+                    const parsed = JSON.parse(value) as {
+                        state?: { expectations?: Record<string, IssueExpectation> };
+                    };
+                    const exps = parsed?.state?.expectations;
+                    if (exps && typeof exps === 'object') {
+                        const entries = Object.entries(exps);
+                        entries.sort(
+                            ([, a], [, b]) =>
+                                new Date(b.firstSeenAt).getTime() - new Date(a.firstSeenAt).getTime()
+                        );
+                        const kept = entries.slice(0, Math.floor(entries.length / 2));
+                        parsed.state!.expectations = Object.fromEntries(kept);
+                        const reduced = JSON.stringify(parsed);
+                        ls.setItem(name, reduced);
+                        console.warn(
+                            `[forecastExpectationStore] localStorage quota exceeded. ` +
+                            `Reduced expectations: ${entries.length} → ${kept.length}.`
+                        );
+                        return;
+                    }
+                } catch {
+                    /* parse failed — fall through */
+                }
+                // 최후 수단: 키 삭제 (다음 부팅에서 빈 상태로 재초기화)
+                console.warn(
+                    '[forecastExpectationStore] quota exceeded and reduction failed. Removing key.'
+                );
+                ls.removeItem(name);
+            }
+        },
+    };
+}
 
 export interface IssueExpectation {
     issueKey: string;
@@ -106,7 +164,8 @@ export const useForecastExpectationStore = create<ForecastExpectationState>()(
                         }
                         filtered[k] = exp;
                     }
-                    // 5000건 초과 시 oldest firstSeenAt 정리
+                    // v1.0.51: 5000건 초과 시 newest 5000건만 보관 (oldest를 drop).
+                    // 내림차순 정렬 후 slice(0, MAX) → 최신 firstSeenAt 5000건 유지.
                     const entries = Object.entries(filtered);
                     if (entries.length > MAX_EXPECTATIONS) {
                         entries.sort(
@@ -124,11 +183,19 @@ export const useForecastExpectationStore = create<ForecastExpectationState>()(
         }),
         {
             name: 'jira-dash-forecast-expectations',
-            storage: createJSONStorage(() =>
-                typeof window !== 'undefined' && window.localStorage
-                    ? window.localStorage
-                    : { getItem: () => null, setItem: () => {}, removeItem: () => {} }
-            ),
+            storage: createJSONStorage(() => makeQuotaGuardedStorage()),
+            // v1.0.50: 스키마 마이그레이션.
+            // v0 (1.0.36~1.0.49): forecastHistoryStore → expectations 전환 후 자유 스키마
+            // v1 (1.0.50+): expectations key 누락 시 빈 객체로 채움
+            version: 1,
+            migrate: (persistedState: unknown, _oldVersion: number) => {
+                const s = persistedState as { expectations?: unknown };
+                if (!s || typeof s !== 'object') return { expectations: {} };
+                if (typeof s.expectations !== 'object' || s.expectations === null) {
+                    return { ...s, expectations: {} };
+                }
+                return s;
+            },
         }
     )
 );

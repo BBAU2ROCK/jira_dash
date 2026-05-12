@@ -61,6 +61,19 @@ export const useBudgetSimulatorStore = create<BudgetSimulatorState>()(
                     ? window.localStorage
                     : { getItem: () => null, setItem: () => {}, removeItem: () => {} }
             ),
+            // v1.0.50: aiToolMonthlyCostKRW / aiToolUserCount 백필 (v1.0.32 추가 필드)
+            version: 1,
+            migrate: (persistedState: unknown, _oldVersion: number) => {
+                const s = (persistedState ?? {}) as Partial<BudgetSimulatorState>;
+                return {
+                    ...s,
+                    headcount: s.headcount ?? DEFAULT_HEADCOUNT,
+                    utilization: s.utilization ?? DEFAULT_UTILIZATION,
+                    mdRateKRW: s.mdRateKRW ?? DEFAULT_MD_RATE,
+                    aiToolMonthlyCostKRW: s.aiToolMonthlyCostKRW ?? DEFAULT_AI_TOOL_COST,
+                    aiToolUserCount: s.aiToolUserCount ?? DEFAULT_AI_USER_COUNT,
+                };
+            },
         }
     )
 );

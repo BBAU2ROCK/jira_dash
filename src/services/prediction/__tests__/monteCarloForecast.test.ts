@@ -63,14 +63,18 @@ describe('monteCarloForecast', () => {
     });
 });
 
-describe('percentile', () => {
-    it('정렬되지 않은 배열에서 백분위', () => {
+describe('percentile (v1.0.50: linear interpolation, 0~100)', () => {
+    it('정렬되지 않은 배열에서 백분위 — 정렬 후 linear interp', () => {
         const arr = [10, 1, 5, 2, 8, 3, 7, 4, 6, 9];
-        expect(percentile(arr, 50)).toBe(5);
+        // sorted = [1..10], n=10
+        // P50: idx=(10-1)*0.5=4.5 → sorted[4]*0.5+sorted[5]*0.5 = 5*0.5+6*0.5 = 5.5
+        expect(percentile(arr, 50)).toBeCloseTo(5.5, 5);
+        // P100: 최댓값
         expect(percentile(arr, 100)).toBe(10);
-        expect(percentile(arr, 10)).toBe(1);
+        // P10: idx=0.9 → sorted[0]*0.1+sorted[1]*0.9 = 1*0.1+2*0.9 = 1.9
+        expect(percentile(arr, 10)).toBeCloseTo(1.9, 5);
     });
-    it('빈 배열 → NaN', () => {
+    it('빈 배열 → NaN (legacy 호환)', () => {
         expect(percentile([], 50)).toBeNaN();
     });
     it('단일 원소', () => {

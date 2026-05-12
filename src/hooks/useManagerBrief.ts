@@ -1,8 +1,13 @@
 /**
- * useManagerBrief — v1.0.28
+ * useManagerBrief — v1.0.49
  *
  * 일일 브리프: 어제·오늘·내일 핵심 지표.
  * 모든 데이터는 기존 issues에서 합성. 추가 API 호출 없음.
+ *
+ * v1.0.48: 오늘 신규 등록 (todayCreated/todayCreatedIssues) 추가.
+ * v1.0.49:
+ *   - now를 useMemo로 안정화 (자정 경계에서 같은 ref 재사용 → yesterday/today 어긋남 방지)
+ *   - weekProgressRate 정의를 "완료 / (완료 + 신규)" 로 명확화 (라벨 일치)
  */
 import { useMemo } from 'react';
 import type { JiraIssue } from '@/api/jiraClient';
@@ -17,6 +22,10 @@ export interface ManagerBrief {
     yesterdayCompleted: number;
     /** 어제 신규 등록 건수 */
     yesterdayCreated: number;
+    /** v1.0.48: 오늘 신규 등록 건수 (created = 오늘) */
+    todayCreated: number;
+    /** v1.0.48: 오늘 신규 등록 이슈 (상세 클릭용) */
+    todayCreatedIssues: JiraIssue[];
     /** 오늘 진행 중 (status=indeterminate) */
     todayInProgress: number;
     /** 오늘이 마감 (D-0) */
@@ -42,16 +51,21 @@ export interface ManagerBrief {
 }
 
 export function useManagerBrief(issues: JiraIssue[] | null | undefined, nowOpt?: Date): ManagerBrief {
+    // v1.0.49: nowOpt 미지정 시 hook 생애 동안 동일 Date 인스턴스 사용 → 자정 경계
+    // 직전/직후 호출에서 yesterday/today 경계가 한 칸 어긋나는 회귀 방지.
+    const now = useMemo(() => nowOpt ?? new Date(), [nowOpt]);
+
     return useMemo(() => {
         const empty: ManagerBrief = {
-            yesterdayCompleted: 0, yesterdayCreated: 0, todayInProgress: 0,
+            yesterdayCompleted: 0, yesterdayCreated: 0,
+            todayCreated: 0, todayCreatedIssues: [],
+            todayInProgress: 0,
             todayDue: 0, dueSoonNext3Days: 0, todayStarting: 0, tomorrowStarting: 0,
             weekCreated: 0, weekCompleted: 0, weekProgressRate: 0,
             yesterdayCompletedIssues: [], todayDueIssues: [], todayStartingIssues: [],
         };
         if (!issues || issues.length === 0) return empty;
 
-        const now = nowOpt ?? new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         const yesterday = new Date(today.getTime() - DAY_MS);
         const tomorrow = new Date(today.getTime() + DAY_MS);
@@ -77,7 +91,9 @@ export function useManagerBrief(issues: JiraIssue[] | null | undefined, nowOpt?:
         const yesterdayCompletedIssues: JiraIssue[] = [];
         const todayDueIssues: JiraIssue[] = [];
         const todayStartingIssues: JiraIssue[] = [];
+        const todayCreatedIssues: JiraIssue[] = []; // v1.0.48
         let yesterdayCreated = 0;
+        let todayCreated = 0; // v1.0.48
         let todayInProgress = 0;
         let todayDue = 0;
         let dueSoonNext3Days = 0;
@@ -96,6 +112,11 @@ export function useManagerBrief(issues: JiraIssue[] | null | undefined, nowOpt?:
 
             // 어제 신규
             if (created && sameDay(created, yesterday)) yesterdayCreated++;
+            // v1.0.48: 오늘 신규
+            if (created && sameDay(created, today)) {
+                todayCreated++;
+                todayCreatedIssues.push(i);
+            }
             // 7일 신규
             if (created && created >= weekAgo) weekCreated++;
 
@@ -131,14 +152,19 @@ export function useManagerBrief(issues: JiraIssue[] | null | undefined, nowOpt?:
             if (planStart && sameDay(planStart, tomorrow)) tomorrowStarting++;
         }
 
-        const weekTotal = weekCreated + weekCompleted; // 분모로 활용
-        const weekProgressRate = weekTotal > 0
-            ? Math.round((weekCompleted / Math.max(weekTotal, weekCreated, 1)) * 100)
+        // v1.0.49 (H14): 진척률 정의를 "완료 / (완료 + 신규)" 로 명확화.
+        // 의미: 이번 주 작업 흐름에서 신규 등록 대비 완료 비율 (라벨 "완료 N / 신규 M"과 일관).
+        // 양쪽 모두 0이면 0% (의도된 안전값).
+        const weekDenom = weekCreated + weekCompleted;
+        const weekProgressRate = weekDenom > 0
+            ? Math.round((weekCompleted / weekDenom) * 100)
             : 0;
 
         return {
             yesterdayCompleted: yesterdayCompletedIssues.length,
             yesterdayCreated,
+            todayCreated,            // v1.0.48
+            todayCreatedIssues,      // v1.0.48
             todayInProgress,
             todayDue,
             dueSoonNext3Days,

@@ -21,12 +21,23 @@ const NOTICE_OUTPUT = path.join(ROOT, 'build', 'THIRD-PARTY-NOTICES.txt');
 
 console.log('[licenses] 의존성 라이선스 수집 중...');
 
+// v1.0.51: 자기 자신을 동적으로 제외 (package.json의 name@version)
+const pkgJson = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
+const SELF_ID = `${pkgJson.name}@${pkgJson.version}`;
+
 // license-checker 실행
 const json = execSync(
-    `npx license-checker --production --json --excludePackages "01_jira_dash@1.0.38;01_jira_dash@1.0.37;01_jira_dash@1.0.36"`,
+    `npx license-checker --production --json --excludePackages "${SELF_ID}"`,
     { cwd: ROOT, encoding: 'utf-8', maxBuffer: 50 * 1024 * 1024 }
 );
 const data = JSON.parse(json);
+
+// 추가 safety: 결과에 자기 자신이 남아 있으면 제거 (excludePackages가 빌드별 캐시 영향을 받을 수 있음)
+for (const key of Object.keys(data)) {
+    if (key === SELF_ID || key.startsWith(`${pkgJson.name}@`)) {
+        delete data[key];
+    }
+}
 
 const entries = Object.entries(data).sort(([a], [b]) => a.localeCompare(b));
 console.log(`[licenses] 총 ${entries.length} 패키지 처리`);

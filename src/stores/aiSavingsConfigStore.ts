@@ -85,6 +85,31 @@ export const useAiSavingsConfigStore = create<AiSavingsConfigState>()(
                     ? window.localStorage
                     : { getItem: () => null, setItem: () => {}, removeItem: () => {} }
             ),
+            // v1.0.50: categoryKeywords(v1.0.46 추가) 누락 백필 + reductionByCategory default 병합
+            version: 1,
+            migrate: (persistedState: unknown, _oldVersion: number) => {
+                const s = (persistedState ?? {}) as Partial<AiSavingsConfigState>;
+                return {
+                    ...s,
+                    config: {
+                        reductionByCategory: {
+                            ...DEFAULT_REDUCTION_BY_CATEGORY,
+                            ...(s.config?.reductionByCategory ?? {}),
+                        },
+                        difficultyMultiplier: {
+                            ...DEFAULT_DIFFICULTY_MULTIPLIER,
+                            ...(s.config?.difficultyMultiplier ?? {}),
+                        },
+                    },
+                    categoryKeywords: {
+                        test:    s.categoryKeywords?.test ?? [...DEFAULT_CATEGORY_KEYWORDS.test],
+                        doc:     s.categoryKeywords?.doc ?? [...DEFAULT_CATEGORY_KEYWORDS.doc],
+                        bug:     s.categoryKeywords?.bug ?? [...DEFAULT_CATEGORY_KEYWORDS.bug],
+                        subtask: s.categoryKeywords?.subtask ?? [...DEFAULT_CATEGORY_KEYWORDS.subtask],
+                        story:   s.categoryKeywords?.story ?? [...DEFAULT_CATEGORY_KEYWORDS.story],
+                    },
+                };
+            },
         }
     )
 );

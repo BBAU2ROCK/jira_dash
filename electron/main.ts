@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, session, powerSaveBlocker } from 'electron'
+import { app, BrowserWindow, Menu, ipcMain, session, powerSaveBlocker, shell, safeStorage } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import fs from 'node:fs/promises'
@@ -26,6 +26,33 @@ function getConfigPath(): string {
     return path.join(app.getPath('userData'), 'jira-config.json');
 }
 
+/**
+ * v1.0.49 (H3): safeStorage(DPAPI on Windows, Keychain on macOS, libsecret on Linux)로
+ * API 토큰을 OS 키체인 기반 암호화 저장. encryptionAvailable()=false 환경(예: 일부 Linux)
+ * 에서는 평문 폴백 + 경고 로그.
+ *
+ * 파일 스키마 (마이그레이션 자동 처리):
+ *   v1: { jiraEmail, jiraApiToken }                    — 평문 (legacy)
+ *   v2: { jiraEmail, jiraApiTokenEnc: '<base64>' }     — safeStorage 암호화
+ */
+interface PersistedConfigV1 {
+    jiraEmail?: string;
+    jiraApiToken?: string;
+}
+interface PersistedConfigV2 {
+    jiraEmail?: string;
+    jiraApiTokenEnc?: string;
+}
+
+function tryDecryptToken(enc: string): string {
+    try {
+        if (!safeStorage.isEncryptionAvailable()) return '';
+        return safeStorage.decryptString(Buffer.from(enc, 'base64'));
+    } catch {
+        return '';
+    }
+}
+
 async function loadJiraConfig(): Promise<JiraConfig> {
     const envEmail = process.env.JIRA_EMAIL ?? '';
     const envToken = process.env.JIRA_API_TOKEN ?? '';
@@ -36,27 +63,50 @@ async function loadJiraConfig(): Promise<JiraConfig> {
     try {
         const p = getConfigPath();
         const raw = await fs.readFile(p, 'utf-8');
-        const parsed = JSON.parse(raw) as JiraConfig;
-        if (parsed && typeof parsed.jiraEmail === 'string' && typeof parsed.jiraApiToken === 'string') {
-            jiraConfig = {
-                jiraEmail: parsed.jiraEmail.trim(),
-                jiraApiToken: parsed.jiraApiToken.trim(),
-            };
-            return jiraConfig;
+        const parsed = JSON.parse(raw) as PersistedConfigV1 & PersistedConfigV2;
+        const email = typeof parsed?.jiraEmail === 'string' ? parsed.jiraEmail.trim() : '';
+        let token = '';
+        if (typeof parsed?.jiraApiTokenEnc === 'string' && parsed.jiraApiTokenEnc) {
+            token = tryDecryptToken(parsed.jiraApiTokenEnc);
         }
+        // legacy 평문 마이그레이션
+        if (!token && typeof parsed?.jiraApiToken === 'string' && parsed.jiraApiToken) {
+            token = parsed.jiraApiToken.trim();
+            if (token) {
+                try {
+                    await saveJiraConfig({ jiraEmail: email, jiraApiToken: token });
+                    console.log('[main] migrated legacy plain-text token to safeStorage');
+                } catch (e) {
+                    console.warn('[main] token migration failed:', e);
+                }
+            }
+        }
+        jiraConfig = { jiraEmail: email, jiraApiToken: token };
+        return jiraConfig;
     } catch {
         // no file or invalid
     }
     return jiraConfig;
 }
 
-/** 로컬에 상시 저장. 쓰기 성공 시에만 메모리 반영하여 사이드 이펙트 방지. */
+/**
+ * 로컬에 상시 저장. 쓰기 성공 시에만 메모리 반영하여 사이드 이펙트 방지.
+ * v1.0.49: safeStorage 사용 가능 시 토큰을 암호화하여 저장. 불가능 환경에서는 경고 후 평문 저장.
+ */
 async function saveJiraConfig(config: JiraConfig): Promise<void> {
     const email = typeof config.jiraEmail === 'string' ? config.jiraEmail.trim() : '';
     const token = typeof config.jiraApiToken === 'string' ? config.jiraApiToken.trim() : '';
     const p = getConfigPath();
     await fs.mkdir(path.dirname(p), { recursive: true });
-    const payload = JSON.stringify({ jiraEmail: email, jiraApiToken: token }, null, 2);
+
+    let payload: string;
+    if (token && safeStorage.isEncryptionAvailable()) {
+        const enc = safeStorage.encryptString(token).toString('base64');
+        payload = JSON.stringify({ jiraEmail: email, jiraApiTokenEnc: enc }, null, 2);
+    } else {
+        if (token) console.warn('[main] safeStorage unavailable — saving token in plain text');
+        payload = JSON.stringify({ jiraEmail: email, jiraApiToken: token }, null, 2);
+    }
     await fs.writeFile(p, payload, 'utf-8');
     jiraConfig = { jiraEmail: email, jiraApiToken: token };
 }
@@ -113,6 +163,37 @@ function startProxyServer() {
 let win: BrowserWindow | null
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 
+/**
+ * v1.0.49: 외부로 열어도 되는 도메인 (shell.openExternal로 위임).
+ * Jira 이슈 링크·아바타·attachment만 허용. 그 외 URL은 deny.
+ */
+const EXTERNAL_URL_WHITELIST = [
+    /^https:\/\/([a-z0-9-]+\.)?atlassian\.net(\/.*)?$/i,
+    /^https:\/\/([a-z0-9-]+\.)?atl-paas\.net(\/.*)?$/i,
+    /^https:\/\/id\.atlassian\.com(\/.*)?$/i,
+];
+
+function isExternalUrlAllowed(rawUrl: string): boolean {
+    try {
+        const u = new URL(rawUrl);
+        if (u.protocol !== 'https:') return false;
+        return EXTERNAL_URL_WHITELIST.some((re) => re.test(rawUrl));
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * v1.0.49: 내부 네비게이션 허용 URL (앱 자체 진입).
+ *  - dev: Vite dev server
+ *  - prod: file:// (loadFile)
+ */
+function isInternalNavigationAllowed(rawUrl: string): boolean {
+    if (rawUrl.startsWith('file://')) return true;
+    if (VITE_DEV_SERVER_URL && rawUrl.startsWith(VITE_DEV_SERVER_URL)) return true;
+    return false;
+}
+
 function createWindow() {
     const preloadName = fsSync.existsSync(path.join(__dirname, 'preload.mjs')) ? 'preload.mjs' : 'preload.js';
     win = new BrowserWindow({
@@ -126,10 +207,42 @@ function createWindow() {
             webSecurity: true,
             nodeIntegration: false,
             contextIsolation: true,
+            // v1.0.49 보안 강화 (Electron 보안 체크리스트):
+            sandbox: true,                       // preload도 sandbox 안에서 실행
+            allowRunningInsecureContent: false,  // mixed content 차단
+            experimentalFeatures: false,         // 실험적 web API 차단
         },
     });
 
     Menu.setApplicationMenu(null);
+
+    // v1.0.49: window.open / target=_blank 차단 + 화이트리스트만 외부 브라우저로 위임
+    win.webContents.setWindowOpenHandler(({ url }) => {
+        if (isExternalUrlAllowed(url)) {
+            void shell.openExternal(url);
+        } else {
+            console.warn(`[main] blocked window.open to non-whitelisted URL: ${url}`);
+        }
+        return { action: 'deny' };
+    });
+
+    // v1.0.49: navigate / redirect 가로채기 — 내부 진입 외 모두 차단
+    win.webContents.on('will-navigate', (event, url) => {
+        if (!isInternalNavigationAllowed(url)) {
+            event.preventDefault();
+            if (isExternalUrlAllowed(url)) {
+                void shell.openExternal(url);
+            } else {
+                console.warn(`[main] blocked will-navigate to non-whitelisted URL: ${url}`);
+            }
+        }
+    });
+    win.webContents.on('will-redirect', (event, url) => {
+        if (!isInternalNavigationAllowed(url)) {
+            event.preventDefault();
+            console.warn(`[main] blocked will-redirect to non-whitelisted URL: ${url}`);
+        }
+    });
 
     win.webContents.on('did-finish-load', () => {
         win?.webContents.send('main-process-message', (new Date).toLocaleString())
@@ -244,9 +357,31 @@ app.whenReady().then(async () => {
         }
     });
 
+    /**
+     * v1.0.49 (M2): 입력 검증 강화.
+     *  - email: 8~256자, 단순 'a@b' 형식 (Jira는 OAuth 이메일 형식 강제)
+     *  - token: 16~2048자 (Atlassian API 토큰은 통상 100자 이상)
+     *  - 둘 중 하나라도 비어 있으면 reset 의도로 빈 저장 허용 (기존 동작 유지)
+     */
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     ipcMain.handle('jira-config:set', async (_event, config: JiraConfig) => {
+        if (config != null && typeof config !== 'object') {
+            return { ok: false, message: 'invalid payload' };
+        }
         const email = config?.jiraEmail != null ? String(config.jiraEmail).trim() : '';
         const token = config?.jiraApiToken != null ? String(config.jiraApiToken).trim() : '';
+
+        // 둘 다 빈 값이면 reset (legacy 동작 유지)
+        if (!email && !token) {
+            return { ok: true };
+        }
+
+        if (email && (email.length < 5 || email.length > 256 || !EMAIL_RE.test(email))) {
+            return { ok: false, message: '유효하지 않은 이메일 형식입니다.' };
+        }
+        if (token && (token.length < 8 || token.length > 2048)) {
+            return { ok: false, message: 'API 토큰 길이가 유효하지 않습니다 (8~2048자).' };
+        }
         if (email && token) {
             await saveJiraConfig({ jiraEmail: email, jiraApiToken: token });
         }

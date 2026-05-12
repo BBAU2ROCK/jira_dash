@@ -97,10 +97,11 @@ export function measureCoverage(
     const F = resolveFields();
     const total = resolvedIssues.length;
 
-    // planned 가용성: active 이슈에서 측정
+    // planned 가용성: active 이슈에서 측정 (v1.0.49: customfield 하드코딩 제거)
+    const plannedStartField = F.PLANNED_START;
     const activeTotal = activeIssues.length;
     const withPlanned = activeIssues.filter((i) => {
-        const start = parseLocalDay(i.fields.customfield_11481 ?? null);
+        const start = parseLocalDay((i.fields[plannedStartField] as string | undefined) ?? null);
         const due = parseLocalDay(i.fields.duedate ?? null);
         if (!start || !due) return false;
         const bd = businessDaysBetween(start, due);
@@ -258,8 +259,9 @@ export function predictIssueEffort(
     }
 
     // v1.0.32: planned — 이슈에 등록된 계획기간 + 난이도 (자체 약속된 정보)
+    // v1.0.49: customfield 하드코딩 제거, resolveFields() 사용
     if (coverage.plannedActive) {
-        const plannedStart = parseLocalDay(issue.fields.customfield_11481 ?? null);
+        const plannedStart = parseLocalDay((issue.fields[F.PLANNED_START] as string | undefined) ?? null);
         const due = parseLocalDay(issue.fields.duedate ?? null);
         if (plannedStart && due && due > plannedStart) {
             const businessDays = businessDaysBetween(plannedStart, due);

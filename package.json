@@ -1,7 +1,7 @@
 {
   "name": "01_jira_dash",
   "private": true,
-  "version": "1.0.47",
+  "version": "1.0.51",
   "description": "Jira Dashboard Application",
   "author": "Okestro",
   "type": "module",
@@ -119,7 +119,7 @@
       }
     ],
     "releaseInfo": {
-      "releaseNotes": "v1.0.47 — 정적 백로그 모델 자동 감지 + 시스템 전체 적용. 사용자 워크플로우(초기 일괄 등록 + 정해진 일정 안에 처리)에 맞춰 신규 유입 분석 → 백로그 진척 분석으로 재설계. BacklogProgressCard 신규(초기 백로그/진척률/처리속도/예측 완료일/번다운/마감 비교). EtaScenarioCard 정적 모드 자동 Lead Time 메인. DataReadinessCard 정적 모델 배지. 자동 감지: 최근 30일 신규 5% AND 10건 미만. 9 신규 테스트(410 통과)."
+      "releaseNotes": "v1.0.51 — 정밀 코드 리뷰 후속 (1.0.49~51 통합): 보안 강화 (IPC 화이트리스트 / sandbox / setWindowOpenHandler / safeStorage 토큰 암호화 / npm audit fix axios 등 16 CVE 해결), 6 store persist 마이그레이션, percentile 알고리즘 단일화 (lib/statistics), customfield 하드코딩 3곳 제거 (resolveFields 통일), DailyBriefCard 오늘/어제 색상 분리 (indigo/cyan), useManagerBrief now 안정화 + weekProgressRate 재정의, MC cappedRate 노출 + worker dispatch 산식 정정, cycleTime status 카테고리 자동 학습, xlsx 안전성 + license generator self-exclude, persist quota guard, axios timeout/retry. 412 테스트 통과."
     },
     "win": {
       "target": [

@@ -94,6 +94,15 @@ export const useEpicMappingStore = create<EpicMappingState>()(
                           removeItem: () => {},
                       }
             ),
+            // v1.0.50: mappings 필드 누락 시 빈 객체로 백필
+            version: 1,
+            migrate: (persistedState: unknown, _oldVersion: number) => {
+                const s = (persistedState ?? {}) as { mappings?: unknown };
+                if (typeof s.mappings !== 'object' || s.mappings === null) {
+                    return { ...s, mappings: {} };
+                }
+                return s;
+            },
         }
     )
 );

@@ -2,6 +2,13 @@
  * Export 헬퍼 — Excel(xlsx) + PDF(브라우저 print).
  *
  * xlsx는 큰 라이브러리(~100KB) — 동적 import로 사용 시점에만 로드.
+ *
+ * **보안 (v1.0.51, C3)**:
+ *   - xlsx 0.18.x는 GHSA-4r6h-8v6p-xvw6 (Prototype Pollution) / GHSA-5pgg-2g8v-p4x9 (ReDoS) 가 있다.
+ *     두 CVE는 모두 *xlsx 파싱 (xlsx.read / readFile)* 시 발현. 본 모듈은 *생성·쓰기* 전용으로
+ *     `xlsx.utils.aoa_to_sheet` + `xlsx.writeFile` 만 사용 → 외부 입력 파싱 경로 없음.
+ *   - 따라서 직접적 영향 영역은 없으나, 장기적으로 sheetjs 직접 호스팅 0.20+ 또는 exceljs 전환 권장.
+ *   - export.ts는 `xlsx.read`·`xlsx.readFile`·`xlsx.read_str` 등 파싱 API 호출을 **절대 추가하지 말 것**.
  */
 
 import type { BacklogStateCounts, TeamForecast, BacklogEffortReport, DailyPoint } from '@/services/prediction/types';
@@ -19,9 +26,22 @@ export interface ExportPayload {
     expectations: Record<string, IssueExpectation>;
 }
 
-/** 5개 시트가 있는 Excel 다운로드 */
+/**
+ * 5개 시트가 있는 Excel 다운로드.
+ *
+ * v1.0.51: 동적 import 실패(네트워크 chunk 로드 실패 등) 시 에러를 throw하여
+ * 호출자가 toast/UI에서 안내할 수 있도록 한다.
+ */
 export async function exportToExcel(payload: ExportPayload): Promise<void> {
-    const xlsx = await import('xlsx');
+    let xlsx: typeof import('xlsx');
+    try {
+        xlsx = await import('xlsx');
+    } catch (e) {
+        throw new Error(
+            'Excel 라이브러리 로드 실패. 네트워크를 확인하거나 페이지를 새로고침해 주세요. ' +
+            `(${(e as Error)?.message ?? 'unknown'})`
+        );
+    }
     const wb = xlsx.utils.book_new();
 
     // Sheet 1: Summary
