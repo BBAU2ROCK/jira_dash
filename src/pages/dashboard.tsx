@@ -230,14 +230,16 @@ export function Dashboard() {
                             <Bug className="h-4 w-4 mr-1.5" />
                             <span className="hidden sm:inline">결함 KPI</span>
                         </Button>
-                        {/* v1.0.28: 매니저 콘솔 — 위험 카운트 배지 자동 표시 */}
+                        {/* v1.0.28: 매니저 콘솔 — 위험 카운트 배지 자동 표시
+                            v1.0.33: data-manager-console-trigger — 진행 추이의 안내 카드에서 시각 강조용 */}
                         <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => setManagerOpen(true)}
                             disabled={!issues || issues.length === 0}
-                            title="매니저 콘솔 — 일일 브리프·리스크 보드·1:1 미팅 준비"
+                            title="매니저 콘솔 — 일일 브리프·리스크 보드·1:1 미팅 준비·공수 & 예산"
                             className="h-8 relative"
+                            data-manager-console-trigger
                         >
                             <Briefcase className="h-4 w-4 mr-1.5" />
                             <span className="hidden sm:inline">매니저</span>

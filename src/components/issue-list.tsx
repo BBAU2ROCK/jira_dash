@@ -4,7 +4,8 @@ import { Badge } from '@/components/ui/badge';
 import { AlertCircle, CheckCircle, ChevronRight, ChevronDown, ChevronsDown, ChevronsRight, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { type JiraIssue } from '@/api/jiraClient';
-import { filterLeafIssues, getStatusCategoryKey } from '@/lib/jira-helpers';
+import { filterLeafIssues, getStatusCategoryKey, isBusinessDone } from '@/lib/jira-helpers';
+import { resolveFields } from '@/lib/kpi-rules-resolver';
 import { formatDateSafe } from '@/lib/date-utils';
 import { Button } from '@/components/ui/button';
 import { IssueFilterBar, type FilterState } from './issue-filter-bar';
@@ -61,11 +62,11 @@ export function IssueList({ issues, isLoading, focusIssueKeys, onClearFocusIssue
             if (filter.statuses.length > 0 && !filter.statuses.includes(issue.fields.status?.name ?? '')) return false;
 
             // 4. Delay (In-progress)
-            const isDelayed = issue.fields.duedate && new Date(issue.fields.duedate) < new Date() && getStatusCategoryKey(issue) !== 'done';
+            const isDelayed = issue.fields.duedate && new Date(issue.fields.duedate) < new Date() && !isBusinessDone(issue);
             if (filter.onlyDelayed && !isDelayed) return false;
 
             // 5. Delayed Done (Completed but late)
-            const isDelayedDone = getStatusCategoryKey(issue) === 'done' &&
+            const isDelayedDone = isBusinessDone(issue) &&
                 issue.fields.duedate &&
                 issue.fields.resolutiondate &&
                 new Date(issue.fields.resolutiondate) > new Date(new Date(issue.fields.duedate).setHours(23, 59, 59, 999));
@@ -178,9 +179,12 @@ export function IssueList({ issues, isLoading, focusIssueKeys, onClearFocusIssue
         );
     }
 
+    // v1.0.46 fix (M4): jiraConfig 설정 변경 가능하므로 customfield 직접 참조 X. resolveFields().ACTUAL_DONE 사용.
+    const F = resolveFields();
+
     const renderIssue = (issue: JiraIssue, isSubtask: boolean = false, level: number = 0) => {
-        const isDelayed = issue.fields.duedate && new Date(issue.fields.duedate) < new Date() && getStatusCategoryKey(issue) !== 'done';
-        const isDone = getStatusCategoryKey(issue) === 'done';
+        const isDelayed = issue.fields.duedate && new Date(issue.fields.duedate) < new Date() && !isBusinessDone(issue);
+        const isDone = isBusinessDone(issue);
         const hasSubtasks = issue.fields.subtasks && issue.fields.subtasks.length > 0;
         const isExpanded = expandedParents.has(issue.key);
         const children = subtaskMap.get(issue.key) || [];
@@ -270,9 +274,12 @@ export function IssueList({ issues, isLoading, focusIssueKeys, onClearFocusIssue
                     <TableCell className="text-xs text-muted-foreground">
                         {formatDateSafe(issue.fields.customfield_11484)}
                     </TableCell>
-                    {/* 실제완료: resolutiondate */}
+                    {/* 실제완료: ACTUAL_DONE (실제완료일) 우선, 없으면 resolutiondate fallback.
+                        v1.0.34: KPI/상세/공수와 일관 — 사용자가 done 카테고리 진입 전에도
+                        실제완료일을 직접 입력하면 표시되도록.
+                        v1.0.46 (M4): customfield_11485 직접 참조 → resolveFields().ACTUAL_DONE 통일. */}
                     <TableCell className="text-xs text-muted-foreground">
-                        {formatDateSafe(issue.fields.resolutiondate)}
+                        {formatDateSafe((issue.fields[F.ACTUAL_DONE] as string | undefined) ?? issue.fields.resolutiondate)}
                     </TableCell>
 
                     {/* Delay indicator */}

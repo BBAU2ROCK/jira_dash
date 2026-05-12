@@ -1,8 +1,14 @@
 import { defineConfig, type Plugin } from 'vite'
 import path from 'node:path'
-import { cp, mkdir } from 'node:fs/promises'
+import { cp, mkdir, readFile } from 'node:fs/promises'
 import electron from 'vite-plugin-electron/simple'
 import react from '@vitejs/plugin-react'
+
+/** v1.0.34: package.json의 version을 빌드 타임에 __APP_VERSION__으로 주입.
+ *  사이드바 등에서 import.meta.env / process.env 없이 안정적으로 사용. */
+const pkgJson = JSON.parse(
+  await readFile(path.resolve(__dirname, 'package.json'), 'utf-8')
+) as { version: string }
 
 /**
  * Electron main(main.ts)이 `createRequire('./jira-proxy-handler.cjs')` 로
@@ -56,6 +62,9 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+  },
+  define: {
+    __APP_VERSION__: JSON.stringify(pkgJson.version),
   },
 })
 

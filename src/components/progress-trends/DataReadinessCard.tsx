@@ -19,6 +19,17 @@ interface Props {
     stats: ThroughputStats | null;
     /** 등급 표시 모드: 메인 (큰 카드) / 컴팩트 (인라인) */
     variant?: 'full' | 'compact';
+    /** v1.0.40: 이 stats가 어떤 시나리오 기반인지 표시
+     *   - 'bottleneck' : 병목 인원의 개인 stats (bottleneckName 함께 제공)
+     *   - 'team'       : 팀 전체 throughput stats (자유 재할당 가정 / bottleneck 측정 불가)
+     */
+    scope?: 'team' | 'bottleneck';
+    /** scope='bottleneck'일 때 표시할 인원명 (anonymize 적용된 라벨 권장) */
+    bottleneckName?: string;
+    /** v1.0.42: 프로젝트 단계 — 'early'면 scope 발산이 정상이라는 안내 표시 */
+    projectStage?: 'early' | 'active';
+    /** v1.0.47: 운영 모델 — 'static'이면 Throughput MC 부족이 정상 (Lead Time 메인) */
+    projectMode?: 'static' | 'active';
 }
 
 const LEVEL_LABEL: Record<ConfidenceLevel, { ko: string; color: string; bg: string }> = {
@@ -53,7 +64,7 @@ function StatusIcon({ status }: { status: 'good' | 'warn' | 'bad' }) {
     return <XCircle className="h-3.5 w-3.5 text-red-600" />;
 }
 
-export function DataReadinessCard({ stats, variant = 'full' }: Props) {
+export function DataReadinessCard({ stats, variant = 'full', scope, bottleneckName, projectStage, projectMode }: Props) {
     // Hook 규칙: 조건부 분기보다 useMemo가 먼저
     const computed = React.useMemo(
         () => (stats ? computeReadiness(stats) : null),
@@ -91,12 +102,63 @@ export function DataReadinessCard({ stats, variant = 'full' }: Props) {
     return (
         <div className="rounded-lg border border-border bg-card p-4">
             <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-foreground inline-flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-foreground inline-flex items-center gap-2 flex-wrap">
                     <Target className="h-4 w-4 text-muted-foreground" />
                     데이터 충족 현황
+                    {/* v1.0.40: 이 stats가 어떤 시나리오 기반인지 즉시 노출 */}
+                    {scope === 'bottleneck' && bottleneckName && (
+                        <span className="text-[10px] font-normal text-muted-foreground inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-1.5 py-0.5">
+                            🎯 병목: {bottleneckName} 기준
+                        </span>
+                    )}
+                    {scope === 'team' && (
+                        <span className="text-[10px] font-normal text-muted-foreground inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-1.5 py-0.5">
+                            👥 팀 전체 기준 <span className="text-[9px] opacity-70">(병목 측정 불가)</span>
+                        </span>
+                    )}
+                    {/* v1.0.42: 초기 구축 단계 안내 — scope 발산이 정상임을 명시 */}
+                    {projectStage === 'early' && (
+                        <span
+                            className="text-[10px] font-normal inline-flex items-center gap-1 rounded-md border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-300 px-1.5 py-0.5"
+                            title="백로그 70%+ 가 최근 윈도우 안 created — 초기 스코프 정의 단계"
+                        >
+                            🌱 초기 구축 단계 <span className="text-[9px] opacity-70">(scope 발산은 정상)</span>
+                        </span>
+                    )}
+                    {/* v1.0.47: 정적 모델 안내 — Throughput MC 부족이 정상임을 명시 */}
+                    {projectMode === 'static' && (
+                        <span
+                            className="text-[10px] font-normal inline-flex items-center gap-1 rounded-md border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-800 dark:text-indigo-300 px-1.5 py-0.5"
+                            title="초기 일괄 등록 + 처리 워크플로우 — 신규 유입 적어 Throughput MC 부족이 정상. Lead Time 메인."
+                        >
+                            📊 정적 모델 <span className="text-[9px] opacity-70">(Lead Time 메인)</span>
+                        </span>
+                    )}
                     <InfoTip>
-                        예측 정확도는 활동 일수·처리 일관성·백로그 안정성에 따라 4단계로 결정됩니다.
-                        지표가 임계값을 충족할수록 더 정밀한 ETA·확률 분포 표시.
+                        <div className="space-y-2 max-w-sm">
+                            <div className="font-semibold text-foreground text-sm">데이터 충족 현황</div>
+                            <p className="text-muted-foreground">
+                                예측 정확도는 활동 일수·처리 일관성·백로그 안정성에 따라 4단계로 결정됩니다.
+                                지표가 임계값을 충족할수록 더 정밀한 ETA·확률 분포 표시.
+                            </p>
+                            <div className="border-t border-border/50 pt-1.5">
+                                <div className="font-medium text-foreground/90 mb-1">📊 이 통계는 어떤 데이터?</div>
+                                <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground text-[11px]">
+                                    <li><strong>병목 기준</strong>: 신뢰 가능한 개인 forecast가 있으면 그 중 ETA 가장 긴 사람의 stats (그가 팀 일정 좌우)</li>
+                                    <li><strong>팀 기준</strong>: 신뢰 가능한 개인 없으면 팀 전체 throughput stats (자유 재할당 가정)</li>
+                                </ul>
+                            </div>
+                            <div className="border-t border-border/50 pt-1.5">
+                                <div className="font-medium text-foreground/90 mb-1">⚠️ "활동 일수 0일"의 진짜 의미</div>
+                                <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground text-[11px]">
+                                    <li>활동 일수 ≠ 완료 건수</li>
+                                    <li>활동 일수 = 최근 30일 중 <strong>완료가 1건이라도 발생한 일자 수</strong></li>
+                                    <li>50건 완료가 1~2일에 몰리면 활동 일수 = 1~2일</li>
+                                    <li>임계 7일 미만이면 통계적 신뢰 불가 (Monte Carlo 분산 ↑)</li>
+                                    <li>완료 시점 정의: v1.0.39부터 status 'done' OR customfield_11485(실제완료일) 입력</li>
+                                </ul>
+                            </div>
+                        </div>
                     </InfoTip>
                 </h3>
                 <span className={cn('inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-bold', level.bg, level.color)}>

@@ -133,6 +133,22 @@ export function IssueDetailDrawer({ issue, open, onClose }: IssueDetailDrawerPro
         setEditorReadOnly(false);
     };
 
+    // v1.0.33 fix: 이슈가 바뀌면 이전 이슈의 댓글 수정 상태(editingCommentId)를 reset.
+    // 미수정 상태로 다른 이슈 이동 후 댓글 등록 시 PUT /이전-comment-id가 호출되어 404 발생하던 버그 해결.
+    useEffect(() => {
+        setEditingCommentId(null);
+        setEditorReadOnly(false);
+        if (editorRef.current) {
+            editorRef.current.innerHTML = '';
+            setEditorHasContent(false);
+        }
+        setMentionPopoverOpen(false);
+        savedMentionRange.current = null;
+        // v1.0.46 (m2): editorRef, savedMentionRange는 mutable ref (current 변경이 리렌더 트리거 X).
+        // setState 함수들은 React가 안정적인 identity 보장. → deps에 포함할 필요 없음.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [issue?.key]);
+
     const transitionMutation = useMutation({
         mutationFn: ({ key, transitionId }: { key: string; transitionId: string }) =>
             jiraApi.transitionIssue(key, transitionId),

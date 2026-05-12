@@ -8,12 +8,11 @@ import { User, Sparkles, ThumbsUp, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { JiraIssue } from '@/api/jiraClient';
 import { calculateKPI } from '@/services/kpiService';
-import { filterLeafIssues, getStatusCategoryKey } from '@/lib/jira-helpers';
+import { filterLeafIssues, getStatusCategoryKey, isBusinessDone } from '@/lib/jira-helpers';
 import { parseLocalDay } from '@/lib/date-utils';
 import { resolveCancelledStatus, resolveRejectedStatus, resolveOnHoldStatus } from '@/lib/kpi-rules-resolver';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -52,7 +51,7 @@ export function OneOnOnePrep({ issues, onIssueClick, onIssueKeysFocus }: Props) 
         const onHoldName = resolveOnHoldStatus();
 
         const isCompleted = (i: JiraIssue) => {
-            if (getStatusCategoryKey(i) !== 'done') return false;
+            if (!isBusinessDone(i)) return false;
             const sn = i.fields.status?.name?.trim() ?? '';
             return sn !== cancelledName && sn !== rejectedName;
         };
@@ -135,7 +134,12 @@ export function OneOnOnePrep({ issues, onIssueClick, onIssueKeysFocus }: Props) 
                         <div className="p-2 border-b border-border bg-muted/40">
                             <span className="text-[11px] font-semibold text-muted-foreground">담당자 ({assignees.length}명)</span>
                         </div>
-                        <ScrollArea className="h-[280px]">
+                        {/* v1.0.33: Radix ScrollArea → native overflow.
+                            Dialog 안 Popover에서 wheel event가 부모로 propagate되어 스크롤 안 되는 문제 → onWheel stopPropagation. */}
+                        <div
+                            className="max-h-[280px] overflow-y-auto overscroll-contain"
+                            onWheel={(e) => e.stopPropagation()}
+                        >
                             <div className="p-1">
                                 {assignees.map((name) => (
                                     <button
@@ -153,7 +157,7 @@ export function OneOnOnePrep({ issues, onIssueClick, onIssueKeysFocus }: Props) 
                                     </button>
                                 ))}
                             </div>
-                        </ScrollArea>
+                        </div>
                     </PopoverContent>
                 </Popover>
             </div>

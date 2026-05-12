@@ -10,6 +10,8 @@ declare global {
     interface Window {
         ipcRenderer?: ElectronIpc;
     }
+    /** v1.0.34: vite.config.ts의 define 으로 빌드 타임 주입되는 앱 버전. */
+    const __APP_VERSION__: string;
 }
 
 export {};

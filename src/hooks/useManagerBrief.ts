@@ -6,7 +6,7 @@
  */
 import { useMemo } from 'react';
 import type { JiraIssue } from '@/api/jiraClient';
-import { filterLeafIssues, getStatusCategoryKey } from '@/lib/jira-helpers';
+import { filterLeafIssues, getStatusCategoryKey, isBusinessDone } from '@/lib/jira-helpers';
 import { parseLocalDay } from '@/lib/date-utils';
 import { resolveCancelledStatus, resolveRejectedStatus, resolveFields } from '@/lib/kpi-rules-resolver';
 
@@ -63,7 +63,7 @@ export function useManagerBrief(issues: JiraIssue[] | null | undefined, nowOpt?:
         const actualDoneField = resolveFields().ACTUAL_DONE;
 
         const isCompleted = (i: JiraIssue) => {
-            if (getStatusCategoryKey(i) !== 'done') return false;
+            if (!isBusinessDone(i)) return false;
             const sn = i.fields.status?.name?.trim() ?? '';
             return sn !== cancelledName && sn !== rejectedName;
         };

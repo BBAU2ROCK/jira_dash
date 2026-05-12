@@ -1,16 +1,16 @@
 import { useEffect } from 'react';
 import { Dashboard } from './pages/dashboard';
 import { Toaster } from 'sonner';
-import { useForecastHistoryStore } from '@/stores/forecastHistoryStore';
+import { useForecastExpectationStore } from '@/stores/forecastExpectationStore';
 import { useDisplayPreferenceStore, applyTheme } from '@/stores/displayPreferenceStore';
 import { useJiraKeepalive } from '@/hooks/useJiraKeepalive';
 import { ConnectionIndicator } from '@/components/ui/connection-indicator';
 
 function App() {
-  // v1.0.20: 앱 부팅 시 forecast history 1회 정리 (90일 이상·1000건 초과)
+  // v1.0.36: 앱 부팅 시 forecast expectations 1회 정리 (90일 이상 done · 5000건 초과)
   // localStorage 무한 증가 방지. 부수 효과 없음 (idempotent).
   useEffect(() => {
-    useForecastHistoryStore.getState().pruneStale();
+    useForecastExpectationStore.getState().pruneStale();
   }, []);
 
   // v1.0.21: 테마 적용 — 부팅 시 + theme 변경 시 + system 변경 감지

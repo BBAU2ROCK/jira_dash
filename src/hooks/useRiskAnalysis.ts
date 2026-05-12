@@ -13,7 +13,7 @@
  */
 import { useMemo } from 'react';
 import type { JiraIssue } from '@/api/jiraClient';
-import { filterLeafIssues, getStatusCategoryKey } from '@/lib/jira-helpers';
+import { filterLeafIssues, getStatusCategoryKey, isBusinessDone } from '@/lib/jira-helpers';
 import { parseLocalDay } from '@/lib/date-utils';
 import { resolveOnHoldStatus, resolveCancelledStatus, resolveRejectedStatus } from '@/lib/kpi-rules-resolver';
 import { UNASSIGNED_LABEL } from '@/lib/jira-constants';
@@ -97,7 +97,7 @@ export function useRiskAnalysis(issues: JiraIssue[] | null | undefined, opts: Op
         const leaf = filterLeafIssues(issues);
 
         const isCompleted = (i: JiraIssue) => {
-            if (getStatusCategoryKey(i) !== 'done') return false;
+            if (!isBusinessDone(i)) return false;
             const sn = i.fields.status?.name?.trim() ?? '';
             return sn !== cancelledName && sn !== rejectedName;
         };

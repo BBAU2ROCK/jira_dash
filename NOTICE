@@ -1,0 +1,39 @@
+Jira Dashboard
+Copyright (c) Okestro Co., Ltd. All rights reserved.
+
+================================================================
+THIRD-PARTY ATTRIBUTIONS
+================================================================
+
+This product includes software developed by third parties.
+
+  1. Apache License 2.0 components (NOTICE 의무 충족)
+     See `THIRD-PARTY-NOTICES.txt` for individual NOTICE files.
+     Notable packages:
+       - SheetJS Community Edition (xlsx, cfb, codepage, ssf, wmf,
+         frac, adler-32, crc-32, word)
+         Copyright (C) 2012-present SheetJS LLC
+         https://sheetjs.com
+       - class-variance-authority
+         Copyright (c) Joe Bell
+
+  2. Holiday Data — date-holidays
+     Holiday data licensed under Creative Commons Attribution 3.0
+     (CC BY 3.0). https://creativecommons.org/licenses/by/3.0/
+     Source: https://github.com/commenthol/date-holidays
+
+  3. Electron / Chromium / Node.js
+     See `LICENSE.electron.txt` and `LICENSES.chromium.html` in the
+     installation directory.
+
+  4. All other open source dependencies
+     See `THIRD-PARTY-LICENSES.txt` for the complete list of
+     third-party packages and their licenses.
+
+================================================================
+DATA SOURCES
+================================================================
+- Korean public holidays: date-holidays library (CC BY 3.0)
+- Issue data: Atlassian Jira Cloud REST API (per Atlassian Cloud
+  Developer Terms — used by authenticated user with their own API
+  token; no third-party redistribution of Jira data)

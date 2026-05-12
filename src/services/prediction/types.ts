@@ -9,7 +9,13 @@ export type ConfidenceLevel = 'high' | 'medium' | 'low' | 'unreliable';
 
 export type WorkloadQuadrant = 'overload' | 'focus' | 'capacity' | 'fast';
 
-export type EffortSource = 'worklog' | 'sp' | 'difficulty' | 'cycle-time';
+export type EffortSource = 'worklog' | 'planned' | 'sp' | 'difficulty' | 'cycle-time';
+
+/** AI 도구 활용 시나리오 (3 시나리오) */
+export type AiSavingsScenario = 'conservative' | 'average' | 'optimistic';
+
+/** 이슈 카테고리 (AI 절감률 매트릭스 키) */
+export type IssueCategory = 'story' | 'bug' | 'subtask' | 'test' | 'doc' | 'default';
 
 export type ScopeStatus = 'stable' | 'growing' | 'crisis' | 'converging';
 
@@ -97,6 +103,72 @@ export interface IssueEffortPrediction {
     hoursHigh: number;
     source: EffortSource;
     confidence: ConfidenceLevel;
+    /** v1.0.32: planned source 메타데이터 — UI tooltip 및 AI 절감 산정에 사용 */
+    meta?: {
+        /** 계획 영업일 수 (planned source일 때) */
+        plannedDays?: number;
+        /** 난이도 라벨 (있으면 — '상'/'중'/'하' 등) */
+        difficultyLabel?: string;
+        /** 이슈 타입 이름 (Story / Bug / Sub-task / Test 등) */
+        issueTypeName?: string;
+    };
+}
+
+/** AI 절감 추정 — 단일 이슈 */
+export interface IssueAiSavings {
+    issueKey: string;
+    summary: string;
+    /** 분류된 카테고리 */
+    category: IssueCategory;
+    /** 원본 추정 시간 (predictIssueEffort 결과) */
+    baseHours: number;
+    /** 적용된 절감률 (난이도 보정 후 최종, 0~1) */
+    appliedReduction: number;
+    /** 절감 후 시간 */
+    savedHours: number;
+    /** AI 적용 시 시간 */
+    afterHours: number;
+}
+
+/** AI 도구 활용 시 절감 시뮬레이션 결과 */
+export interface AiSavingsReport {
+    /** 시나리오별 결과 (보수/평균/낙관) */
+    scenarios: Record<AiSavingsScenario, {
+        /** 평균 절감률 (가중) */
+        avgReductionPct: number;
+        /** 절감 후 인일 (mid) */
+        savedManDaysMid: number;
+        /** 절감 후 총 인일 (mid) */
+        afterManDaysMid: number;
+        /** 절감 후 총 인월 */
+        afterManMonthsMid: number;
+        /** 절감 후 팀 캘린더 일 */
+        afterTeamDays: number;
+    }>;
+    /** 카테고리별 분해 (평균 시나리오 기준) */
+    byCategory: Array<{
+        category: IssueCategory;
+        label: string;
+        count: number;
+        baseManDays: number;
+        savedManDays: number;
+        afterManDays: number;
+        reductionPct: number;
+    }>;
+    /** 효과 큰 이슈 Top 5 (평균 시나리오 기준) */
+    topImpactIssues: IssueAiSavings[];
+    /** 사용된 사용자 설정 (UI에서 표시) */
+    config: AiSavingsConfig;
+    /** 적용 가능 (worklog 데이터 등) 신뢰도 */
+    confidence: ConfidenceLevel;
+}
+
+/** AI 절감 사용자 설정 (Zustand persist) */
+export interface AiSavingsConfig {
+    /** 카테고리별 평균 시나리오 절감률 (0~1). 보수/낙관은 ±10%pt 자동 산출. */
+    reductionByCategory: Record<IssueCategory, number>;
+    /** 난이도 보정 — 라벨 → 곱셈 계수 */
+    difficultyMultiplier: Record<string, number>;
 }
 
 /** 백로그 전체 공수 보고

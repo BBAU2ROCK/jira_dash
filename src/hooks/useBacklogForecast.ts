@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { addDays } from 'date-fns';
 import type { JiraIssue } from '@/api/jiraClient';
-import { filterLeafIssues, getStatusCategoryKey } from '@/lib/jira-helpers';
+import { filterLeafIssues, getStatusCategoryKey, isBusinessDone } from '@/lib/jira-helpers';
 import {
     resolveOnHoldStatus,
     resolveCancelledStatus,
@@ -17,9 +17,11 @@ import {
     dayKey,
     lastNDayKeys,
 } from '@/lib/date-utils';
-import { useForecastHistoryStore } from '@/stores/forecastHistoryStore';
-import { isBacklogCleared } from '@/services/prediction/accuracyTracking';
+import { useForecastExpectationStore } from '@/stores/forecastExpectationStore';
+import { businessDaysBetween } from '@/lib/date-utils';
 import { computeCycleTimeByType, type CycleTimeStats } from '@/services/prediction/cycleTimeAnalysis';
+import { computeLeadTimeForecast, type LeadTimeForecast } from '@/services/prediction/leadTimeForecast';
+import { analyzeBacklogProgress, type BacklogProgressAnalysis } from '@/services/prediction/backlogProgressAnalysis';
 import {
     teamForecast,
     teamForecastAsync,
@@ -52,6 +54,11 @@ interface UseBacklogForecastResult {
     validation: CrossValidationResult | null;
     /** 이슈 타입별 cycle time 통계 */
     cycleTimeStats: CycleTimeStats[] | null;
+    /** v1.0.43: Lead time 기반 forecast — Throughput MC가 unreliable일 때 fallback,
+     *  또는 보조 시나리오로 비교 */
+    leadTimeForecast: LeadTimeForecast | null;
+    /** v1.0.47: 백로그 진척 분석 — 정적 모델(초기 일괄 등록 + 처리) 감지 + 진척률·예측 */
+    backlogProgress: BacklogProgressAnalysis | null;
 }
 
 /**
@@ -86,7 +93,7 @@ export function useBacklogForecast(issues: JiraIssue[], options?: {
         const cancelledName = resolveCancelledStatus();
         const rejectedName = resolveRejectedStatus();
         const isRealDone = (i: JiraIssue) => {
-            if (getStatusCategoryKey(i) !== 'done') return false;
+            if (!isBusinessDone(i)) return false;
             const sn = i.fields.status?.name?.trim() ?? '';
             return sn !== cancelledName && sn !== rejectedName;
         };
@@ -149,7 +156,7 @@ export function useBacklogForecast(issues: JiraIssue[], options?: {
         const counts: Record<string, number> = {};
         const since = addDays(now, -historyDays + 1);
         for (const issue of leaf) {
-            if (getStatusCategoryKey(issue) !== 'done') continue;
+            if (!isBusinessDone(issue)) continue;
             const sn = issue.fields.status?.name?.trim() ?? '';
             if (sn === cancelledName || sn === rejectedName) continue;
             const d = parseLocalDay(issue.fields[actualDoneField] as string | undefined ?? null) ?? parseLocalDay(issue.fields.resolutiondate ?? null);
@@ -228,7 +235,7 @@ export function useBacklogForecast(issues: JiraIssue[], options?: {
         const cancelledName = resolveCancelledStatus();
         const rejectedName = resolveRejectedStatus();
         const resolved = filterLeafIssues(issues).filter((i) => {
-            if (getStatusCategoryKey(i) !== 'done') return false;
+            if (!isBusinessDone(i)) return false;
             const sn = i.fields.status?.name?.trim() ?? '';
             return sn !== cancelledName && sn !== rejectedName;
         });
@@ -238,39 +245,119 @@ export function useBacklogForecast(issues: JiraIssue[], options?: {
         return computeCycleTimeByType(sample);
     }, [issues]);
 
-    // B1: 예측 정확도 추적 — 자동 기록 + 백로그 0건 감지
-    const addRecord = useForecastHistoryStore((s) => s.addRecord);
-    const markCompleted = useForecastHistoryStore((s) => s.markCompleted);
-    const pruneStale = useForecastHistoryStore((s) => s.pruneStale);
-    const lastRecordedRef = useRef<{ projectKey: string; p85: number } | null>(null);
+    // v1.0.43: Lead time forecast — Throughput MC가 unreliable일 때 fallback / 보완 시나리오
+    const leadTimeForecast = useMemo<LeadTimeForecast | null>(() => {
+        if (!issues) return null;
+        return computeLeadTimeForecast(issues, now);
+    }, [issues, now]);
+
+    // v1.0.47: 백로그 진척 분석 (정적 모델 감지)
+    const backlogProgress = useMemo<BacklogProgressAnalysis | null>(() => {
+        if (!issues) return null;
+        return analyzeBacklogProgress(issues, now);
+    }, [issues, now]);
+
+    // v1.0.36: 이슈별 정확도 추적 — 매 이슈마다 1 데이터 포인트 (snapshot 기반 v1.0.35 대체).
+    // 큰 백로그에서도 빠른 calibration: 백로그에서 1건 done 될 때마다 1샘플.
+    const recordExpectations = useForecastExpectationStore((s) => s.recordExpectations);
+    const markIssuesCompleted = useForecastExpectationStore((s) => s.markIssuesCompleted);
+    const pruneStale = useForecastExpectationStore((s) => s.pruneStale);
+
+    // v1.0.36: 활성·완료 이슈 키 set — issue 변동 시에만 재계산
+    const issueSnapshot = useMemo(() => {
+        if (!issues) return { activeKeys: [] as string[], doneKeys: new Set<string>() };
+        const leaf = filterLeafIssues(issues);
+        const cancelled = resolveCancelledStatus();
+        const rejected = resolveRejectedStatus();
+        const activeKeys: string[] = [];
+        const doneKeys = new Set<string>();
+        for (const i of leaf) {
+            const cat = getStatusCategoryKey(i);
+            const sn = i.fields.status?.name?.trim() ?? '';
+            if (cat === 'done' && sn !== cancelled && sn !== rejected) {
+                doneKeys.add(i.key);
+            } else if (isInBacklog(i)) {
+                activeKeys.push(i.key);
+            }
+        }
+        return { activeKeys, doneKeys };
+    }, [issues]);
 
     useEffect(() => {
         if (!team || !counts) return;
-        // 백로그 비어있으면 미완료 기록에 actual 채움
-        if (isBacklogCleared(counts.active)) {
-            markCompleted(projectKey, new Date().toISOString());
-            return;
-        }
-        // 신뢰도가 충분하고 P85가 의미 있으면 기록
         const r = team.realistic;
-        if (r.confidence === 'unreliable' || r.p85Days <= 0) return;
-        // 최근에 같은 P85로 이미 기록했으면 중복 회피 (변동 없음)
-        const last = lastRecordedRef.current;
-        if (last && last.projectKey === projectKey && Math.abs(last.p85 - r.p85Days) < 2) return;
-        addRecord({
-            projectKey,
-            recordedAt: new Date().toISOString(),
-            p50Days: r.p50Days,
-            p85Days: r.p85Days,
-            p95Days: r.p95Days,
-            remainingAtTime: counts.active,
-            teamCV: +r.stats.cv.toFixed(2),
-            teamMean: +r.stats.mean.toFixed(2),
-            activeDays: r.stats.activeDays,
-        });
-        lastRecordedRef.current = { projectKey, p85: r.p85Days };
+
+        // v1.0.44: P85 source 우선순위 결정.
+        //   1차) Throughput MC realistic (Tier 2 정상 운영)
+        //   2차) Lead Time forecast (Throughput MC unreliable일 때 fallback)
+        //   둘 다 unreliable이면 expectation 등록 X
+        let promise: {
+            p50: number;
+            p85: number;
+            p95: number;
+            cv: number;
+            source: 'throughput-mc' | 'lead-time';
+        } | null = null;
+
+        if (r.confidence !== 'unreliable' && r.p85Days > 0) {
+            promise = {
+                p50: r.p50Days,
+                p85: r.p85Days,
+                p95: r.p95Days,
+                cv: +r.stats.cv.toFixed(2),
+                source: 'throughput-mc',
+            };
+        } else if (
+            leadTimeForecast
+            && leadTimeForecast.confidence !== 'unreliable'
+            && leadTimeForecast.p85Days > 0
+        ) {
+            // 활성 백로그 안의 한 이슈가 처리되는 데 걸리는 시간을 P85 약속으로 기록.
+            // 팀 ETA가 아니라 단일 이슈 lead time 분포 P85 (이슈별 정확도 측정과 정합).
+            promise = {
+                p50: leadTimeForecast.p50Days,
+                p85: leadTimeForecast.p85Days,
+                p95: leadTimeForecast.p95Days,
+                cv: 0, // Lead Time에는 CV 산정 안 함 (별도 분포)
+                source: 'lead-time',
+            };
+        }
+
+        if (!promise) return; // 둘 다 unreliable
+
+        // v1.0.46 fix (C2): 외부 useMemo `now`와 shadow 회피.
+        // effect 실행 시점의 실제 wall-clock — firstSeenAt 정확성 위해.
+        const effectNow = new Date();
+        const nowIso = effectNow.toISOString();
+
+        // 1) 신규 활성 이슈에 대해 expectation 등록 (이미 있는 키는 store에서 무시)
+        if (issueSnapshot.activeKeys.length > 0) {
+            recordExpectations(issueSnapshot.activeKeys, {
+                projectKey,
+                firstSeenAt: nowIso,
+                p50Days: promise.p50,
+                p85Days: promise.p85,
+                p95Days: promise.p95,
+                teamCV: promise.cv,
+            });
+        }
+
+        // 2) 신규 done 이슈 중 expectation이 있는 것 → actualDays 산출 후 markIssuesCompleted
+        const existing = useForecastExpectationStore.getState().expectations;
+        const completions: Array<{ issueKey: string; completedAt: string; actualDays: number }> = [];
+        for (const key of issueSnapshot.doneKeys) {
+            const exp = existing[key];
+            if (!exp || exp.completedAt !== null) continue;
+            const firstSeen = new Date(exp.firstSeenAt);
+            const actualDays = businessDaysBetween(firstSeen, effectNow);
+            completions.push({ issueKey: key, completedAt: nowIso, actualDays });
+        }
+        if (completions.length > 0) {
+            markIssuesCompleted(completions);
+        }
+
         pruneStale();
-    }, [team, counts, projectKey, addRecord, markCompleted, pruneStale]);
+    }, [team, counts, projectKey, issueSnapshot, leadTimeForecast, recordExpectations, markIssuesCompleted, pruneStale]);
 
     return {
         issues: issues ?? [],
@@ -281,5 +368,7 @@ export function useBacklogForecast(issues: JiraIssue[], options?: {
         effortConfidence,
         validation,
         cycleTimeStats,
+        leadTimeForecast,
+        backlogProgress,
     };
 }

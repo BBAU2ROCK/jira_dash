@@ -4,6 +4,1619 @@
 
 ---
 
+## [1.0.47] 정적 백로그 모델 자동 감지 — 시스템 전체 재정합
+
+### 적용 버전
+- 앱 버전: **1.0.47**
+
+### 배경
+사용자 통찰:
+> "jira_dash로 관리하는 프로젝트는 신규 유입이 빈번하지 않아.
+> 초기 요구사항에 따른 할 일을 정의하고 일괄 등록 후 정해진 일정 안에 할 일을 처리하는 방식이지.
+> 즉 일별 유입을 잡는 것 보다 초기 등록 할 일의 완료를 예측하는 편이 맞다고 생각하는데,
+> 설명한 내용을 중심으로 추이/예측 탭의 신규 유입 분석을 조정하는게 나아 보여."
+
+### 시스템 부정합 진단 (이전 버전)
+| 시스템 가정 (v1.0.46까지) | 사용자 실제 워크플로우 |
+|--------------------------|-----------------------|
+| 매일 신규 유입 + 매일 완료 (Kanban-like) | **초기 일괄 등록 후 정해진 일정 안에 처리 (Waterfall-like)** |
+| scope ratio = 발산 위험 신호 | scope ratio 거의 0 (신규 X) — **무의미** |
+| 마이그레이션 의심 휴리스틱 | 정상이 일괄 등록 — **항상 의심** |
+| Throughput MC (활동일 기반) | 활동일 부족 — **항상 unreliable** |
+
+### 해결 — 정적 모델 자동 감지 + 시스템 전체 재정합
+
+#### 1. `backlogProgressAnalysis.ts` 신규 (정적 모델 service)
+
+**자동 감지 기준** (사용자 결정):
+```ts
+const STATIC_MODE_INFLOW_RATIO = 0.05;  // 5%
+const STATIC_MODE_INFLOW_ABS = 10;       // 10건
+isStatic = inflowRatio < 5% AND inflowCount < 10건
+```
+
+**산정 metric (정적 모델 의미)**:
+- 초기 백로그: 전체 leaf (취소·반려 제외)
+- 진척률: 완료 ÷ 초기 백로그 × 100%
+- 처리 속도: 최근 4주 완료 평균 (주당 / 영업일당)
+- 예측 완료일: 잔여 ÷ 일평균 처리속도 (영업일)
+- 정시 완료 평가: 마감 vs 예측 (on-time / at-risk / overdue / no-due)
+- 번다운: 지난 30일 일별 잔여 추이
+
+#### 2. `BacklogProgressCard` 신규 UI
+- 위치: 진행 추이/예측 → 완료 예측 → DataReadiness 다음 (이전 ScopeInflowCard 자리)
+- 4 메트릭 그리드: 초기 / 완료 / 진척률 / 잔여
+- 진척률 progress bar
+- 번다운 sparkline (지난 30일)
+- 처리 속도 + 예측 완료일 카드
+- 마감 비교 박스 (색상 분기)
+- 자동 감지 안내 (📊 정적 모델)
+
+#### 3. 모델별 카드 분기 렌더 (진행 추이 탭)
+```tsx
+{backlogProgress?.projectMode === 'static' ? (
+    <BacklogProgressCard analysis={backlogProgress} />
+) : (
+    team && (team.scopeRatio > 1.0 || projectStage === 'early') && (
+        <ScopeInflowCard issues={issues} windowDays={30} />
+    )
+)}
+```
+→ 한 시점에 한 카드만 표시 (사용자 혼란 방지).
+
+#### 4. `EtaScenarioCard` 정적 모드 인식
+```ts
+(projectMode === 'static' || team.realistic.confidence === 'unreliable')
+    && leadTime?.confidence !== 'unreliable'
+    ? <LeadTimeScenarios />     // 정적 모드: Lead Time 메인
+    : <ThroughputScenarios />   // 활발 모드: Throughput MC
+```
+→ 정적 모델은 Throughput MC 시도 X (어차피 unreliable). Lead Time 3 시나리오를 default로.
+
+#### 5. `DataReadinessCard` 정적 모드 배지
+```
+📊 정적 모델 (Lead Time 메인)
+```
+→ Throughput MC 부족이 "정상"임을 안내.
+
+### IGMU 적용 효과
+
+**이전 (v1.0.46)**:
+```
+신규 유입 분석:
+  Scope ratio 5.67x. 백로그 발산. ETA 의미 없음.
+  → 사용자: "내 프로젝트는 발산 아닌데..."
+
+ETA:
+  낙관 / 기준 → 예측 불가
+  Lead Time 보완 → 126일 (별도 시나리오)
+```
+
+**이후 (v1.0.47)**:
+```
+백로그 진척 분석 [📊 정적 모델]:
+  초기 250건 / 완료 56건 / 진척률 22% / 잔여 194건
+  번다운: ░▓▓▓▓▓▓░░░░░ ← 시간 →
+  처리 속도: 매주 14건 (최근 4주 평균)
+  예측 완료일: 2026-08-25 (잔여 194건 ÷ 14건/주)
+  마감 비교: 2026-09-30 → ✓ 정시 완료 가능 (35일 여유)
+
+ETA (Lead Time 기반, 정적 모드):
+  낙관 (P50)   → 90일 (5월 말)
+  기준 (P85)   → 126일 (7월 초)
+  보수 (P95)   → 180일 (10월)
+```
+
+### 신규/수정 파일
+
+#### 신규 (3개)
+- `src/services/prediction/backlogProgressAnalysis.ts` — 정적 모델 분석 엔진
+- `src/services/prediction/__tests__/backlogProgressAnalysis.test.ts` — 9 테스트
+- `src/components/progress-trends/BacklogProgressCard.tsx` — 정적 모델 UI
+
+#### 수정 (5개)
+- `src/hooks/useBacklogForecast.ts` — `backlogProgress` 필드 추가
+- `src/components/progress-trends/EtaScenarioCard.tsx` — `projectMode` prop + 정적 모드 자동 Lead Time
+- `src/components/progress-trends/DataReadinessCard.tsx` — `projectMode` prop + 정적 모델 배지
+- `src/components/progress-trends/index.tsx` — 모델별 카드 분기 + projectMode 전달
+- `package.json` — version 1.0.46 → 1.0.47
+
+### 검증
+- 401 → **410 테스트 통과** (신규 9건: 정적 모델 감지 / 진척률 / 처리 속도 / 예측 / 정시 평가 / 마감 없음 / 취소·반려 제외 등)
+- TypeScript 에러 없음
+
+### 보호 (변경 안 함)
+- ✋ ScopeInflowCard / 마이그레이션 휴리스틱 (활발 운영 모델용으로 보존)
+- ✋ Throughput MC 산정 (활발 모델 정상 작동)
+- ✋ Lead Time forecast (정적 모드 메인으로 활용)
+- ✋ Tier 2 정직성 원칙
+
+---
+
+## [1.0.46] Cursor 코드리뷰 적용 (11건) + M7 categorizeIssue config 기반
+
+### 적용 버전
+- 앱 버전: **1.0.46**
+
+### 배경
+Cursor 코드리뷰 보고 (8.5/10):
+> Critical 4건 (C1-C4), Medium 7건 (M1-M7), Minor 4건 (m1-m4)
+
+사용자 결정: **모두 진행** + **M7 별도 진행**.
+
+### 묶음 A — Critical/필수
+
+#### C4. scopeRatio 윈도우 불일치 (**버그**)
+`scopeInflowAnalysis`의 `completedKeys`가 lifetime 완료를 카운트해 `perAssigneeForecast`의 scopeRatio(둘 다 윈도우 내)와 의미 불일치. 사용자가 다른 카드에서 다른 숫자를 보는 문제.
+**수정**: completedKeys도 윈도우 내 완료(`F.ACTUAL_DONE ?? resolutiondate` 기준)만 카운트.
+
+#### C1. leadTimeForecast 상수 명명
+`MIN_SAMPLE_RELIABLE = 30`과 `MEDIUM_SAMPLE = 30`이 같은 값으로 혼란 유발.
+**수정**: `MEDIUM_SAMPLE` 제거 → `P95_WARN_THRESHOLD = 50` 의미 명확.
+
+#### C3. fallback 메시지 단순화
+optimistic 자체가 unreliable인 경우 "병목 측정 불가" + "활동 부족" 등 중복 안내.
+**수정**: `optimistic.confidence === 'unreliable'`이면 단일 메시지 "개인·팀 forecast 모두 측정 불가 — Lead Time 보완 시나리오 참조" (sync + async 둘 다).
+
+#### C2. now shadowing
+useEffect 내부에서 `const now = new Date()`로 외부 useMemo `now` shadow.
+**수정**: `effectNow`로 변수명 분리 + 의도 주석.
+
+### 묶음 B — 성능/UX
+
+#### M1. pruneStale 매번 새 객체 (성능)
+정리할 항목 없어도 `{ expectations: filtered }` 반환 → Zustand shallow comparison으로 모든 구독자 리렌더.
+**수정**: `changed` flag로 변경 없으면 원본 `s` 반환.
+
+#### M2. computePerIssueAccuracy 미memoize
+ForecastAccuracyCard가 매 렌더마다 전체 expectations 순회.
+**수정**: `useMemo([expectations, projectKey])` 적용.
+
+### 묶음 C — 가독성/스타일
+
+#### M3. percentile DRY 위반
+leadTimeForecast와 monteCarloForecast에 percentile 함수 중복.
+**수정**: `src/lib/statistics.ts` 신규 — `percentile` / `mean` / `stddev` / `median` 공통 유틸. leadTimeForecast가 사용. monteCarloForecast의 percentile은 시그니처 다름(P 0~100, step-based)이라 그대로 유지.
+
+#### M5. EtaScenarioCard IIFE 100줄
+100줄 IIFE 가독성 저하.
+**수정**: `ThroughputScenarios` / `LeadTimeScenarios` 헬퍼 컴포넌트로 분리. IIFE → 삼항연산자 2줄로 단순화.
+
+#### M4. issue-list 하드코딩
+`issue.fields.customfield_11485` 직접 참조 (다른 곳은 `resolveFields().ACTUAL_DONE` 사용).
+**수정**: resolveFields 통일.
+
+#### m1. LF/CRLF 통일
+git에서 "LF will be replaced by CRLF" 경고 발생.
+**수정**: `.gitattributes` 신규 — `* text=auto eol=lf` + 바이너리 파일 명시.
+
+#### m2. eslint-disable 주석 정당화
+`issue-detail-drawer.tsx`의 `// eslint-disable-next-line react-hooks/exhaustive-deps` 이유 미설명.
+**수정**: editorRef / savedMentionRange는 mutable ref라 deps 제외해도 안전하다는 주석 추가.
+
+### M7 — categorizeIssue config 기반 매핑 (별도 feature)
+
+기존 `categorizeIssue`는 키워드 하드코딩 → 커스텀 이슈 타입(예: 회사 전용 "Hotfix", "기능") 미지원.
+
+**구현**:
+- `CategoryKeywords` 타입 + `DEFAULT_CATEGORY_KEYWORDS` 상수 export
+- `categorizeIssue(typeName, customKeywords?)` 시그니처 확장 (검사 순서: test → doc → bug → subtask → story)
+- `aiSavingsConfigStore`에 `categoryKeywords` 필드 + `setCategoryKeywords()` setter 추가
+- `aggregateAiSavings`/`calculateIssueSavings`에 `customKeywords` 전달 체인
+- `AiSavingsCard`가 store의 categoryKeywords 자동 구독·적용
+
+**효과**: 회사 전용 이슈 타입 등록 가능 (store API 완성, UI 편집기는 향후 작업).
+
+### 신규/수정 파일
+
+#### 신규 (3개)
+- `src/lib/statistics.ts` — 통계 공통 유틸 (M3)
+- `src/lib/__tests__/statistics.test.ts` — 9 테스트
+- `.gitattributes` — LF 강제 (m1)
+
+#### 수정 (12개)
+- `src/services/prediction/scopeInflowAnalysis.ts` — C4 윈도우 통일
+- `src/services/prediction/leadTimeForecast.ts` — C1 상수 명명, M3 percentile import
+- `src/services/prediction/perAssigneeForecast.ts` — C3 메시지 분기 (sync + async)
+- `src/services/prediction/aiSavingsEstimation.ts` — M7 CategoryKeywords export + 시그니처 확장
+- `src/services/prediction/__tests__/perAssigneeForecast.test.ts` — C3 메시지 분기 매치
+- `src/services/prediction/__tests__/aiSavingsEstimation.test.ts` — M7 2 테스트
+- `src/stores/forecastExpectationStore.ts` — M1 원본 반환
+- `src/stores/aiSavingsConfigStore.ts` — M7 store API
+- `src/components/progress-trends/ForecastAccuracyCard.tsx` — M2 memoize
+- `src/components/progress-trends/EtaScenarioCard.tsx` — M5 헬퍼 컴포넌트 분리
+- `src/components/progress-trends/AiSavingsCard.tsx` — M7 store 구독
+- `src/components/issue-list.tsx` — M4 resolveFields 통일
+- `src/components/issue-detail-drawer.tsx` — m2 주석
+- `src/hooks/useBacklogForecast.ts` — C2 effectNow
+- `package.json` — version 1.0.45 → 1.0.46
+
+### 검증
+- 386 → **401 테스트 통과** (신규 15건: statistics 9 + M7 2 + 기존 보강 4)
+- TypeScript 에러 없음
+
+### 보류 (별도 작업)
+- **M6**: budgetEffortAnalysis Array.find → Map (성능 미세, months=6 OK)
+- **m3**: onWheel stopPropagation (Electron only 사용 중이라 OK)
+
+### 보호 (변경 안 함)
+- ✋ Monte Carlo 산식
+- ✋ Tier 2 정직성 원칙
+- ✋ confidence 4단계 등급
+
+---
+
+## [1.0.45] 이슈별 정확도 — 사후 분포 검증 + 실시간 Calibration 분리
+
+### 적용 버전
+- 앱 버전: **1.0.45**
+
+### 배경
+사용자 보고 (v1.0.44 설치 후):
+> "이슈별 예측 정확도에 done 상태가 50여건이 넘는데 왜 예측이 안되냐고"
+
+### 진단
+`forecastExpectationStore` (v1.0.36)는 **forwarding only** 설계:
+1. 이슈가 활성 상태로 처음 보임 → recordExpectations
+2. 그 후 done 되면 → markIssuesCompleted
+
+→ **이미 done 상태로 데이터 입수된 50여건은 영원히 평가 불가**
+- 활성으로 본 적 없음 → expectation 등록 X
+- markIssuesCompleted 시 expectation 없으니 무시
+
+### 해결 — 두 metric 분리 (옵션 B + 적중률 + 전체 윈도우)
+
+#### 정의 명확화
+| 종류 | 의미 | 데이터 |
+|------|------|-------|
+| **사후 분포 검증** | "이미 done인 이슈가 현재 P85 약속에 부합하나" | 모든 완료 이슈 (50건+) — 즉시 |
+| **실시간 Calibration** | "내 forecast 약속이 사후에 얼마나 맞았나" | 추적 시작 후 done — 시간 누적 |
+
+#### 핵심 변경
+
+**1. `leadTimeForecast.ts`에 `distributionCheck` 추가**
+```ts
+export interface LeadTimeDistributionCheck {
+    totalSamples: number;
+    hitRateP50: number;  // 분포 정의상 ≈ 50%
+    hitRateP85: number;  // ≈ 85%
+    hitRateP95: number;  // ≈ 95%
+    calibration: 'well-calibrated' | 'over-confident' | 'under-confident' | 'insufficient';
+}
+```
+산정:
+- 모든 lead time 샘플 (사용자 선택: 전체 윈도우)
+- 각 샘플이 자신의 P50/P85/P95 이하인지 카운트 (사용자 선택: 적중률)
+- 보정 등급: P85 적중률 80~92% = well-calibrated / <75% over / >92% under
+
+**2. `ForecastAccuracyCard` 2 섹션 구조로 변경**
+- **섹션 1: 📊 사후 분포 검증 (즉시 표시)**
+  - 완료 샘플 / P50 적중률 / P85 적중률 / P95 적중률
+  - 보정 배지 (자체 분포 안정성)
+  - 분포 통계: 평균 / P50 / P85 / P95 / 표준편차
+- **섹션 2: 🎯 실시간 Calibration (forwarding only)**
+  - 추적 완료 / MAE / P85 적중률 / P95 적중률
+  - 진정한 forecast 정확도
+  - 5건 미만이면 "추적 중 N건" 표시
+
+#### 라벨링 (정직성)
+- 카드 헤더 InfoTip에 두 metric 차이 명시:
+  - 사후 분포 = "현재 P85가 과거에 부합했나"
+  - 실시간 = "내가 한 약속을 미래에 지켰나"
+- 사후는 즉시, 실시간은 시간 누적 후 신뢰도 ↑
+- self-consistency라 정의상 50/85/95% 근접 = 정상 (벗어나면 이상치/분포 변동 신호)
+
+### 효과 (IGMU 예측)
+
+```
+이전 (v1.0.44):
+  완료 이슈 0건. 5건 이상 누적되면 정확도 표시.
+
+이후 (v1.0.45):
+  📊 사후 분포 검증 (즉시)
+    완료 샘플 56건 / P85 7일
+    P50 적중: 50% / P85 적중: 84% / P95 적중: 98%
+    분포: 평균 5일, 표준편차 ±2일
+    보정: 보정 양호 ✓
+
+  🎯 실시간 Calibration
+    추적 완료 0건 / 추적 중 250건
+    ⏳ 5건 이상 누적 후 표시
+```
+
+### 수정 파일
+
+#### 수정 (4개)
+- `src/services/prediction/leadTimeForecast.ts` — `LeadTimeDistributionCheck` 타입 + 산정 로직
+- `src/services/prediction/__tests__/leadTimeForecast.test.ts` — 2 신규 테스트
+- `src/components/progress-trends/ForecastAccuracyCard.tsx` — 2 섹션 구조 + leadTime prop
+- `src/components/progress-trends/index.tsx` — leadTime 전달 (2곳)
+- `package.json` — version 1.0.44 → 1.0.45
+
+### 검증
+- 384 → **386 테스트 통과** (distributionCheck 2건 신규)
+- TypeScript 에러 없음
+- 신규 테스트:
+  1. 균등 분포 30건 → 적중률 50/85/95 근접 + well-calibrated
+  2. 샘플 < 5 → insufficient
+
+### 보호 (변경 안 함)
+- ✋ `forecastExpectationStore` 동작 (forwarding only 정책)
+- ✋ `computePerIssueAccuracy` 산식
+- ✋ Tier 2 정직성 원칙
+- ✋ Throughput MC / Lead Time 산정
+
+---
+
+## [1.0.44] Lead Time 3 시나리오 + 정확도 fallback 등록
+
+### 적용 버전
+- 앱 버전: **1.0.44**
+
+### 배경
+사용자 보고 (v1.0.43 설치 후):
+> "이슈별 예측 정확도는 왜 안나와? 그리고 팀 ETA 낙관 기준은 표시가 안되고."
+
+진단 결과:
+1. **정확도 0건**: useBacklogForecast의 expectation 등록 조건이 `team.realistic.confidence !== 'unreliable'`만 통과 → Throughput MC unreliable이면 영원히 등록 X
+2. **낙관/기준 "예측 불가"**: 두 시나리오 모두 Throughput MC 기반 → unreliable이면 빈 행
+
+### 해결
+
+#### 문제 1 — Expectation Lead Time fallback (옵션 A)
+`useBacklogForecast.ts`:
+```ts
+// P85 source 우선순위:
+//   1차) Throughput MC realistic (정상)
+//   2차) Lead Time forecast (Throughput MC unreliable 시 fallback)
+//   둘 다 unreliable이면 등록 X
+let promise = null;
+if (r.confidence !== 'unreliable') {
+    promise = { p50: r.p50Days, p85: r.p85Days, ..., source: 'throughput-mc' };
+} else if (leadTime?.confidence !== 'unreliable') {
+    promise = { p50: leadTime.p50Days, p85: leadTime.p85Days, ..., source: 'lead-time' };
+}
+```
+
+→ Lead Time만 신뢰 가능해도 expectation 등록 시작. IGMU 환경에서 즉시 활성 250건 모두 추적 시작.
+
+#### 문제 2 — Lead Time 3 시나리오 (옵션 2)
+`leadTimeForecast.ts`에 `scenarios` 필드 추가:
+```ts
+const buildScenario = (percentileDays: number) => ({
+    days: Math.ceil(activeCount / activeParallelism) * percentileDays,
+    date: addBusinessDays(now, days)
+});
+const scenarios = {
+    optimistic:    buildScenario(p50),  // 50% 이상 이내 완료
+    realistic:     buildScenario(p85),  // 85% 약속 (기존 teamEta와 동일)
+    conservative:  buildScenario(p95),  // 95% 보수
+};
+```
+
+`EtaScenarioCard`:
+- Throughput MC unreliable + Lead Time reliable → **3 시나리오 통째로 Lead Time으로 교체** 렌더
+- 라벨에 `(Lead Time)` 명시: "낙관 (자유 재할당) (Lead Time)" / "기준 ★ 권장 약속 (Lead Time)" / "보수 (Lead Time)"
+- 각 행 note: "P50 5일 × 18 사이클 — 50% 이상이 이보다 빨리 완료"
+- 신뢰도 배지는 Lead Time 기준
+- 정상 운영(Throughput MC reliable)이면 기존 3 시나리오 유지
+
+→ "예측 불가" 표시 사라짐. 사용자가 항상 의미 있는 ETA를 봄.
+
+### 효과 (IGMU 예측)
+
+```
+이전 (v1.0.43):
+  낙관 (자유 재할당)        → 예측 불가
+  기준 ★ 권장 약속          → 예측 불가
+  Lead Time 보완            → 126일 (P85)
+  이슈별 정확도             → 0건 (unreliable 차단)
+
+이후 (v1.0.44):
+  낙관 (자유 재할당) (Lead Time)        → 90일 (sample 56 P50=5일 × 18 cycles)
+  기준 ★ 권장 약속 (Lead Time)          → 126일 (P85=7일)
+  보수 (Lead Time)                       → 180일 (P95=10일)
+  이슈별 정확도                          → 추적 중 250건 (활성 모두 등록)
+                                          → 시간 지나면 5건+ 누적 → 정확도 표시
+```
+
+### 신규 / 수정 파일
+
+#### 수정 (4개)
+- `src/services/prediction/leadTimeForecast.ts` — `scenarios` 필드 + `buildScenario` 헬퍼
+- `src/services/prediction/__tests__/leadTimeForecast.test.ts` — 1 신규 테스트 (3 시나리오)
+- `src/hooks/useBacklogForecast.ts` — P85 source 우선순위 + leadTime deps 추가
+- `src/components/progress-trends/EtaScenarioCard.tsx` — Throughput MC unreliable 시 Lead Time 3 시나리오로 대체 렌더
+- `package.json` — version 1.0.43 → 1.0.44
+
+### 검증
+- 383 → **384 테스트 통과**
+- TypeScript 에러 없음
+- 신규 테스트: P50 ≤ P85 ≤ P95 순서 + realistic = teamEtaBusinessDays 일치
+
+### 보호 (변경 안 함)
+- ✋ 정직성 원칙 — Lead Time도 unreliable이면 빈 표시 (둘 다 unreliable인 경우)
+- ✋ Throughput MC reliable 시 기존 3 시나리오 그대로
+- ✋ PerIssueEtaCard / forecastExpectationStore 구조
+
+---
+
+## [1.0.43] Lead Time 기반 forecast — Throughput MC 보완 + 개별 이슈 ETA
+
+### 적용 버전
+- 앱 버전: **1.0.43**
+
+### 배경
+사용자 통찰:
+> "프로젝트 통계 예측/추이 탭에서 등록 시점부터 완료되는 시간을 계산 후 등록한 타스크의 종료 시점을 예측하는거지?
+> 샘플링은 대략 2~30개 정도면 가능하지 않아?
+> 지금 적용되어있는 방법론과 어떤 차이가 있는지 정밀 분석해줘."
+
+### 정밀 분석 결과 — 두 방법론은 본질적으로 다름
+
+| 차원 | Throughput MC (현재) | Lead Time (사용자 제안) |
+|------|---------------------|------------------------|
+| 입력 단위 | 시간축 (일별 시계열) | 이슈축 (이슈별 lead time) |
+| 샘플 임계 | activeDays ≥ 7 | sample ≥ 30 |
+| 활동일 0 | ❌ 산정 불가 | ✅ 산정 가능 |
+| 병렬성 | ✅ 자동 (일별 합산) | ⚠️ 단순 보정 (ceil(활성/인원)) |
+| 직관성 | 팀 평균 처리량 | **이슈 1건 평균 X일** |
+| 개별 이슈 ETA | ❌ | ✅ |
+| 인력 변화 | 시계열 후반에 반영 | 미반영 |
+
+→ **결합 활용이 최선**. v1.0.43 = 결합 구현.
+
+### 핵심 변경
+
+#### 1. `leadTimeForecast.ts` 신규
+**입력**: 모든 leaf 이슈
+**처리**:
+- `extractLeadTimes`: 완료(isBusinessDone) 이슈의 (created → completed) 영업일 추출
+- 백분위: P50/P85/P95 (linear interpolation)
+- 활성 인원 자동 추출 (`Set<accountId>`)
+- **팀 ETA = `ceil(activeCount / activeParallelism) × P85`** (영업일)
+- 개별 이슈 ETA = `max(0, P85 - elapsed)` (created 이후 경과 영업일 차감)
+- overdue 식별: elapsed > P85
+- **샘플 임계** (사용자 선택 30):
+  - < 10: unreliable
+  - 10~29: low (P50/P85 사용 가능, P95 부정확)
+  - 30~99: medium
+  - 100+: high
+
+#### 2. EtaScenarioCard 보완 시나리오 추가 (옵션 A)
+- 기존 3 시나리오 (낙관/기준/병목) + **Lead Time 보완**
+- Throughput MC와 별도 시나리오 → 두 방법론 동시 비교 가능
+- InfoTip: 산정 공식 + 샘플 수 + 한계 명시
+- 별도 warning 박스 (Lead Time 한계)
+
+#### 3. PerIssueEtaCard 신규 (옵션 B)
+**위치**: 매니저 콘솔 → 공수 & 예산 탭 → PerIssueEffortTable 다음
+**기능**:
+- 활성 이슈마다 추정 완료일 표시
+- 정렬: 지연 우선 / 잔여 짧은 순 / 최근 created (드롭다운)
+- overdue 이슈 빨간 배경 + ⚠️ 아이콘
+- 헤더에 overdue 카운트 배지
+- default 10건, 펼침/접기 토글
+- 익명화 모드 연동
+
+#### 4. 정직성 + 한계 명시
+모든 표시에 warning:
+- 병렬성 단순 가정 (실제 할당 패턴 다양)
+- 이슈 크기 차이 무시 (평균 P85)
+- 인력 변화 미반영
+- P95는 long-tail이라 100+ 샘플 권장
+- 미할당 이슈는 ETA 산정 제외 (별도 카운트)
+- 활성 인원 1명 + 활성 5건+ → 순차 처리 경고
+
+### IGMU 적용 효과 예측
+
+활동일 < 7로 Throughput MC가 unreliable이어도:
+- 완료 이슈 30+ 있으면 → Lead Time 보완 ETA 산정 가능
+- 개별 이슈 ETA → overdue 이슈 즉시 식별
+- 매니저가 "어떤 이슈를 먼저 처리해야 하는지" 즉시 판단
+
+### 신규 / 수정 파일
+
+#### 신규 (3개)
+- `src/services/prediction/leadTimeForecast.ts` — 분석 엔진
+- `src/services/prediction/__tests__/leadTimeForecast.test.ts` — 11 테스트
+- `src/components/manager-console/PerIssueEtaCard.tsx` — 개별 이슈 ETA UI
+
+#### 수정 (4개)
+- `src/hooks/useBacklogForecast.ts` — `leadTimeForecast` 산정 + return
+- `src/components/progress-trends/EtaScenarioCard.tsx` — `leadTime` prop + 보완 시나리오
+- `src/components/progress-trends/index.tsx` — leadTime 전달
+- `src/components/manager-console/BudgetEffortPanel.tsx` — PerIssueEtaCard 통합
+- `package.json` — version 1.0.42 → 1.0.43
+
+### 검증
+- 372 → **383 테스트 통과** (lead time 11건 신규)
+- TypeScript 에러 없음
+- 신규 테스트:
+  1. extractLeadTimes — 완료만 / 취소·반려 제외 / customfield_11485 우선 / 데이터 오류 방어 (4건)
+  2. computeLeadTimeForecast — 샘플 < 10 / 10~29 / 30+ / 병렬성 / 팀 ETA 공식 / 개별 이슈 ETA + overdue / 활성 1명 warning (7건)
+
+### 보호 (변경 안 함)
+- ✋ Throughput Monte Carlo (메인 ETA로 유지)
+- ✋ confidence 4단계 등급
+- ✋ Tier 2 정직성 원칙
+
+---
+
+## [1.0.42] 초기 백로그 구축 단계 자동 감지
+
+### 적용 버전
+- 앱 버전: **1.0.42**
+
+### 배경
+사용자 통찰:
+> "해당 부분 신규 유입은 초기 할 일을 등록하면 많지 않아. 그럼 신규 유입으로 체크하는 것이 맞을까?"
+
+v1.0.41의 한계 인정:
+- `scopeInflowAnalysis`는 "최근 30일 신규 = 추가 작업"으로 가정
+- 그러나 **초기 백로그 구축 단계**에서는 신규 유입 = "스코프 정의"
+- 시스템이 둘을 구분 못 함 → "발산"으로 오해 표시
+
+### 해결 — 프로젝트 단계 자동 감지
+
+#### 새 타입 `ProjectStage`
+```ts
+export type ProjectStage = 'early' | 'active';
+```
+
+#### 감지 휴리스틱 (`scopeInflowAnalysis.ts`)
+```ts
+const EARLY_STAGE_IN_WINDOW_RATIO = 0.7;       // 백로그 70%+ 윈도우 안
+const EARLY_STAGE_MAX_PROJECT_AGE_DAYS = 60;   // 첫 이슈 60일 이내
+
+if (
+    leaf.length > 0
+    && inWindowRatio >= EARLY_STAGE_IN_WINDOW_RATIO
+    && projectAgeDays <= EARLY_STAGE_MAX_PROJECT_AGE_DAYS
+) {
+    projectStage = 'early';
+}
+```
+
+**판정 조건 (AND)**:
+1. **백로그 70%+ 가 최근 윈도우(30일) 안 created** — 대다수가 최근 등록
+2. **프로젝트 시작 (첫 이슈 created) 60일 이내** — 갓 시작한 프로젝트
+
+→ 둘 다 만족하면 'early' (초기 구축). 그 외 'active' (정상 운영).
+
+#### 신규 출력 필드
+- `projectStage: 'early' | 'active'`
+- `projectStageRationale: string` (판정 근거)
+- `inWindowRatio: number` (0~1)
+- `projectAgeDays: number`
+
+### UI 변경
+
+#### ScopeInflowCard
+- **헤더 배지**: early면 `🌱 초기 구축` (emerald), 그 외 의심도 등급
+- **새 안내 박스 (early 일 때만)**:
+  ```
+  🌱 초기 구축 단계 — 신규 유입 = "스코프 정의"
+  백로그 N%가 최근 30일 안 등록 + 프로젝트 시작 M일 → 초기 구축 단계
+  이 단계에서는 신규 유입이 많은 게 정상입니다 (할 일 목록 등록 중).
+  Scope ratio가 1.5x를 초과해도 "발산"이 아닌 "스코프 정의"로 해석.
+  ```
+- **마이그레이션 의심 표시 억제** (early 단계에서는 spike day = 정상 등록 활동)
+- **운영 액션 메시지 분기**:
+  - early: "초기 백로그 정의 작업 마무리에 집중. 안정화 후 ETA 자동 산정 시작."
+  - 그 외: 기존 분기 (의심 큼 / 보통 / 발산 / 정상)
+
+#### DataReadinessCard
+- **헤더 배지**: early면 `🌱 초기 구축 단계 (scope 발산은 정상)` 추가
+- scope 메트릭 옆에 표시 → 사용자가 5.67x 보고 발산이라 오해 X
+
+### 정직성 원칙 (사용자 선택 ✓)
+- **scope crisis 룰 (`scopeRatio > 1.5 → unreliable`)은 그대로 유지**
+- early 단계여도 ETA 산정 X — 데이터 부족인 건 동일
+- **단**, "왜 unreliable인지" 메시지가 변경: "발산" → "초기 구축 단계, 안정화 후 산정"
+
+### 효과 (IGMU 5.67x 케이스 추정)
+
+| 항목 | 이전 (v1.0.41) | 이후 (v1.0.42) |
+|------|---------------|---------------|
+| ScopeInflowCard 배지 | "정상 유입" 또는 "의심 보통" | **🌱 초기 구축** (감지 시) |
+| 사용자 인지 | "발산? 마이그레이션?" 혼란 | "초기 구축 = 정상" 즉시 이해 |
+| 운영 액션 | spike 분리 / 인력 보강 | 안정화 대기 + 백로그 정의 마무리 |
+| ETA 산정 | 불가 | 여전히 불가 (정직성) |
+| 사용자 행동 | 운영 변경 시도 | 자연 안정화 대기 |
+
+### 신규 / 수정 파일
+
+#### 수정 (4개)
+- `src/services/prediction/scopeInflowAnalysis.ts` — `ProjectStage` 타입 + 감지 로직 + 4 신규 필드
+- `src/services/prediction/__tests__/scopeInflowAnalysis.test.ts` — 4 신규 테스트
+- `src/components/progress-trends/ScopeInflowCard.tsx` — early 배지 + 안내 박스 + 액션 메시지 분기
+- `src/components/progress-trends/DataReadinessCard.tsx` — projectStage prop + early 배지
+- `src/components/progress-trends/index.tsx` — `inflowAnalysis` useMemo + 두 카드에 공유
+- `package.json` — version 1.0.41 → 1.0.42
+
+### 검증
+- 368 → **372 테스트 통과** (projectStage 신규 4건)
+- TypeScript 에러 없음
+- 신규 테스트:
+  1. 초기 구축 감지 — 70%+ in-window + < 60일
+  2. 정상 운영 — 80% in-window 미만
+  3. 60일 초과 → active (오래된 프로젝트)
+  4. 빈 leaf → active default
+
+### 보호 (변경 안 함)
+- ✋ scope crisis 임계 1.5x (정직성 원칙)
+- ✋ confidence 4단계 등급
+- ✋ Monte Carlo 산식
+
+---
+
+## [1.0.41] Scope 발산 원인 진단 — 신규 유입 분석 카드
+
+### 적용 버전
+- 앱 버전: **1.0.41**
+
+### 배경
+사용자 보고 (v1.0.40 설치 후):
+> "팀 ETA는 왜 안나오는거야?"
+
+진단 결과:
+- 활동 일수 6일 (7일 임계 1일 부족) — 시간 지나면 자동 해결
+- **Scope ratio 5.67x** (백로그 발산 임계 1.5x 압도적 초과) — 진짜 차단 요인
+
+Scope 발산은 ETA 산정 불가 (정직성 원칙). 그러나 사용자는 **"왜 신규가 이렇게 많은지" 원인 진단**이 필요. 마이그레이션인지 실제 발산인지 알아야 운영 액션 결정.
+
+### 신규 — 신규 유입 분석 카드 (ScopeInflowCard)
+
+#### 데이터 분해 (`scopeInflowAnalysis.ts`)
+최근 30일 신규 이슈를 다음 차원으로 분석:
+1. **총량**: totalNew / totalCompleted / scopeRatio
+2. **이슈 타입별** 분포 (Story / Bug / Sub-task / ...)
+3. **일별** sparkline (오래된 → 현재)
+4. **작성자(reporter)별** Top 5
+5. **마이그레이션 휴리스틱**:
+   - **일별 폭증**: 일별 중앙값 × 5 이상 = spike day
+   - **단일 작성자**: 한 사람이 50%+ = dominant reporter
+   - **의심도(0~1)**: 폭증 비중 + 단일 작성자 비중 가중 평균
+6. **정상 신규 추정**: 마이그레이션 의심 제외 후 추정 신규 + 조정 ratio
+
+#### UI 구성 (`ScopeInflowCard.tsx`)
+- 상단 4 메트릭: 신규 / 완료 / Scope ratio / 정상 신규 추정
+- 마이그레이션 의심 신호 박스 (있을 때만 표시)
+- 일별 sparkline (spike 일자는 빨간색, 정상은 인디고)
+- 이슈 타입별 progress bar (Top 5)
+- 작성자 Top 5 (dominant reporter 강조)
+- **운영 액션 가이드** (의심도에 따라 자동 제안):
+  - 의심 큼: spike 분리 + ratio 재측정
+  - 의심 보통: 일괄 등록 마무리 후 추이 관찰
+  - 정상 발산: 신규 차단 / 인력 보강 / scope 협의
+
+#### 표시 조건
+- `team.scopeRatio > 1.0` (growing 이상) 일 때만 노출
+- 안정·수렴 시 표시 X (정보 노이즈 방지)
+- 진행 추이/예측 탭의 "완료 예측" 카테고리 안 — DataReadinessCard 다음, SprintForecastCard 위
+
+### 매핑된 사용 시나리오
+
+**IGMU 5.67x 사례 가정**:
+- 분석 → spike day 1~2일 발견 (예: 4/15 50건) → 마이그레이션 의심
+- "정상 신규 추정 28건" 표시 → 28/15 ≈ 1.87x (여전히 발산이지만 5.67x 보다 합리적)
+- 운영 액션: spike 일자 이슈를 별도 백로그 분리 → ratio 재측정
+
+**진짜 발산 케이스**:
+- 분포 균등, 다양한 작성자 → 의심도 낮음 → "실제 발산. 신규 차단 / 인력 보강 검토"
+
+### 신규 / 수정 파일
+
+#### 신규 (3개)
+- `src/services/prediction/scopeInflowAnalysis.ts` — 분석 엔진
+- `src/services/prediction/__tests__/scopeInflowAnalysis.test.ts` — 7 테스트
+- `src/components/progress-trends/ScopeInflowCard.tsx` — UI 카드
+
+#### 수정 (2개)
+- `src/components/progress-trends/index.tsx` — ScopeInflowCard import + 조건부 렌더
+- `package.json` — version 1.0.40 → 1.0.41
+
+### 검증
+- 361 → **368 테스트 통과** (scopeInflow 7건 신규)
+- TypeScript 에러 없음
+- 신규 테스트:
+  1. 빈 배열 → 0
+  2. 정상 분산 → 의심도 < 0.2
+  3. 일별 폭증 50건 → spike day 식별 + estimatedRealNew 정확
+  4. 단일 작성자 80% → dominantReporter 식별 + 의심도 ↑
+  5. 이슈 타입별 비율 산정
+  6. Scope ratio (신규/완료) 산정
+  7. 윈도우 밖 created 제외
+
+### 보호 (변경 안 함)
+- ✋ Monte Carlo 산식 / Scope 임계 (1.5x crisis)
+- ✋ ETA 산정 룰 (scope > 1.5면 unreliable)
+- ✋ 정직성 원칙 (ETA 표시 X)
+
+### 사용자 행동 가이드 (사용 후 권장)
+1. 진행 추이/예측 탭 → 신규 유입 분석 카드 확인
+2. 의심도 큼이면 spike 일자 클릭 (또는 이슈 목록에서 해당 날짜 필터)
+3. 마이그레이션 일괄 등록 이슈를 별도 epic으로 분리
+4. 재측정 → ratio 합리화 → ETA 산정 가능
+
+---
+
+## [1.0.40] bottleneck 선정 구조적 결함 해결 + 진단 정보 강화
+
+### 적용 버전
+- 앱 버전: **1.0.40**
+
+### 배경
+사용자 보고 (v1.0.39 설치 후):
+> "여전히 데이터 부족으로 표시가 안되는데 최소 필요한 데이터가 얼마이기에 50여건으로도 예측이 불가능해?"
+
+### 정밀 분석 결과
+
+#### 문제 1: bottleneck 선정 구조적 결함
+`perAssigneeForecast.ts:teamForecast`:
+```ts
+for (const row of perAssignee) {
+    if (row.forecast && row.forecast.p85Days > maxP85) {  // ← unreliable도 후보!
+        maxP85 = row.forecast.p85Days;
+        bottleneck = row;
+    }
+}
+```
+
+활동 0인 사람의 `p85Days` = `remaining / mean = remaining / 0 = Infinity`
+→ Infinity가 maxP85 → **자동 bottleneck** → realistic = unreliable forecast → 영원히 표시 X
+
+#### 문제 2: 사용자 인지 갭
+"활동 일수 0일"이 실제로는:
+- 30일 윈도우 중 완료 발생일 = 0~6일 (50건 완료가 1~2일에 몰림)
+- 임계 7일 미만 통계적 신뢰 불가
+
+→ 사용자가 "50건 완료 = 충분" 으로 오인할 수 있음
+
+### 해결 (옵션 A + E)
+
+#### A. bottleneck 선정 보완
+`perAssigneeForecast.ts` (sync + async 둘 다):
+```ts
+for (const row of perAssignee) {
+    if (!row.forecast) continue;
+    if (row.forecast.confidence === 'unreliable') continue;  // ★ 신뢰 불가 제외
+    if (row.forecast.p85Days > maxP85) {
+        maxP85 = row.forecast.p85Days;
+        bottleneck = row;
+    }
+}
+
+// bottleneck 없으면 optimistic 그대로
+const realistic = bottleneck?.forecast
+    ? { ...bottleneck.forecast, warnings: [...bottleneck.forecast.warnings, `병목 인원: ${bottleneck.displayName}`] }
+    : { ...optimistic, warnings: [...optimistic.warnings, '신뢰 가능한 개인 forecast 없음 — 팀 전체 throughput 기반 (병목 측정 불가)'] };
+```
+
+#### E. 진단 정보 강화 (DataReadinessCard)
+- **scope 배지**: 헤더에 시나리오 명시
+  - `🎯 병목: 강현 기준` (bottleneck 있을 때)
+  - `👥 팀 전체 기준 (병목 측정 불가)` (bottleneck null일 때)
+- **InfoTip 대폭 확장**:
+  - 통계 시나리오 설명 (병목 vs 팀 fallback)
+  - **"활동 일수 0일"의 진짜 의미** 명시:
+    - 활동 일수 ≠ 완료 건수
+    - 50건이 1~2일에 몰리면 활동 1~2일
+    - 임계 7일 미만 → 통계 분산 ↑ → Monte Carlo 신뢰 불가
+    - 완료 정의 v1.0.39 변경 (status done OR customfield_11485)
+
+### 효과 (IGMU 환경 예측)
+
+| 항목 | 이전 (v1.0.39) | 이후 (v1.0.40) |
+|------|---------------|---------------|
+| bottleneck | 강현 (활동 0) 강제 잡힘 | 신뢰 불가 → null |
+| realistic | 강현 forecast (unreliable) | optimistic 기반 (팀 throughput) |
+| 화면 활동 일수 | 0일 (강현 stats) | 팀 전체 활동 일수 (예: 3~5일) |
+| 사용자 경험 | "왜 0?" 의문 | InfoTip으로 즉시 이해 |
+| ETA 산정 | 영원히 불가 | 팀 활동 7일 충족 시 즉시 가능 |
+
+**여전히 unreliable 가능 시나리오**: 팀 전체 활동도 7일 미만이면 여전히 표시 X. 그러나 이는 **데이터 정직성 원칙**으로 의도된 동작. InfoTip이 명확히 안내.
+
+### 수정 파일
+
+#### 변경 (4개)
+- `src/services/prediction/perAssigneeForecast.ts` — bottleneck 선정 (sync + async)
+- `src/components/progress-trends/DataReadinessCard.tsx` — Props 확장 (scope, bottleneckName) + InfoTip 대폭 강화
+- `src/components/progress-trends/index.tsx` — DataReadinessCard 호출에 scope/bottleneckName 전달
+- `src/services/prediction/__tests__/perAssigneeForecast.test.ts` — 2 신규 테스트
+- `package.json` — version 1.0.39 → 1.0.40
+
+### 검증
+- 359 → **361 테스트 통과** (bottleneck 신규 2건)
+- TypeScript 에러 없음
+- 신규 테스트:
+  1. 활동 0인 강현 → bottleneck 후보 제외
+  2. 모든 개인 unreliable → bottleneck null + realistic warnings에 fallback 메시지
+
+### 보호 (변경 안 함)
+- ✋ Monte Carlo 산식
+- ✋ MIN_ACTIVE_DAYS_RELIABLE = 7 (정직성 원칙)
+- ✋ confidence 4단계 등급 정책
+- ✋ isBusinessDone 정책 (v1.0.39)
+
+---
+
+## [1.0.39] '완료' 판정 룰 전수 통일 (isBusinessDone)
+
+### 적용 버전
+- 앱 버전: **1.0.39**
+
+### 배경
+사용자 보고:
+> "프로젝트 통계 → 진행 추이/예측에서 첨부 이미지는 이미 완료건이 50건이 넘는데 예측이 안되는건가? 아니면 로직이 잘 못 된건지 정밀 분석해줘."
+
+### 정밀 분석으로 발견한 근본 원인
+프로젝트의 영역마다 "완료된 이슈" 판정 룰이 달랐음:
+
+| 영역 | 룰 (v1.0.38 이전) | 일관성 |
+|------|----------------|-------|
+| KPI 산식 (`kpiService.ts`) | status 'done' 카테고리 | (다른 영역에선 customfield 우선) |
+| 이슈 상세 | customfield_11485 우선 | ✅ |
+| 이슈 목록 (v1.0.34) | customfield_11485 ?? resolutiondate | ✅ |
+| 공수 산정 | customfield_11485 ?? resolutiondate (`getCompletionDate`) | ✅ |
+| **처리량(throughput) / forecast** | **status 'done' 카테고리만** (`isDone`) | ❌ 불일치 |
+| 회고 / TodayWeek / Risk / etc. | status 'done' 카테고리만 | ❌ 불일치 |
+
+**현실 시나리오 (IGMU)**:
+- 워크플로우: `진행중 → 최종검증요청 → 운영검증 → 완료`
+- 사용자가 검증 단계에서 `customfield_11485`(실제완료일) 직접 입력 → 개발 완료 표시
+- status는 여전히 "최종검증요청" → KPI/이슈 목록은 완료로 보이지만 **처리량은 누락**
+- → activeDays=0, mean=0, confidence unreliable → ETA 산정 불가
+- → "예측 불가 — 진단 정보 참조"
+
+### 해결 — 통일된 helper `isBusinessDone(issue)`
+
+`src/lib/jira-helpers.ts`에 새 helper 추가:
+```ts
+export function isBusinessDone(issue: JiraIssue): boolean {
+    if (getStatusCategoryKey(issue) === 'done') return true;
+    const actualField = resolveFields().ACTUAL_DONE;  // customfield_11485
+    const actualDone = issue.fields[actualField];
+    if (typeof actualDone === 'string' && actualDone.trim().length > 0) return true;
+    return false;
+}
+```
+
+**판정 정책**:
+- (a) status 카테고리 'done' OR
+- (b) customfield_11485 (실제완료일) 직접 입력
+- → 비즈니스 완료로 인정 (단, 취소·반려는 호출자가 별도 체크)
+
+### 마이그레이션 범위 — 19개 사용처 일괄 변경
+
+| 파일 | 변경 수 |
+|------|--------|
+| `src/services/kpiService.ts` | 1 |
+| `src/services/retrospective/epicRetro.ts` | 1 |
+| `src/services/prediction/perAssigneeForecast.ts` | 1 |
+| `src/services/prediction/effortEstimation.ts` | 1 |
+| `src/services/prediction/budgetEffortAnalysis.ts` | 1 |
+| `src/hooks/useBacklogForecast.ts` | 3 |
+| `src/hooks/useManagerBrief.ts` | 1 |
+| `src/hooks/useRiskAnalysis.ts` | 1 |
+| `src/components/issue-list.tsx` | 4 |
+| `src/components/project-stats-dialog.tsx` | 4 |
+| `src/components/manager-console/OneOnOnePrep.tsx` | 1 |
+| **합계** | **19** |
+
+변환 패턴:
+- `getStatusCategoryKey(x) === 'done'` → `isBusinessDone(x)`
+- `getStatusCategoryKey(x) !== 'done'` → `!isBusinessDone(x)`
+
+### 영향 — 정상화되는 영역
+
+| 영역 | 이전 | 이후 |
+|------|------|------|
+| **Monte Carlo throughput** | 검증 단계 이슈 누락 → activeDays 0 → unreliable | 모두 포함 → activeDays 정상 → ETA 산정 가능 |
+| **이슈별 정확도 (v1.0.36)** | doneKeys 누락 → markIssuesCompleted 미호출 → 영원히 0건 | doneKeys 정상 → 매 이슈 done 시점 자동 calibration |
+| 일별 완료 차트 | 누락 | 정상 |
+| TodayWeekCards | 누락 | 정상 |
+| Sprint Forecast | 누락 | 정상 |
+| 회고 (KPI ↔ 처리량 정합) | 불일치 | 일관 |
+| 팀 분포 (PerAssignee) | 처리량 낮게 측정 | 정상 |
+| 이슈 목록 isDone (UI 색깔/필터) | status 카테고리만 | 통일 |
+
+### 호환성
+- **자동**: 사용자 설정 변경 불필요. 설치만 하면 즉시 적용
+- 사용자가 customfield_11485를 미리 입력한 모든 이슈가 즉시 "완료"로 인정됨
+- → 처리량 즉시 회복 → ETA 산정 가능 → 정확도 카드 곧 데이터 누적
+
+### 신규 / 수정 파일
+
+#### 신규 (0개)
+- (없음 — 기존 jira-helpers.ts에 함수 추가)
+
+#### 수정 (12개)
+- `src/lib/jira-helpers.ts` — `isBusinessDone(issue)` helper 추가 + `resolveFields` import
+- `src/services/kpiService.ts` — 1 변경
+- `src/services/retrospective/epicRetro.ts` — 1 변경
+- `src/services/prediction/perAssigneeForecast.ts` — 1 변경
+- `src/services/prediction/effortEstimation.ts` — 1 변경
+- `src/services/prediction/budgetEffortAnalysis.ts` — 1 변경
+- `src/hooks/useBacklogForecast.ts` — 3 변경
+- `src/hooks/useManagerBrief.ts` — 1 변경
+- `src/hooks/useRiskAnalysis.ts` — 1 변경
+- `src/components/issue-list.tsx` — 4 변경
+- `src/components/project-stats-dialog.tsx` — 4 변경
+- `src/components/manager-console/OneOnOnePrep.tsx` — 1 변경
+- `src/lib/__tests__/jira-helpers.test.ts` — 7 신규 테스트
+- `package.json` — version 1.0.38 → 1.0.39
+
+### 검증
+- 352 → **359 테스트 통과** (isBusinessDone 7건 신규)
+- TypeScript 에러 없음
+- 신규 테스트 케이스:
+  1. status 'done' → true
+  2. status 'done' + customfield 없음 → true
+  3. status 'indeterminate' + customfield 채워짐 → true (핵심 검증 단계)
+  4. status 'indeterminate' + customfield 비어있음 → false
+  5. customfield 공백만 → false (trim 처리)
+  6. status 'new' + customfield 채워짐 → true
+  7. status 'new' + customfield 없음 → false
+
+### 보호 (변경 안 함)
+- ✋ status name 비교 패턴 (예: 한국어 '완료')은 사용 안 함 — 워크플로우 다양성 고려
+- ✋ 취소·반려 별도 체크 — 이 함수는 처리 X
+- ✋ Tier 2 신뢰도 등급 정책 (4단계 유지)
+
+---
+
+## [1.0.38] 기업 라이선스 컴플라이언스 보강
+
+### 적용 버전
+- 앱 버전: **1.0.38**
+
+### 배경
+사용자 요청:
+> "기업라이선스 위반 사항 정밀 분석하고 보고해줘"
+
+정밀 분석 결과 (private repo / 사내 사용 시나리오):
+- 의존성 206 패키지 (MIT 171 / ISC 18 / Apache-2.0 10 / BSD-3 2 / 기타 5)
+- GPL/AGPL/SSPL 의존성 = **0건**
+- 자체 LICENSE/NOTICE 파일 = **없음** ← 보강 필요
+- third-party LICENSE 텍스트 = 산출물에 미동봉 ← 보강 필요
+- date-holidays (CC BY 3.0) Attribution = 미표시 ← 보강 필요
+
+### 핵심 변경
+
+#### 1. 자체 LICENSE (Okestro Internal)
+- 새 파일: `LICENSE`
+- 내용: Okestro Internal Use Only — 외부 배포 금지
+- No Warranty 면책 조항 표준 패턴
+
+#### 2. 자체 NOTICE
+- 새 파일: `NOTICE`
+- Apache-2.0 components (SheetJS, class-variance-authority) 명시
+- date-holidays (CC BY 3.0) Attribution
+- Electron / Chromium / Node.js 라이선스 위치
+- Atlassian Jira API 사용 정책
+
+#### 3. THIRD-PARTY-LICENSES 자동 생성
+- 새 스크립트: `scripts/generate-third-party-licenses.cjs`
+- 동작:
+  - `npx license-checker --production --json` 으로 의존성 라이선스 추출
+  - 각 패키지의 LICENSE 파일을 읽어 통합 텍스트 생성
+  - 출력: `build/THIRD-PARTY-LICENSES.txt` (206 패키지, ~372KB)
+- npm script: `"build:licenses"` (단독 실행 가능)
+- `build:install` 파이프라인에 통합 (`clean → build:licenses → build`)
+
+#### 4. electron-builder 동봉
+- 새 extraFiles 항목 (3개 추가):
+  - `LICENSE` → `LICENSE.txt`
+  - `NOTICE` → `NOTICE.txt`
+  - `build/THIRD-PARTY-LICENSES.txt` → `THIRD-PARTY-LICENSES.txt`
+- 설치 디렉토리에 평문으로 동봉 → 사용자가 직접 열람 가능
+
+#### 5. date-holidays Attribution UI
+- `BudgetSimulatorCard` InfoTip 하단에 추가:
+  ```
+  📅 한국 공휴일 데이터: date-holidays (CC BY 3.0)
+  ```
+- GitHub 링크 (외부 링크 새 탭) — Attribution 의무 충족
+
+### 라이선스 분포 검증
+
+| 라이선스 | 건수 | 의무 처리 |
+|---------|------|----------|
+| MIT | 171 | THIRD-PARTY-LICENSES 동봉 ✅ |
+| ISC | 18 | THIRD-PARTY-LICENSES 동봉 ✅ |
+| Apache-2.0 | 10 | THIRD-PARTY-LICENSES 동봉 ✅ + NOTICE 명시 ✅ |
+| BSD-3-Clause | 2 | THIRD-PARTY-LICENSES 동봉 ✅ |
+| (ISC AND CC-BY-3.0) | 1 | + Attribution UI ✅ |
+| Python-2.0 | 1 | THIRD-PARTY-LICENSES 동봉 ✅ |
+| Unlicense / 0BSD | 2 | (의무 없음) ✅ |
+| MIT AND ISC | 1 | THIRD-PARTY-LICENSES 동봉 ✅ |
+| UNLICENSED (자체) | 1 | LICENSE 별도 명시 ✅ |
+| GPL/AGPL/SSPL | **0** | — |
+
+### 신규 / 수정 파일
+
+#### 신규 (3개)
+- `LICENSE` — Okestro Internal Use Only
+- `NOTICE` — third-party attributions
+- `scripts/generate-third-party-licenses.cjs` — 자동 생성 스크립트
+
+#### 수정 (3개)
+- `package.json` — version 1.0.38 + scripts.build:licenses 추가 + extraFiles 3건 추가 + releaseNotes
+- `src/components/manager-console/BudgetSimulatorCard.tsx` — date-holidays Attribution InfoTip
+- `PATCH.md` — v1.0.38 항목 추가
+
+### 검증
+- License generation script 동작: 206 패키지, 372KB THIRD-PARTY-LICENSES.txt 생성 ✅
+- TypeScript 에러 없음
+- 352 테스트 통과 유지
+
+### 영향 범위
+- **사내 배포 (private)**: ✅ 충족
+- **다른 부서 배포**: ✅ 충족 (LICENSE.txt + NOTICE.txt + THIRD-PARTY-LICENSES.txt 동봉)
+- **외부 공개 배포**: ⚠️ 추가 검토 필요 (LICENSE는 Internal Use Only)
+- **GPL/AGPL 위반**: ❌ 없음 (의존성 0건)
+
+---
+
+## [1.0.37] 진행 추이/예측 탭 layout 미세 개선
+
+### 적용 버전
+- 앱 버전: **1.0.37**
+
+### 배경
+사용자 요청:
+> "진행 추이/예측 탭에서 팀 ETA와 이슈별 정확도는 지금처럼 표시되는 것이 맞다는거야? 아니면 진행 추이/예측 내용을 전체적으로 정밀 분석해서 보고를 해줘."
+
+전체 정밀 분석 결과 — **큰 재구성 불필요, 미세 개선 2건**.
+
+### 핵심 변경
+
+#### 1. EtaScenarioCard + ForecastAccuracyCard 같은 row 배치
+**Before** (v1.0.36):
+```
+DataReadinessCard      (full row)
+SprintForecastCard     (full row)
+EtaScenarioCard | ForecastFunnelChart   ← grid
+ForecastAccuracyCard   (full row, 마지막)
+```
+→ 정확도 카드가 ETA에서 멀리 떨어져 있어 "이 ETA를 얼마나 믿어야 하나" 한눈에 안 보임.
+
+**After** (v1.0.37):
+```
+DataReadinessCard      (full row)
+SprintForecastCard     (full row)
+EtaScenarioCard | ForecastAccuracyCard  ← grid (NEW: 약속 + 신뢰도)
+ForecastFunnelChart    (full row)
+```
+→ ETA(약속)과 Accuracy(신뢰도)가 같은 시각에 → 즉시 판단.
+
+#### 2. 지연 분석 카테고리 subtitle 보강
+**Before**: "미완료 지연 · 완료 지연 · 마감일 미설정"
+**After**: "미완료 지연 · 완료 지연 · 마감일 미설정 — **통계 보기**. 즉시 액션은 매니저 콘솔의 🔥 리스크 보드"
+
+→ 진행 추이의 DelayCards (통계) ↔ 매니저 콘솔의 Risk Board (6 카드 즉시 액션) 차별화 명확.
+
+### 정밀 분석 결론 (큰 재구성 안 한 이유)
+사용자 의문 "팀 ETA와 이슈별 정확도가 진행 추이에 있는 게 맞나?"
+**답: 맞음.** 분리하면 정확도 자체가 의미 잃음 (어느 ETA를 calibrate하는지 모름).
+
+진행 추이 ↔ 매니저 콘솔 경계 (v1.0.33부터 정착) 검증 완료:
+| 영역 | 위치 | 정합? |
+|------|------|------|
+| 현황 / 활동 / 지연 통계 | 진행 추이 | ✅ 분석 |
+| ETA / 정확도 / Sprint Forecast | 진행 추이 | ✅ 예측 |
+| 팀 분포 / 회고 / 결함 패턴 | 진행 추이 | ✅ 분석 |
+| 공수 그루밍 / AI 시뮬 / ROI | 매니저 콘솔 | ✅ 의사결정 |
+| Risk Board / Daily Brief / 1:1 Prep | 매니저 콘솔 | ✅ 액션 |
+
+### 수정 파일
+- `src/components/progress-trends/index.tsx` — 완료 예측 카테고리 layout + 지연 분석 subtitle
+- `package.json` — version 1.0.36 → 1.0.37
+
+### 검증
+- 352 테스트 통과 유지
+- TypeScript 에러 없음
+
+---
+
+## [1.0.36] 예측 정확도 — 이슈별(per-issue) 측정으로 재설계
+
+### 적용 버전
+- 앱 버전: **1.0.36**
+
+### 배경
+사용자 보고 (v1.0.35 검증 후):
+> "첨부 이미지가 표시되어야 하는게 정상 아니냐?" — 5건 이상 done 됐는데 정확도 0건 표시
+
+### v1.0.35 한계 (snapshot 방식의 본질적 문제)
+v1.0.35는 record 시점의 **활성 이슈 키 50~100건 snapshot**을 저장하고, **그 키들이 모두 done** 되어야 1건의 actualCompletionDate를 채움.
+
+문제:
+- IGMU 같은 큰 백로그(100건+)에서 snapshot 모두 done까지 ≈ P85 일수 (30일)
+- 5건 record × 각 done까지 → **30일 × 5 = 150일 (6개월)**
+- 새 이슈가 계속 추가되는 환경에서 사실상 영원히 미작동
+
+### 해결 (옵션 A)
+**Per-issue 측정**: 매 이슈마다 1 데이터 포인트.
+
+1. 이슈가 처음 활성으로 발견된 시점에 그 시점 forecast P50/P85/P95 약속 기록 (`recordExpectations`)
+2. 이슈가 done 처리된 시점에 실제 영업일 측정 (`businessDaysBetween` 사용) (`markIssuesCompleted`)
+3. actual ≤ p85 → P85 hit / 5건 이상 완료되면 정확도 표시
+
+**효과**:
+- 백로그 100건 → 100개의 잠재 데이터 포인트 (vs snapshot 5건)
+- IGMU 매주 5~10건 done → **5~10일 안에 정확도 표시 시작**
+- 큰 백로그·진행 중 프로젝트에 정합
+
+### 핵심 변경
+
+#### 신규
+- **`src/stores/forecastExpectationStore.ts`** — 이슈별 추적 store
+  - `IssueExpectation` 타입 (issueKey, firstSeenAt, p50/85/95, completedAt, actualDays)
+  - `recordExpectations(keys, common)` — 신규 활성 이슈 일괄 등록 (이미 존재 키는 firstSeenAt 보존)
+  - `markIssuesCompleted(completions)` — 신규 done 일괄 기록
+  - `pruneStale()` — 90일 이상 done + 5000건 초과 정리
+- **`src/services/prediction/perIssueAccuracy.ts`** — 이슈별 정확도 산정
+  - `computePerIssueAccuracy(expectations, projectKey)` — 5건 미만은 insufficient
+  - 신규 metric: `inProgressCount`, `avgActualDays`, `avgPromisedP85`
+- **`src/services/prediction/__tests__/perIssueAccuracy.test.ts`** — 10 신규 테스트
+
+#### 변경
+- **`src/hooks/useBacklogForecast.ts`** — snapshot 로직 → expectation 기반
+  - 활성 keys → recordExpectations (그 시점 P85 약속)
+  - done keys → businessDaysBetween 산정 → markIssuesCompleted
+- **`src/components/progress-trends/ForecastAccuracyCard.tsx`** — 새 store 구독
+  - 메시지 명확화: "완료된 이슈 N건. 5건 이상 완료되면..." + "추적 중 M건"
+  - 신규 metric: 표본/추적중, MAE, P85/P95 적중률, 평균 actual/promised
+  - InfoTip 상세화 (산정 방식·보정 등급·한계)
+- **`src/App.tsx`** — pruneStale 호출 store 변경
+- **`src/components/progress-trends/ExportMenu.tsx`** — expectations prop 사용
+- **`src/lib/export.ts`** — Excel 시트 "Forecast History" → "Issue Expectations" (이슈별 행)
+
+#### 삭제
+- ❌ `src/stores/forecastHistoryStore.ts`
+- ❌ `src/services/prediction/accuracyTracking.ts`
+- ❌ `src/services/prediction/__tests__/accuracyTracking.test.ts`
+
+### 호환성
+- v1.0.35 이하의 forecastHistory 데이터는 **호환 안 됨** (사용자 결정: 삭제)
+- v1.0.36 설치 후 신규 데이터부터 누적 시작
+- 사이드바에서 보면 활성 이슈가 자동 추적되며, 매 done에 즉시 1 샘플 추가
+
+### 검증
+- 351 → **352 테스트 통과** (perIssueAccuracy 10 신규, accuracyTracking 14 삭제)
+- TypeScript 에러 없음
+
+### 보호 (변경 안 함)
+- ✋ Monte Carlo 시뮬레이션 산식
+- ✋ Tier 2 신뢰도 등급 정책 (4단계 유지)
+
+---
+
+## [1.0.35] 예측 정확도 추적 snapshot 기반으로 개선
+
+### 적용 버전
+- 앱 버전: **1.0.35**
+
+### 배경
+사용자 보고:
+> "완료건이 5건 이상 쌓였는데 안나오네."
+
+ForecastAccuracyCard가 "완료된 예측 기록 0건"으로 표시. 백로그 done 이슈가 5건 이상 쌓여도 정확도 측정 X.
+
+### 원인 (v1.0.34까지의 한계)
+`forecastHistoryStore.markCompleted` + `accuracyTracking.isBacklogCleared` 로직은 **활성 백로그가 0건**이 돼야 미완료 record들의 `actualCompletionDate`를 채움.
+
+진행 중 프로젝트(IGMU)는:
+- 활성 100+건 + 새 이슈 계속 추가
+- 백로그가 영원히 0이 안 됨 → markCompleted 호출 안 됨
+- 모든 record `actualCompletionDate = null`
+- `computeAccuracy` 대상 0건 → "데이터 부족" 영원히
+
+→ 카드는 사실상 **백로그를 끝까지 처리하는 일회성 프로젝트**에서만 작동. 연속 운영 프로젝트에서 비활성.
+
+### 해결 (옵션 A — 사용자 선택)
+**Snapshot 기반 calibration**: 각 record가 시점의 활성 이슈 키 snapshot을 저장. 그 키들이 모두 done 처리된 시점이 actualCompletionDate.
+
+#### Data 변경
+```ts
+export interface ForecastRecord {
+    ...
+    /** v1.0.35: 기록 시점의 활성 이슈 키 snapshot. */
+    activeIssueKeys: string[];
+}
+```
+
+#### Store 변경
+- `markRecordsCompleted(projectKey, completedKeys: Set<string>, completionDate)`: 신규
+  - 각 미완료 record의 `activeIssueKeys`가 모두 `completedKeys`에 포함되면 `actualCompletionDate` 채움
+  - **legacy(빈 snapshot) record는 건너뜀** (vacuously true 회피)
+- `markCompleted`: deprecated (legacy 빈 snapshot에만 영향)
+
+#### Hook 변경 (`useBacklogForecast`)
+1. **issueSnapshot useMemo**: 매 issues 변경 시 `activeKeys[]` + `doneKeys: Set<string>` 산출
+2. 매 사이클 `markRecordsCompleted(projectKey, doneKeys, now)` 호출 → snapshot 완료된 record 자동 칠
+3. 신규 record 추가 시 `activeIssueKeys: issueSnapshot.activeKeys` 포함
+
+#### 동작 시나리오
+```
+t=0 (4월 1일): record 추가
+   - p85: 30일
+   - activeIssueKeys: ['IGMU-100', 'IGMU-101', ..., 'IGMU-149']  (50건 snapshot)
+
+t=15일 (4월 16일): 30건 done, 20건 남음
+   - markRecordsCompleted 호출돼도 snapshot 50건 중 30건만 매칭 → 미채움
+
+t=28일 (4월 29일): snapshot 50건 모두 done
+   - markRecordsCompleted → actualCompletionDate = 4월 29일
+   - 실제 28일 vs 약속 30일 → P85 hit ✅
+```
+
+→ 진행 중 프로젝트에서도 자동으로 calibration 작동. 새 이슈가 계속 추가돼도 snapshot 기준이라 영향 X.
+
+### 호환성
+- 기존 record (`activeIssueKeys: undefined`)는 **호환 안 됨** — 이미 의미 없음 (markCompleted가 작동 안 했었음)
+- 신규 record부터 정상 작동
+- 사용자에게 5건 이상 쌓이는 시간이 필요 (calibration cycle: P85일 정도)
+
+### 수정 파일
+
+#### 신규/수정 (4개)
+- `src/stores/forecastHistoryStore.ts` — `activeIssueKeys` 필드 + `markRecordsCompleted` 신규 + `markCompleted` deprecate
+- `src/hooks/useBacklogForecast.ts` — `issueSnapshot` useMemo + snapshot 기반 호출
+- `src/services/prediction/__tests__/accuracyTracking.test.ts` — 5 신규 테스트
+- `package.json` — version 1.0.34 → 1.0.35, releaseNotes
+
+### 검증
+- 351 → **356 테스트 통과** (snapshot 5건 신규)
+- TypeScript 에러 없음
+- 신규 테스트:
+  - snapshot 모든 키 done → actualCompletionDate 채움
+  - 일부만 done → 미채움
+  - legacy 빈 snapshot 건너뜀
+  - 다른 projectKey 무영향
+  - 이미 완료된 record 재변경 안 함
+
+### 보호 (변경 안 함)
+- ✋ KPI 산식
+- ✋ Tier 2 신뢰도 등급 정책
+- ✋ ETA·MAE 산식 (`computeAccuracy`)
+
+---
+
+## [1.0.34] 사이드바 버전 표시 + 이슈 목록 실제완료일 통일
+
+### 적용 버전
+- 앱 버전: **1.0.34**
+
+### 핵심 변경
+
+#### 1. 사이드바 하단 설치 버전 footer
+- 위치: 좌측 사이드바 Epics 목록 아래 고정 footer
+- 표시: `Jira Dashboard | v1.0.34` (모노스페이스, muted color)
+- 빌드 타임 주입: `vite.config.ts` define으로 `__APP_VERSION__` 글로벌 상수 추가
+  - `package.json`의 `version` 자동 반영 — 빌드마다 자동 동기화
+- TypeScript declaration: `src/electron.d.ts` 글로벌 추가
+- 사용자가 설치된 정확한 버전을 즉시 확인 가능 (지원 요청·이슈 트래킹 시 유용)
+
+#### 2. 이슈 목록 실제완료일 정책 통일
+사용자 보고:
+> "두 이슈는 실제완료일이 상세에는 표시되는데 목록에서는 왜 표시가 안될까?"
+
+**원인**: 위치별 사용 필드가 달랐음
+| 위치 | 이전 | 이후 (v1.0.34) |
+|------|------|---------------|
+| 이슈 목록 | `resolutiondate`만 | `customfield_11485 ?? resolutiondate` ✅ |
+| 이슈 상세 | `customfield_11485` 우선 | (그대로) |
+| KPI / 공수 / 회고 | `customfield_11485 ?? resolutiondate` | (그대로) |
+
+**필드 의미**:
+- `resolutiondate` (자동): Jira가 status를 done 카테고리로 옮길 때 자동 기록
+- `customfield_11485` (실제완료일, 수동): 사용자가 비즈니스 완료일을 직접 입력
+  - 예: "최종검증요청" 단계에서 개발은 끝났지만 검증 진행 중일 때 개발 완료일 미리 기록
+
+**결과**: 검증 단계 이슈도 실제완료일이 입력돼있으면 목록에 표시 → 매니저 의사결정 일관성 ↑
+
+### 수정 파일
+
+#### 신규/수정 (5개)
+- `vite.config.ts` — `__APP_VERSION__` define + readFile import
+- `src/electron.d.ts` — `__APP_VERSION__` global type 선언
+- `src/components/layout/sidebar.tsx` — 하단 footer 추가, flex 구조 보정 (min-h-0 + overflow-hidden)
+- `src/components/issue-list.tsx` — 실제완료 컬럼 nullish coalescing (`customfield_11485 ?? resolutiondate`)
+- `package.json` — version 1.0.33 → 1.0.34, releaseNotes
+
+### 검증
+- 351 테스트 통과 유지
+- TypeScript 에러 없음
+
+---
+
+## [1.0.33] 매니저 콘솔 강화 — 공수 & 예산 탭 신규 (4탭 확장) + UX/버그 fix
+
+### 적용 버전
+- 앱 버전: **1.0.33**
+
+### 배경
+사용자 의견:
+> "매니저 콘솔을 더 강화 해 볼까? 공수 관련 내용을 매니저 콘솔로 옮기는 것은 어떨까? AI 도구 관련 내용도. 어떨거 같아?"
+> "1. 추천 / 2. 모두 / 3. 추천 가보자"
+> "추이/예측에서 공수는 매니저 박스로 보내자고 하지 않았나?"
+> "모든 정보 팁은 아주 상세하게 작성해야해."
+
+### 추가 변경 (1.0.33 막판 fix 묶음)
+
+#### 매니저 콘솔 UX 안정화
+1. **다이얼로그 높이 정책**: `min-h-[85vh]` + `max-h-[92vh]` + `top-[4vh] translate-y-0`
+   - 작은 탭(브리프)에서도 default 85vh 유지 → 탭 전환 시 layout jumping 사라짐
+   - 콘텐츠 길어도 위쪽 고정, 아래로만 늘어남 (사용자 요청)
+2. **탭 전환 스크롤 reset**: `useEffect([tab])` + `scrollRef.current.scrollTop = 0` → 새 탭 진입 시 항상 위에서부터
+3. **Budget 탭 lazy mount**: `{tab === 'budget' && <BudgetEffortPanel />}` → recharts ResponsiveContainer가 hidden 마운트로 width 0 깜빡이는 이슈 회피
+
+#### 버그 수정
+1. **AiRoiCalculator 무한 렌더 (검정 화면 crash)**:
+   - 원인: `useBudgetSimulatorStore((s) => () => {...})` selector가 매 렌더마다 새 함수 반환
+   - 해결: `useCallback`으로 안정 참조
+2. **이슈 댓글 등록 시 404 (`PUT /comment/<id>`)**:
+   - 원인: `editingCommentId` state가 이슈 변경 시 reset 안 됨 → 이전 이슈의 commentId가 새 이슈 PUT에 사용됨
+   - 해결: `useEffect([issue?.key])`로 이슈 변경 시 editor·editingCommentId·readOnly 자동 reset
+3. **OneOnOnePrep 담당자 드롭다운 마우스 휠 스크롤 안 됨**:
+   - 원인: Radix `ScrollArea`가 Popover 안 + Dialog 안 + wheel event propagate 이슈
+   - 해결: `ScrollArea` → native `<div>` + `overflow-y-auto` + `overscroll-contain` + `onWheel stopPropagation`
+
+#### 진행 추이 탭 완전 정리
+- 공수 분석 카테고리 자체 제거 — 안내 카드도 미표시 (사용자 정정 요청 반영)
+- 공수 관련 모든 카드 매니저 콘솔로 단일 통합
+
+#### InfoTip 전면 상세화 (사용자 요청 ✅)
+모든 InfoTip 통일 구조:
+- 카드/항목 의미 정의
+- 산정 공식 (monospace 박스)
+- 단위 정의
+- 데이터 출처 (Jira 필드 / 업계 연구)
+- 활용 사례 3~5개
+- 한계 및 주의
+
+상세화 적용:
+- EffortReportCard: 추정 작업량 / 월 환산 / 데이터 출처 분포
+- PerIssueEffortTable: 5단계 우선순위 (각 source 산식·신뢰구간·활성 조건)
+- AiSavingsCard: 카드 헤더 / 3 시나리오 / 6 카테고리 / 슬라이더 / 분해 표 / Top 5
+- 신규 4 카드: 모든 입력·결과·슬라이더에 InfoTip + 활용 사례
+
+
+
+매니저 콘솔의 정체성을 "**액션 가능한 의사결정 도구**"로 강화:
+- Daily Brief / Risk = 일별 운영
+- 1:1 = 인적 관리 (주별)
+- **공수 & 예산 = 분기/스프린트 단위 전략** ← v1.0.33 신규
+
+진행 추이/예측 탭은 분석/예측 정합성 검증 위주로 슬림화 (옵션 D 적용).
+
+### 핵심 변경
+
+#### 1. 매니저 콘솔 4탭 확장
+```
+이전 (3탭):  📅 오늘의 브리프  🔥 리스크 보드  👥 1:1 미팅 준비
+이후 (4탭):  📅 오늘의 브리프  🔥 리스크 보드  👥 1:1 미팅 준비  💼 공수 & 예산
+```
+
+#### 2. "💼 공수 & 예산" 탭 — 7 카드 구성
+| 위치 | 카드 | 기능 |
+|------|------|------|
+| 좌상 | EffortReportCard | 백로그 공수 추정 (총 MD/MM, 출처 분포) |
+| 우상 | **BudgetSimulatorCard** ⭐ | **신규** — 인원/utilization 슬라이더로 캘린더 ETA 즉시 산정 |
+| 단독 | PerIssueEffortTable | 이슈별 그루밍 (10줄 default + 펼침) |
+| 단독 | AiSavingsCard | AI 절감 시뮬레이션 (3 시나리오 + 슬라이더 6개) |
+| 단독 | **AiRoiCalculator** ⭐ | **신규** — MD 단가·도구 비용·사용자 수 → 절감액·순효과·ROI% |
+| 좌하 | **QuarterlyEffortTrendCard** ⭐ | **신규** — 최근 6개월 line (완료/worklog MD/cycle time) |
+| 우하 | **TeamEffortHeatmap** ⭐ | **신규** — 담당자×카테고리 부하 indigo 그라디언트 |
+
+#### 3. 신규 카드 4개 상세
+
+##### BudgetSimulatorCard (예산 시뮬레이터)
+- 인원수 슬라이더 (1~20명)
+- utilization 슬라이더 (10%~100%, default 65%)
+- 즉시 산정: 팀 영업일 / 팀 월수 / 완료 예정일 (P50 + P85)
+- 보고서 기본 가정값 대비 차이 표시 (단축/늘어남)
+- 영업일 환산: `addBusinessDays` (date-holidays 통합, 한국 공휴일 자동 제외)
+- 활용: 채용 ROI, 회의 줄이기 효과, 외주 검토
+
+##### AiRoiCalculator (AI 도구 ROI 계산기)
+- 입력 3개:
+  - MD 단가 (default 100만원/MD, 한국 IT 평균)
+  - AI 도구 월 비용 (1인당, default 5만원 — Cursor Pro 등)
+  - 사용자 수 (default 5명)
+- 산정 공식:
+  ```
+  절감액 = AI 절감 인일 × MD 단가
+  도구 비용 = 월 비용 × 사용자 수 × 프로젝트 기간(월)
+  순효과 = 절감액 - 도구 비용
+  ROI% = (순효과 / 도구 비용) × 100
+  ```
+- 3 시나리오 동시 표시 (보수/평균/낙관) — 평균에 ring-2 강조
+- 한국 통화 포맷: 1억원 / 5천만원 / 50만원 자동 변환
+- 프로젝트 기간 = 예산 시뮬레이터의 인원/utilization과 연동
+
+##### QuarterlyEffortTrendCard (월별 공수 트렌드)
+- recharts LineChart + dual y-axis
+- 좌축: 완료 이슈 수 (파랑) + Worklog 인일 (에메랄드)
+- 우축: 평균 cycle time (앰버, 점선)
+- 최근 6개월 (조정 가능)
+- 활용: 처리량 변화 추적, 번아웃 감지, 분기 회고
+
+##### TeamEffortHeatmap (담당자 × 카테고리 부하)
+- 담당자(행) × 카테고리(열) 그리드
+- 셀 색 강도 = 인일(MD) 절대값 (max 대비 0.15~0.75 opacity)
+- 인디고 그라디언트
+- 행/열 합계, 미할당 별도 행
+- 익명화 모드 연동 (헤더 토글)
+- 정렬: 행은 총 MD 큰 순, 열은 카테고리 표준 순서
+
+#### 4. 진행 추이/예측 탭 슬림화
+이전 "💼 공수 분석" 카테고리 (5 카드) → "공수 분석 (요약)" (4 카드):
+- 유지: EffortReportCard, EtaEffortConsistency, CycleTimeCard
+- **제거**: PerIssueEffortTable, AiSavingsCard (매니저 콘솔로 이전)
+- **추가**: ManagerConsoleHintCard — 클릭 시 매니저 콘솔 자동 열림 + 헤더 버튼 시각 강조 (animate-pulse + ring)
+
+#### 5. 모든 InfoTip 전면 상세화 (사용자 요청)
+> "모든 정보 팁은 아주 상세하게 작성해야해."
+
+각 InfoTip 구조:
+- 카드/항목 의미 정의
+- 산정 공식 (수식, monospace 폰트)
+- 단위 정의 (1 MD = 8h, 1 MM = 20영업일 등)
+- 데이터 출처 (어느 필드 / 어느 연구)
+- 활용 사례 (3~5가지 구체적 예시)
+- 한계 및 주의 (정직성)
+
+상세화한 InfoTip 위치:
+- EffortReportCard: 추정 작업량 / 월 환산 / 데이터 출처 분포
+- PerIssueEffortTable: 5단계 우선순위 (각 source의 정확한 산식·신뢰구간·활성 조건)
+- AiSavingsCard: 카드 헤더(공식·출처·한계), 3 시나리오, 6 카테고리, 슬라이더 헤더, 분해 표, Top 5
+- 신규 4 카드: 모든 입력·결과·슬라이더에 InfoTip + 활용 사례
+
+### 신규 / 수정 파일
+
+#### 신규 (8개)
+- `src/services/prediction/budgetEffortAnalysis.ts` — 월별 트렌드 + 히트맵 산정
+- `src/services/prediction/__tests__/budgetEffortAnalysis.test.ts` — 9 테스트
+- `src/stores/budgetSimulatorStore.ts` — 인원/utilization/MD단가/도구비용 persist
+- `src/components/manager-console/BudgetEffortPanel.tsx` — 7 카드 컨테이너
+- `src/components/manager-console/QuarterlyEffortTrendCard.tsx` — recharts line
+- `src/components/manager-console/TeamEffortHeatmap.tsx` — indigo 그라디언트
+- `src/components/manager-console/BudgetSimulatorCard.tsx` — 슬라이더 + ETA
+- `src/components/manager-console/AiRoiCalculator.tsx` — ROI 계산기
+- `src/components/progress-trends/ManagerConsoleHintCard.tsx` — 안내 카드
+
+#### 수정 (5개)
+- `src/components/manager-console/index.tsx` — 4탭 + Wallet icon + budget TabsContent
+- `src/components/progress-trends/index.tsx` — 그루밍/AI 카드 제거 + 안내 카드 추가
+- `src/components/progress-trends/EffortReportCard.tsx` — InfoTip 상세화
+- `src/components/progress-trends/PerIssueEffortTable.tsx` — InfoTip 상세화
+- `src/components/progress-trends/AiSavingsCard.tsx` — 모든 InfoTip 상세화 (시나리오·카테고리)
+- `src/pages/dashboard.tsx` — 매니저 버튼 `data-manager-console-trigger` 속성 추가
+
+### 검증
+- 테스트: 342 → **351 통과** (신규 9: trend 5 + heatmap 4)
+- TypeScript: 에러 없음
+- ESLint: 신규 코드 에러 없음 (기존 OneOnOnePrep warning 1건 유지)
+
+### 보호 (변경 안 함)
+- ✋ KPI 산식
+- ✋ filterLeafIssues
+- ✋ Tier 2 신뢰도 등급 정책
+- ✋ Daily Brief / Risk Board / 1:1 Prep 기존 3탭 동작
+
+### UX 흐름
+```
+일별 운영           → Daily Brief / Risk Board
+주별 인적 관리      → 1:1 Prep
+분기 전략·예산      → 공수 & 예산 (NEW)
+정합성 검증·예측    → 진행 추이/예측 (분석가용)
+일상 운영           → 사이드바 + IssueList (개발자용)
+```
+
+매니저 콘솔이 "여러 시간 호흡으로 의사결정" 도구로 격상.
+
+---
+
+## [1.0.32] 이슈별 공수 정밀화 + AI 도구 활용 시뮬레이션
+
+### 적용 버전
+- 앱 버전: **1.0.32**
+
+### 배경
+사용자 의견:
+> "이슈별 공수의 추정 작업(일), 범위는 등록 이슈의 난이도, 기간을 기반으로 산정할 수 있지 않을까?"
+> "이를 바탕으로 전체 MD, MM을 산정해 볼 수 있고, 또 AI 개발 도구를 이용 했을 어느정도 줄어들 수 있는지도 추정해 볼 수 있지 않을까?"
+
+기존 공수 산정은 worklog 없는 이슈에서 **과거 평균(cycle time fallback)**에만 의존하여 신뢰도 'low'로 떨어졌음. 이슈에 등록된 **자체 정보**(계획시작일·완료예정일·난이도)를 활용해 신뢰도 끌어올리고, 그 위에 AI 도구 절감 시뮬레이션을 더해 의사결정 지원.
+
+### 핵심 변경
+
+#### 1. 새 EffortSource: `planned` (이슈 자체 정보 기반)
+새 우선순위:
+```
+worklog (실제 기록) → planned (계획기간+난이도) → SP → difficulty 평균 → cycle-time fallback
+```
+- 영업일 = `businessDaysBetween(계획시작일, 완료예정일)` (date-holidays 통합)
+- 시간 = 영업일 × 8h × 난이도 가중치 (상 ×1.2 / 중 ×1.0 / 하 ×0.8)
+- 활성 조건: 활성 이슈 30%+에 계획·예정일 등록 + 영업일 1~60일 범위
+- 신뢰구간: 난이도 있음 ±15% (high), 없음 ±25% (medium)
+
+#### 2. AI 도구 활용 시뮬레이션 (`AiSavingsCard`)
+3 시나리오 (보수/평균/낙관) 동시 표시. **평균 시나리오**가 권장 약속이며 강조 (ring-2 blue).
+
+카테고리별 절감률 매트릭스 (업계 평균 기반):
+| 카테고리 | 평균 | 비고 |
+|---------|------|------|
+| Story (신규 개발) | 35% | Copilot 연구 26~46% |
+| Bug (수정) | 25% | 디버깅은 도메인 이해 필요 |
+| Sub-task | 40% | 정형화된 작업 多 |
+| Test | 50% | AI 강점 영역 |
+| Documentation | 45% | 자연어 생성 강점 |
+| 기타 | 30% | 보수적 fallback |
+
+**시나리오 보정**: 보수 -10%pt, 낙관 +15%pt (자동)
+**난이도 보정**: 상 ×0.7 / 중 ×1.0 / 하 ×1.2 (cap 80%)
+
+**사용자 슬라이더 조정 가능** (Zustand persist `aiSavingsConfigStore`):
+- 카테고리별 슬라이더 6개 (0~80%, step 5%)
+- 기본값 복원 버튼
+- 토글로 펼침/접기
+
+**카테고리별 분해 표** + **Top 5 효과 이슈** 표시 (절감 시간 큰 순).
+
+**신뢰도 처리** (Tier 2 정직성 유지):
+- 백로그 10건 미만 → unreliable
+- 100건 미만 + worklog ≥ 50% → medium, 그 외 low
+- 100건 이상 + worklog ≥ 50% → high
+- 표시 메시지: "업계 평균 기준. 실제 ±20% 변동 가능"
+
+#### 3. PerIssueEffortTable (v1.0.31 표) 개선
+- **default 10줄**로 축소 (이전 50줄)
+- 펼침/접기 토글 (`상위 10건만 보기` / `나머지 N건 더 보기 (전체 X건)`)
+- 출처 배지에 `📅 일정` (planned, amber) 추가
+- 헤더 InfoTip — 5개 source 우선순위 + 난이도 가중치 안내
+- planned 행은 hover 시 계획 영업일·난이도 라벨 표시
+
+### 정보팁(InfoTip) 전면 적용
+사용자 요청: "각 내용에는 정보팁으로 해당 내용에 대한 설명을 통해 기준을 확인 할 수 있어야해"
+- 카드 헤더: 산정 기준 + 업계 데이터 출처
+- 시나리오 카드 3개: 각 시나리오 가정 설명
+- 카테고리 슬라이더 6개: 각 카테고리 절감률 근거
+- 분해 표 / Top 5: 정렬 기준·산정 근거
+
+### 신규 / 수정 파일
+
+#### 신규 (5개)
+- `src/services/prediction/aiSavingsEstimation.ts` — 절감률 매트릭스 + 시나리오 산정
+- `src/services/prediction/__tests__/aiSavingsEstimation.test.ts` — 17 테스트
+- `src/stores/aiSavingsConfigStore.ts` — Zustand persist 슬라이더 값
+- `src/components/progress-trends/AiSavingsCard.tsx` — UI 카드 (InfoTip 전면)
+
+#### 수정 (5개)
+- `src/services/prediction/types.ts` — `EffortSource` 'planned' 추가, AiSavingsConfig/Report 등
+- `src/services/prediction/effortEstimation.ts` — planned source 분기, measureCoverage 시그니처 확장
+- `src/services/prediction/__tests__/effortEstimation.test.ts` — planned 5 테스트
+- `src/components/progress-trends/PerIssueEffortTable.tsx` — default 10줄, planned 배지, InfoTip
+- `src/components/progress-trends/EffortReportCard.tsx` — planned source 라벨
+- `src/components/progress-trends/index.tsx` — AiSavingsCard 통합 (공수 분석 카테고리)
+
+### 검증
+- 테스트: 320 → **342 통과** (planned 5 + AI savings 17)
+- TypeScript: 에러 없음
+- ESLint: 에러 없음
+
+### 보호 (변경 안 함)
+- ✋ KPI 산식 (kpiService.ts)
+- ✋ filterLeafIssues
+- ✋ Tier 2 신뢰도 등급 정책 (4단계 유지)
+
+---
+
 ## [1.0.31] KPI 성과 탭 + 회고 영역 매핑 자동 모드
 
 ### 적용 버전

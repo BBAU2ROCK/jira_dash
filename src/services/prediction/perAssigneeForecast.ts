@@ -11,7 +11,7 @@
 
 import { addDays } from 'date-fns';
 import type { JiraIssue } from '@/api/jiraClient';
-import { filterLeafIssues, getStatusCategoryKey } from '@/lib/jira-helpers';
+import { filterLeafIssues, isBusinessDone } from '@/lib/jira-helpers';
 import { addBusinessDays, dayKey, parseLocalDay } from '@/lib/date-utils';
 import { personKeyFromAssignee } from '@/lib/defect-kpi-utils';
 import { monteCarloForecast, monteCarloForecastAsync, percentile, seededRng } from './monteCarloForecast';
@@ -51,7 +51,7 @@ function getCreationDate(issue: JiraIssue): Date | null {
 }
 
 function isDone(issue: JiraIssue): boolean {
-    if (getStatusCategoryKey(issue) !== 'done') return false;
+    if (!isBusinessDone(issue)) return false;
     // v1.0.18: 취소·반려는 완료 처리량에서 제외 (KPI 정책과 일치)
     const statusName = issue.fields.status?.name?.trim() ?? '';
     if (statusName === resolveCancelledStatus()) return false;
@@ -333,19 +333,28 @@ export function teamForecast(
         options
     );
 
-    // realistic = max(개인 ETA P85)
+    // v1.0.40: bottleneck = max(개인 ETA P85) — 단, 신뢰 가능한 forecast만 후보
+    //   기존 결함: 활동 0인 사람의 p85Days = Infinity → 자동 bottleneck → realistic 영원히 unreliable
+    //   개선: confidence === 'unreliable'는 제외. 후보 없으면 bottleneck null → realistic = optimistic.
     let bottleneck: PerAssigneeForecast | null = null;
     let maxP85 = -1;
     for (const row of perAssignee) {
-        if (row.forecast && row.forecast.p85Days > maxP85) {
+        if (!row.forecast) continue;
+        if (row.forecast.confidence === 'unreliable') continue;
+        if (row.forecast.p85Days > maxP85) {
             maxP85 = row.forecast.p85Days;
             bottleneck = row;
         }
     }
 
+    // (i) bottleneck 없으면 optimistic 그대로 사용 (자유 재할당 가정)
+    // v1.0.46 fix (C3): optimistic 자체도 unreliable인 경우 별도 안내 — 중복·혼란 회피
+    const fallbackMsg = optimistic.confidence === 'unreliable'
+        ? '개인·팀 forecast 모두 측정 불가 — Lead Time 보완 시나리오 참조'
+        : '신뢰 가능한 개인 forecast 없음 — 팀 전체 throughput 기반 (병목 측정 불가)';
     const realistic: ForecastResult = bottleneck?.forecast
         ? { ...bottleneck.forecast, warnings: [...bottleneck.forecast.warnings, `병목 인원: ${bottleneck.displayName}`] }
-        : optimistic;
+        : { ...optimistic, warnings: [...optimistic.warnings, fallbackMsg] };
 
     const scopeRatio = totalCompletions > 0 ? totalCreations / totalCompletions : 0;
 
@@ -541,18 +550,25 @@ export async function teamForecastAsync(
 
     const { perAssignee, unassignedCount, onHoldCount } = paResult;
 
+    // v1.0.40: bottleneck 선정 — 신뢰 가능한 forecast만 후보 (sync 버전과 동일 룰)
     let bottleneck: PerAssigneeForecast | null = null;
     let maxP85 = -1;
     for (const row of perAssignee) {
-        if (row.forecast && row.forecast.p85Days > maxP85) {
+        if (!row.forecast) continue;
+        if (row.forecast.confidence === 'unreliable') continue;
+        if (row.forecast.p85Days > maxP85) {
             maxP85 = row.forecast.p85Days;
             bottleneck = row;
         }
     }
 
+    // v1.0.46 fix (C3): 메시지 분기 — sync 버전과 동일 룰
+    const asyncFallbackMsg = optimistic.confidence === 'unreliable'
+        ? '개인·팀 forecast 모두 측정 불가 — Lead Time 보완 시나리오 참조'
+        : '신뢰 가능한 개인 forecast 없음 — 팀 전체 throughput 기반 (병목 측정 불가)';
     const realistic: ForecastResult = bottleneck?.forecast
         ? { ...bottleneck.forecast, warnings: [...bottleneck.forecast.warnings, `병목 인원: ${bottleneck.displayName}`] }
-        : optimistic;
+        : { ...optimistic, warnings: [...optimistic.warnings, asyncFallbackMsg] };
 
     const scopeRatio = totalCompletions > 0 ? totalCreations / totalCompletions : 0;
 

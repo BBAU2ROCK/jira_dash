@@ -1,29 +1,38 @@
 import { describe, it, expect } from 'vitest';
-import { filterLeafIssues, getStatusCategoryKey } from '../jira-helpers';
+import { filterLeafIssues, getStatusCategoryKey, isBusinessDone } from '../jira-helpers';
 import type { JiraIssue } from '../../api/jiraClient';
+import { JIRA_CONFIG } from '@/config/jiraConfig';
 
-function issue(key: string, opts: { parentKey?: string; subtaskKeys?: string[]; statusCategory?: string } = {}): JiraIssue {
-    return {
-        id: key,
-        key,
-        fields: {
-            summary: key,
-            status: {
-                name: 'Open',
-                statusCategory: { key: opts.statusCategory ?? 'new', colorName: 'gray' },
-            },
-            issuetype: { name: '할 일', iconUrl: '', subtask: !!opts.parentKey },
-            parent: opts.parentKey
-                ? { id: opts.parentKey, key: opts.parentKey, fields: { summary: opts.parentKey } }
-                : undefined,
-            subtasks: opts.subtaskKeys?.map((k) => ({
-                id: k,
-                key: k,
-                fields: { summary: k },
-            })) as JiraIssue[] | undefined,
-            created: '2024-01-01T00:00:00.000+0900',
+const ACTUAL_DONE = JIRA_CONFIG.FIELDS.ACTUAL_DONE; // customfield_11485
+
+function issue(
+    key: string,
+    opts: {
+        parentKey?: string;
+        subtaskKeys?: string[];
+        statusCategory?: string;
+        actualDone?: string | null;
+    } = {}
+): JiraIssue {
+    const fields: Record<string, unknown> = {
+        summary: key,
+        status: {
+            name: 'Open',
+            statusCategory: { key: opts.statusCategory ?? 'new', colorName: 'gray' },
         },
-    } as unknown as JiraIssue;
+        issuetype: { name: '할 일', iconUrl: '', subtask: !!opts.parentKey },
+        parent: opts.parentKey
+            ? { id: opts.parentKey, key: opts.parentKey, fields: { summary: opts.parentKey } }
+            : undefined,
+        subtasks: opts.subtaskKeys?.map((k) => ({
+            id: k,
+            key: k,
+            fields: { summary: k },
+        })),
+        created: '2024-01-01T00:00:00.000+0900',
+    };
+    if (opts.actualDone !== undefined) fields[ACTUAL_DONE] = opts.actualDone;
+    return { id: key, key, fields } as unknown as JiraIssue;
 }
 
 describe('filterLeafIssues', () => {
@@ -88,5 +97,40 @@ describe('getStatusCategoryKey', () => {
             },
         } as unknown as JiraIssue;
         expect(getStatusCategoryKey(broken)).toBeUndefined();
+    });
+});
+
+describe('isBusinessDone (v1.0.39 통일 정책)', () => {
+    it('status 카테고리 done → true', () => {
+        expect(isBusinessDone(issue('A-1', { statusCategory: 'done' }))).toBe(true);
+    });
+
+    it('status 카테고리 done + customfield_11485 없음 → true', () => {
+        expect(isBusinessDone(issue('A-1', { statusCategory: 'done', actualDone: null }))).toBe(true);
+    });
+
+    it('status 카테고리 indeterminate + customfield_11485 채워짐 → true (검증 단계 시나리오)', () => {
+        const i = issue('A-1', { statusCategory: 'indeterminate', actualDone: '2026-04-28' });
+        expect(isBusinessDone(i)).toBe(true);
+    });
+
+    it('status 카테고리 indeterminate + customfield_11485 비어있음 → false', () => {
+        const i = issue('A-1', { statusCategory: 'indeterminate', actualDone: '' });
+        expect(isBusinessDone(i)).toBe(false);
+    });
+
+    it('status 카테고리 indeterminate + customfield_11485 공백만 → false (trim 처리)', () => {
+        const i = issue('A-1', { statusCategory: 'indeterminate', actualDone: '   ' });
+        expect(isBusinessDone(i)).toBe(false);
+    });
+
+    it('status 카테고리 new + customfield_11485 채워짐 → true', () => {
+        const i = issue('A-1', { statusCategory: 'new', actualDone: '2026-04-28' });
+        expect(isBusinessDone(i)).toBe(true);
+    });
+
+    it('status 카테고리 new + customfield_11485 없음 → false', () => {
+        const i = issue('A-1', { statusCategory: 'new' });
+        expect(isBusinessDone(i)).toBe(false);
     });
 });

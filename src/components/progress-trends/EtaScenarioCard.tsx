@@ -83,9 +83,121 @@ function ScenarioRow({ label, labelTip, days, date, icon: Icon, accent, note, gu
 
 interface Props {
     team: TeamForecast | null;
+    /** v1.0.43: Lead time 기반 보완 forecast — Throughput MC가 unreliable일 때 fallback */
+    leadTime?: import('@/services/prediction/leadTimeForecast').LeadTimeForecast | null;
+    /** v1.0.47: 정적 모델 (초기 일괄 등록 + 처리)이면 Throughput MC 시도 X — Lead Time을 메인으로 */
+    projectMode?: 'static' | 'active';
 }
 
-export function EtaScenarioCard({ team }: Props) {
+/**
+ * v1.0.46 (M5): IIFE를 헬퍼 컴포넌트로 추출 — 100줄 IIFE 가독성 개선.
+ * Throughput MC가 reliable이면 기존 3 시나리오(낙관/기준/병목) 렌더.
+ */
+function ThroughputScenarios({
+    team,
+    bottleneckName,
+    guidance,
+}: {
+    team: TeamForecast;
+    bottleneckName: string | null;
+    guidance: ReturnType<typeof confidenceGuidance>;
+}) {
+    return (
+        <div className="mt-2">
+            <ScenarioRow
+                label="낙관 (자유 재할당)"
+                labelTip="모든 잔여 task가 누구에게나 재할당 가능하다는 가정. 실무에서는 전문 영역·숙련도 때문에 비현실적 — 이론적 하한선 참조용."
+                days={team.optimistic.p85Days}
+                date={team.optimistic.p85Date}
+                icon={Sparkles}
+                accent="blue"
+                note="모든 일이 누구에게나 재할당 가능하다는 가정 — 비현실적"
+                guidance={confidenceGuidance(team.optimistic.confidence)}
+            />
+            <ScenarioRow
+                label="기준 ★ 권장 약속"
+                labelTip="현재 담당자 배정을 그대로 유지했을 때의 팀 ETA. 개인별 P85 중 최대값 = 팀 P85. 이해관계자 약속·마감 협의 시 이 값을 권장."
+                days={team.realistic.p85Days}
+                date={team.realistic.p85Date}
+                icon={CheckCircle2}
+                accent="green"
+                note={bottleneckName ? `현재 할당 유지. 병목: ${bottleneckName}` : '현재 할당 유지'}
+                guidance={guidance}
+            />
+            {team.bottleneck && team.bottleneck.forecast && (
+                <ScenarioRow
+                    label="병목 (최대 ETA)"
+                    labelTip="현재 ETA가 가장 긴 인원. 이 인원이 팀 일정을 사실상 좌우함 → 업무 재배분·지원 투입·숙련자 멘토링 대상 신호."
+                    days={team.bottleneck.forecast.p85Days}
+                    date={team.bottleneck.forecast.p85Date}
+                    icon={ShieldAlert}
+                    accent="red"
+                    note={`${bottleneckName} (잔여 ${team.bottleneck.remaining}건, 일평균 ${team.bottleneck.avgDailyThroughput}건)`}
+                    guidance={confidenceGuidance(team.bottleneck.forecast.confidence)}
+                />
+            )}
+        </div>
+    );
+}
+
+/**
+ * v1.0.46 (M5): Throughput MC가 unreliable일 때 Lead Time 3 시나리오로 대체 렌더.
+ */
+function LeadTimeScenarios({
+    leadTime,
+}: {
+    leadTime: NonNullable<Props['leadTime']>;
+}) {
+    const ltGuidance = confidenceGuidance(leadTime.confidence);
+    const cycles = Math.ceil(leadTime.activeCount / leadTime.activeParallelism);
+    return (
+        <div className="mt-2">
+            <ScenarioRow
+                label="낙관 (자유 재할당) (Lead Time)"
+                labelTip={
+                    `Lead Time P50 = ${leadTime.p50Days}일 (50% 이상 이 시간 내 완료). `
+                    + `백로그 ${leadTime.activeCount}건 / 활성 ${leadTime.activeParallelism}명 → ${cycles} 사이클 × ${leadTime.p50Days}일. `
+                    + `샘플 ${leadTime.sampleSize}건. 병렬성·이슈 크기 단순 가정.`
+                }
+                days={leadTime.scenarios.optimistic.days}
+                date={leadTime.scenarios.optimistic.date}
+                icon={Sparkles}
+                accent="blue"
+                note={`P50 ${leadTime.p50Days}일 × ${cycles} 사이클 — 50% 이상이 이보다 빨리 완료`}
+                guidance={ltGuidance}
+            />
+            <ScenarioRow
+                label="기준 ★ 권장 약속 (Lead Time)"
+                labelTip={
+                    `Lead Time P85 = ${leadTime.p85Days}일 (85% 이내 완료 약속). `
+                    + `백로그 ${leadTime.activeCount}건 / 활성 ${leadTime.activeParallelism}명 → ${cycles} 사이클 × ${leadTime.p85Days}일. `
+                    + `Throughput MC unreliable 시 권장 약속.`
+                }
+                days={leadTime.scenarios.realistic.days}
+                date={leadTime.scenarios.realistic.date}
+                icon={CheckCircle2}
+                accent="green"
+                note={`P85 ${leadTime.p85Days}일 × ${cycles} 사이클 — 이해관계자 약속용`}
+                guidance={ltGuidance}
+            />
+            <ScenarioRow
+                label="보수 (Lead Time)"
+                labelTip={
+                    `Lead Time P95 = ${leadTime.p95Days}일 (95% 이내 완료, 보수적 기준). `
+                    + `샘플 < 100건 시 P95 추정 폭 ↑ (long-tail).`
+                }
+                days={leadTime.scenarios.conservative.days}
+                date={leadTime.scenarios.conservative.date}
+                icon={ShieldAlert}
+                accent="red"
+                note={`P95 ${leadTime.p95Days}일 × ${cycles} 사이클 — 보수적 buffer`}
+                guidance={ltGuidance}
+            />
+        </div>
+    );
+}
+
+export function EtaScenarioCard({ team, leadTime, projectMode }: Props) {
     const anonymizeMode = useDisplayPreferenceStore((s) => s.anonymizeMode);
     const anonMap = React.useMemo(
         () => buildAnonymizeMap(team?.perAssignee.map((r) => r.displayName) ?? []),
@@ -120,40 +232,32 @@ export function EtaScenarioCard({ team }: Props) {
                 </span>
             </div>
 
-            <div className="mt-2">
-                <ScenarioRow
-                    label="낙관 (자유 재할당)"
-                    labelTip="모든 잔여 task가 누구에게나 재할당 가능하다는 가정. 실무에서는 전문 영역·숙련도 때문에 비현실적 — 이론적 하한선 참조용."
-                    days={team.optimistic.p85Days}
-                    date={team.optimistic.p85Date}
-                    icon={Sparkles}
-                    accent="blue"
-                    note="모든 일이 누구에게나 재할당 가능하다는 가정 — 비현실적"
-                    guidance={confidenceGuidance(team.optimistic.confidence)}
-                />
-                <ScenarioRow
-                    label="기준 ★ 권장 약속"
-                    labelTip="현재 담당자 배정을 그대로 유지했을 때의 팀 ETA. 개인별 P85 중 최대값 = 팀 P85. 이해관계자 약속·마감 협의 시 이 값을 권장."
-                    days={team.realistic.p85Days}
-                    date={team.realistic.p85Date}
-                    icon={CheckCircle2}
-                    accent="green"
-                    note={bottleneckName ? `현재 할당 유지. 병목: ${bottleneckName}` : '현재 할당 유지'}
-                    guidance={guidance}
-                />
-                {team.bottleneck && team.bottleneck.forecast && (
-                    <ScenarioRow
-                        label="병목 (최대 ETA)"
-                        labelTip="현재 ETA가 가장 긴 인원. 이 인원이 팀 일정을 사실상 좌우함 → 업무 재배분·지원 투입·숙련자 멘토링 대상 신호."
-                        days={team.bottleneck.forecast.p85Days}
-                        date={team.bottleneck.forecast.p85Date}
-                        icon={ShieldAlert}
-                        accent="red"
-                        note={`${bottleneckName} (잔여 ${team.bottleneck.remaining}건, 일평균 ${team.bottleneck.avgDailyThroughput}건)`}
-                        guidance={confidenceGuidance(team.bottleneck.forecast.confidence)}
-                    />
-                )}
-            </div>
+            {/* v1.0.44: Throughput MC unreliable + Lead Time reliable이면 → Lead Time 3 시나리오로 대체.
+                v1.0.46 (M5): IIFE → 헬퍼 컴포넌트 분리.
+                v1.0.47: projectMode === 'static'이면 항상 Lead Time 메인 (Throughput MC는 의미 없음). */}
+            {(projectMode === 'static' || team.realistic.confidence === 'unreliable')
+                && leadTime
+                && leadTime.confidence !== 'unreliable'
+                && leadTime.activeCount > 0
+                ? <LeadTimeScenarios leadTime={leadTime} />
+                : <ThroughputScenarios team={team} bottleneckName={bottleneckName} guidance={guidance} />}
+
+            {/* v1.0.43: leadTime warnings 별도 박스 (warnings 있을 때만) */}
+            {leadTime && leadTime.warnings.length > 0 && (
+                <div className="mt-3 rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/60 p-2 text-xs text-blue-900 dark:text-blue-300">
+                    <div className="flex items-start gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                        <div className="space-y-0.5">
+                            <div className="font-semibold">Lead Time 보완 ETA 한계</div>
+                            <ul className="space-y-0.5 list-disc list-inside text-[11px]">
+                                {leadTime.warnings.map((w, i) => (
+                                    <li key={i}>{w}</li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {team.realistic.warnings.length > 0 && (
                 <div className="mt-3 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 p-2 text-xs text-amber-900 dark:text-amber-300">

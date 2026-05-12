@@ -232,17 +232,18 @@ export function Sidebar({
     }
 
     // Expanded state — v1.0.21: subtle gradient, 더 강한 분리감
+    // v1.0.34: 하단에 설치 버전 footer 추가 (pb-12 → pb-0, footer 자체가 padding 대체)
     return (
         <div
             className={cn(
-                "pb-12 h-full flex flex-col",
+                "h-full flex flex-col",
                 "bg-gradient-to-b from-card to-card/60",
                 "border-r border-border",
                 "supports-[backdrop-filter]:bg-card/95 supports-[backdrop-filter]:backdrop-blur-md",
                 className
             )}
         >
-            <div className="space-y-4 py-4 flex-1">
+            <div className="space-y-4 py-4 flex-1 min-h-0 overflow-hidden">
                 <div className="px-3 py-2">
                     <div className="mb-4 px-2 flex items-center gap-2">
                         <div className="rounded-md p-1.5 bg-primary/10 dark:bg-primary/15">
@@ -279,6 +280,13 @@ export function Sidebar({
                         error={error}
                         onOpenSettings={onOpenSettings}
                     />
+                </div>
+            </div>
+            {/* v1.0.34: 설치 버전 footer — vite define으로 주입된 __APP_VERSION__ */}
+            <div className="shrink-0 border-t border-border/60 px-3 py-2 bg-muted/30">
+                <div className="flex items-center justify-between text-[10px] text-muted-foreground/80">
+                    <span className="font-medium">Jira Dashboard</span>
+                    <span className="font-mono tabular-nums">v{__APP_VERSION__}</span>
                 </div>
             </div>
         </div>

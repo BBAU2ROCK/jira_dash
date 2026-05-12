@@ -7,13 +7,15 @@
  *   - Worklog: IGMU 57% (활성), IPCON 0% (비활성)
  *   - cycle time fallback이 default
  *
- * 우선순위: worklog > SP > 난이도 > cycle time fallback
+ * v1.0.32: planned source 추가 — 이슈 자체에 등록된 계획시작일·완료예정일·난이도 활용.
+ *
+ * 우선순위: worklog > planned > SP > 난이도 > cycle time fallback
  */
 
 import { differenceInHours } from 'date-fns';
 import type { JiraIssue } from '@/api/jiraClient';
-import { filterLeafIssues, getStatusCategoryKey } from '@/lib/jira-helpers';
-import { parseLocalDay } from '@/lib/date-utils';
+import { filterLeafIssues, getStatusCategoryKey, isBusinessDone } from '@/lib/jira-helpers';
+import { parseLocalDay, businessDaysBetween } from '@/lib/date-utils';
 import type {
     BacklogEffortReport,
     ConfidenceLevel,
@@ -29,6 +31,31 @@ import {
 } from '@/lib/kpi-rules-resolver';
 
 /**
+ * v1.0.32: 난이도 라벨 → 가중치 매핑.
+ * - 다국어/표기 변형 모두 수용 (한글 상/중/하, 영어 High/Medium/Low, 보조 표기)
+ * - 일반 평균 cycle time보다 짧을 거란 가정 (하) / 길어질 거란 가정 (상)
+ */
+export const DIFFICULTY_WEIGHT: Record<string, number> = {
+    '상': 1.2, 'High': 1.2, '높음': 1.2, '어려움': 1.2,
+    '중': 1.0, 'Medium': 1.0, '보통': 1.0, '중간': 1.0,
+    '하': 0.8, 'Low': 0.8, '낮음': 0.8, '쉬움': 0.8,
+};
+
+/** 계획 영업일 outlier 필터 (1일 미만 또는 60일 초과는 비현실적) */
+const PLANNED_DAYS_MIN = 1;
+const PLANNED_DAYS_MAX = 60;
+
+/** 난이도 라벨 추출 (객체/문자 둘 다 처리). 없으면 null. */
+function readDifficultyLabel(issue: JiraIssue, diffField: string): string | null {
+    const diff = issue.fields[diffField];
+    if (diff == null) return null;
+    if (typeof diff === 'object' && 'value' in diff) {
+        return String((diff as { value: unknown }).value ?? '').trim() || null;
+    }
+    return String(diff).trim() || null;
+}
+
+/**
  * v1.0.10: 모듈 스코프 C 제거 — 각 함수 진입 시 resolvePredictionConfig() 사용.
  */
 
@@ -36,9 +63,13 @@ interface CoverageStats {
     spCoverage: number;
     worklogCoverage: number;
     difficultyCoverage: number;
+    /** v1.0.32: 활성 이슈 중 계획시작일+duedate 모두 있는 비율 */
+    plannedCoverage: number;
     spActive: boolean;
     worklogActive: boolean;
     difficultyActive: boolean;
+    /** v1.0.32: planned 모드 활성 (활성 이슈에서 30%+ 가용 시) */
+    plannedActive: boolean;
 }
 
 interface HistoricalAverages {
@@ -54,19 +85,40 @@ interface HistoricalAverages {
 
 /**
  * 완료된 이슈에서 데이터 커버리지 측정 → 어느 모드를 활성화할지 자동 결정.
+ *
+ * v1.0.32: activeIssues 인자 추가 — planned source 가용성 측정 (계획시작일+duedate).
+ *   resolved 통계와 active 통계가 다른 차원이라 별도 인자로 받음.
  */
-export function measureCoverage(resolvedIssues: JiraIssue[]): CoverageStats {
+export function measureCoverage(
+    resolvedIssues: JiraIssue[],
+    activeIssues: JiraIssue[] = []
+): CoverageStats {
     const C = resolvePredictionConfig();
     const F = resolveFields();
     const total = resolvedIssues.length;
+
+    // planned 가용성: active 이슈에서 측정
+    const activeTotal = activeIssues.length;
+    const withPlanned = activeIssues.filter((i) => {
+        const start = parseLocalDay(i.fields.customfield_11481 ?? null);
+        const due = parseLocalDay(i.fields.duedate ?? null);
+        if (!start || !due) return false;
+        const bd = businessDaysBetween(start, due);
+        return bd >= PLANNED_DAYS_MIN && bd <= PLANNED_DAYS_MAX;
+    }).length;
+    const plannedC = activeTotal > 0 ? withPlanned / activeTotal : 0;
+    const PLANNED_THRESHOLD = 0.3; // 활성 이슈 30%+에 계획·예정일 있어야 활성화
+
     if (total === 0) {
         return {
             spCoverage: 0,
             worklogCoverage: 0,
             difficultyCoverage: 0,
+            plannedCoverage: plannedC,
             spActive: false,
             worklogActive: false,
             difficultyActive: false,
+            plannedActive: plannedC >= PLANNED_THRESHOLD,
         };
     }
     const withSp = resolvedIssues.filter(
@@ -87,9 +139,11 @@ export function measureCoverage(resolvedIssues: JiraIssue[]): CoverageStats {
         spCoverage: spC,
         worklogCoverage: wlC,
         difficultyCoverage: dfC,
+        plannedCoverage: plannedC,
         spActive: spC >= C.SP_COVERAGE_THRESHOLD,
         worklogActive: wlC >= C.WORKLOG_COVERAGE_THRESHOLD,
         difficultyActive: dfC > 0, // 난이도는 임계 없음 — 있으면 사용
+        plannedActive: plannedC >= PLANNED_THRESHOLD,
     };
 }
 
@@ -170,7 +224,12 @@ export function computeHistoricalAverages(
 
 /**
  * 단일 이슈 공수 예측.
- * 우선순위: worklog (이미 기록된 시간) → SP × hoursPerSp → 난이도 → cycle time fallback
+ * 우선순위: worklog (실제 기록) → planned (계획시작일+duedate+난이도) → SP → 난이도 평균 → cycle time fallback
+ *
+ * v1.0.32: planned source 추가.
+ *   - 활성 모드 + 이슈에 계획시작일+duedate 모두 있고 영업일 1~60일 범위 내
+ *   - 난이도 라벨 있으면 ±15% 범위 (high), 없으면 ±25% 범위 (medium)
+ *   - 난이도 가중치: 상×1.2 / 중×1.0 / 하×0.8
  */
 export function predictIssueEffort(
     issue: JiraIssue,
@@ -180,6 +239,7 @@ export function predictIssueEffort(
     const F = resolveFields();
     const summary = issue.fields.summary ?? issue.key;
     const issueKey = issue.key;
+    const issueTypeName = issue.fields.issuetype?.name;
 
     // 이미 기록된 worklog 시간이 있으면 그게 가장 정확
     const ts = issue.fields.timespent;
@@ -193,7 +253,37 @@ export function predictIssueEffort(
             hoursHigh: hours * 1.1,
             source: 'worklog',
             confidence: 'high',
+            meta: { issueTypeName },
         };
+    }
+
+    // v1.0.32: planned — 이슈에 등록된 계획기간 + 난이도 (자체 약속된 정보)
+    if (coverage.plannedActive) {
+        const plannedStart = parseLocalDay(issue.fields.customfield_11481 ?? null);
+        const due = parseLocalDay(issue.fields.duedate ?? null);
+        if (plannedStart && due && due > plannedStart) {
+            const businessDays = businessDaysBetween(plannedStart, due);
+            if (businessDays >= PLANNED_DAYS_MIN && businessDays <= PLANNED_DAYS_MAX) {
+                const diffLabel = readDifficultyLabel(issue, F.DIFFICULTY);
+                const weight = diffLabel != null ? (DIFFICULTY_WEIGHT[diffLabel] ?? 1.0) : 1.0;
+                const hasKnownDifficulty = diffLabel != null && diffLabel in DIFFICULTY_WEIGHT;
+                const hours = businessDays * 8 * weight;
+                return {
+                    issueKey,
+                    summary,
+                    hours,
+                    hoursLow: hasKnownDifficulty ? hours * 0.85 : hours * 0.75,
+                    hoursHigh: hasKnownDifficulty ? hours * 1.15 : hours * 1.25,
+                    source: 'planned',
+                    confidence: hasKnownDifficulty ? 'high' : 'medium',
+                    meta: {
+                        plannedDays: businessDays,
+                        difficultyLabel: diffLabel ?? undefined,
+                        issueTypeName,
+                    },
+                };
+            }
+        }
     }
 
     // SP × 평균 시간
@@ -209,17 +299,15 @@ export function predictIssueEffort(
                 hoursHigh: hours * 1.5,
                 source: 'sp',
                 confidence: 'medium',
+                meta: { issueTypeName },
             };
         }
     }
 
-    // 난이도별 평균
+    // 난이도별 평균 (과거 cycle time 평균)
     if (coverage.difficultyActive) {
-        const diff = issue.fields[F.DIFFICULTY];
-        if (diff != null) {
-            const label = typeof diff === 'object' && diff !== null && 'value' in diff
-                ? String((diff as { value: unknown }).value)
-                : String(diff);
+        const label = readDifficultyLabel(issue, F.DIFFICULTY);
+        if (label != null) {
             const avg = avgs.byDifficulty.get(label);
             if (avg && avg > 0) {
                 return {
@@ -230,13 +318,14 @@ export function predictIssueEffort(
                     hoursHigh: avg * 1.6,
                     source: 'difficulty',
                     confidence: 'medium',
+                    meta: { difficultyLabel: label, issueTypeName },
                 };
             }
         }
     }
 
     // Cycle time fallback (타입별 → 전체 평균)
-    const typeName = issue.fields.issuetype?.name ?? '';
+    const typeName = issueTypeName ?? '';
     const typeAvg = avgs.byType.get(typeName);
     const fallback = typeAvg && typeAvg > 0 ? typeAvg : avgs.globalAvg;
     return {
@@ -247,6 +336,7 @@ export function predictIssueEffort(
         hoursHigh: fallback * 2.0,
         source: 'cycle-time',
         confidence: 'low',
+        meta: { issueTypeName },
     };
 }
 
@@ -267,7 +357,7 @@ export function aggregateBacklogEffort(
     const leaf = filterLeafIssues(allIssues);
     // v1.0.18: 취소·반려는 done에서 제외 (cycle time 통계 왜곡 방지)
     const resolved = leaf.filter((i) => {
-        if (getStatusCategoryKey(i) !== 'done') return false;
+        if (!isBusinessDone(i)) return false;
         const sn = i.fields.status?.name?.trim() ?? '';
         return sn !== cancelledName && sn !== rejectedName;
     });
@@ -277,7 +367,8 @@ export function aggregateBacklogEffort(
         return cat !== 'done' && name !== cancelledName && name !== rejectedName;
     });
 
-    const coverage = measureCoverage(resolved);
+    // v1.0.32: planned 가용성 측정을 위해 active 이슈도 전달
+    const coverage = measureCoverage(resolved, active);
     const avgs = computeHistoricalAverages(resolved, coverage);
 
     const perIssue = active.map((i) => predictIssueEffort(i, coverage, avgs));

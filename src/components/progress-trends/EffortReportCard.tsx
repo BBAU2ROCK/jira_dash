@@ -4,8 +4,10 @@ import { InfoTip } from '@/components/ui/info-tip';
 import type { BacklogEffortReport, ConfidenceLevel, EffortSource } from '@/services/prediction/types';
 
 // v1.0.16: 한글 단순화 + 영문 병기는 InfoTip에서
+// v1.0.32: planned 추가 — 이슈 자체 정보 (계획기간 + 난이도)
 const SOURCE_LABEL: Record<EffortSource, { name: string; tip: string }> = {
     worklog:      { name: '작업 기록',  tip: 'Worklog — Jira에 직접 기록된 작업 시간' },
+    planned:      { name: '계획 일정',  tip: '계획시작일~완료예정일 영업일 × 난이도 가중치 (상×1.2 / 중×1.0 / 하×0.8)' },
     sp:           { name: 'SP 점수',    tip: 'Story Point — 이슈 크기 점수' },
     difficulty:   { name: '난이도',     tip: '상/중/하 난이도 라벨 평균' },
     'cycle-time': { name: '소요시간',   tip: 'Cycle time fallback — created→done 시간 평균. 정확도 가장 낮음' },
@@ -51,8 +53,37 @@ export function EffortReportCard({ report, confidence }: Props) {
                             <div className="text-[11px] text-muted-foreground">
                                 추정 작업량 (일수)
                                 <InfoTip>
-                                    1 인일(man-day) = 1명이 8시간 일한 만큼.
-                                    여러 출처(작업기록/SP/난이도/소요시간)를 자동 선택해 합산. mid = 중앙값.
+                                    <div className="space-y-2 max-w-sm">
+                                        <div className="font-semibold text-foreground">총 추정 작업량 (Man-Days)</div>
+                                        <p className="text-muted-foreground">
+                                            활성 백로그(완료·취소·반려 제외) 모든 이슈의 예측 작업 시간을 합산한 후 1일=8시간 기준으로 환산.
+                                        </p>
+                                        <div className="border-t border-border/50 pt-1.5">
+                                            <div className="font-medium text-foreground/90 mb-1">📐 단위 정의</div>
+                                            <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground text-[11px]">
+                                                <li>1 인일(MD) = 작업자 1명이 하루 8시간 작업한 분량</li>
+                                                <li>1 인월(MM) = 영업일 20일 (4주 × 5일, 한 달 표준)</li>
+                                            </ul>
+                                        </div>
+                                        <div className="border-t border-border/50 pt-1.5">
+                                            <div className="font-medium text-foreground/90 mb-1">📊 산출 데이터</div>
+                                            <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground text-[11px]">
+                                                <li>각 이슈에 대해 5개 source 우선순위 적용 (worklog → planned → SP → 난이도 → cycle time)</li>
+                                                <li>이슈별 mid-point + 신뢰구간(low~high)</li>
+                                                <li>총합 = 모든 이슈 mid 합산</li>
+                                                <li>범위 = 모든 이슈 low/high 합산</li>
+                                            </ul>
+                                        </div>
+                                        <div className="border-t border-border/50 pt-1.5">
+                                            <div className="font-medium text-foreground/90 mb-1">🎯 신뢰도 등급 (우측 배지)</div>
+                                            <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground text-[11px]">
+                                                <li><strong>높음</strong>: worklog 비중 50%+</li>
+                                                <li><strong>중간</strong>: worklog 비중 30~50%</li>
+                                                <li><strong>낮음</strong>: 그 외</li>
+                                                <li><strong>데이터 부족</strong>: 활성 이슈 0건 또는 cycle time만 사용</li>
+                                            </ul>
+                                        </div>
+                                    </div>
                                 </InfoTip>
                             </div>
                             <div className="text-2xl font-bold text-foreground tabular-nums">
@@ -66,8 +97,32 @@ export function EffortReportCard({ report, confidence }: Props) {
                             <div className="text-[11px] text-muted-foreground">
                                 월 환산
                                 <InfoTip>
-                                    1 인월(man-month) = 영업일 20일 (4주 × 5일).
-                                    팀 환산 = 일수 ÷ (인원수 × 실작업 비율 {Math.round(report.teamCapacityAssumption.utilization * 100)}%).
+                                    <div className="space-y-2 max-w-sm">
+                                        <div className="font-semibold text-foreground">월 환산 + 팀 캘린더</div>
+                                        <p className="text-muted-foreground">
+                                            인일 환산을 인월(man-month)로, 팀 인원과 실작업 비율을 적용해 캘린더 기준 일수까지 산출.
+                                        </p>
+                                        <div className="border-t border-border/50 pt-1.5">
+                                            <div className="font-medium text-foreground/90 mb-1">📐 환산 공식</div>
+                                            <div className="text-[11px] text-muted-foreground font-mono bg-muted/40 p-1.5 rounded">
+                                                인월(MM) = 인일(MD) ÷ 20<br/>
+                                                팀 일수 = 인일 ÷ (인원 × utilization)<br/>
+                                                팀 월수 = 팀 일수 ÷ 20
+                                            </div>
+                                        </div>
+                                        <div className="border-t border-border/50 pt-1.5">
+                                            <div className="font-medium text-foreground/90 mb-1">⚙️ 현재 가정값</div>
+                                            <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground text-[11px]">
+                                                <li>팀 인원: <strong>{report.teamCapacityAssumption.headcount}명</strong></li>
+                                                <li>실작업 비율 (utilization): <strong>{Math.round(report.teamCapacityAssumption.utilization * 100)}%</strong></li>
+                                                <li>← 회의·휴식·컨텍스트 스위칭 등 100% 작업 못 함을 반영</li>
+                                                <li>일반 IT 팀 권장값 60~70% (default 65%)</li>
+                                            </ul>
+                                        </div>
+                                        <div className="border-t border-border/50 pt-1.5 text-[11px] text-muted-foreground">
+                                            💡 매니저 콘솔의 "예산 시뮬레이터"에서 인원·utilization 슬라이더로 즉시 다른 가정 시뮬레이션 가능.
+                                        </div>
+                                    </div>
                                 </InfoTip>
                             </div>
                             <div className="text-2xl font-bold text-foreground tabular-nums">
@@ -83,7 +138,33 @@ export function EffortReportCard({ report, confidence }: Props) {
                     <div className="mt-3">
                         <div className="text-[11px] font-medium text-foreground/80 mb-1 inline-flex items-center gap-1">
                             데이터 출처 분포
-                            <InfoTip>이슈마다 가장 정확한 데이터를 자동 선택. 작업 기록(Worklog) 우선 → SP → 난이도 → 소요시간(Cycle) 순.</InfoTip>
+                            <InfoTip>
+                                <div className="space-y-2 max-w-sm">
+                                    <div className="font-semibold text-foreground">데이터 출처 분포</div>
+                                    <p className="text-muted-foreground">
+                                        백로그 각 이슈가 어떤 데이터로 산정됐는지의 비율. 막대가 길수록 해당 source 의존도 높음.
+                                    </p>
+                                    <div className="border-t border-border/50 pt-1.5">
+                                        <div className="font-medium text-foreground/90 mb-1">📊 우선순위 (위에서 아래)</div>
+                                        <ol className="list-decimal pl-4 space-y-0.5 text-muted-foreground text-[11px]">
+                                            <li><strong>작업 기록 (Worklog)</strong>: 실제 기록 — 가장 정확</li>
+                                            <li><strong>계획 일정 (Planned)</strong>: 계획시작일+완료예정일+난이도 — 이슈 자체 정보</li>
+                                            <li><strong>SP (Story Point)</strong>: SP × 과거 hoursPerSP 평균</li>
+                                            <li><strong>난이도</strong>: 라벨별 cycle time 평균</li>
+                                            <li><strong>소요시간 (Cycle)</strong>: created→done wall-clock fallback</li>
+                                        </ol>
+                                    </div>
+                                    <div className="border-t border-border/50 pt-1.5">
+                                        <div className="font-medium text-foreground/90 mb-1">💡 진단</div>
+                                        <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground text-[11px]">
+                                            <li>worklog 비중 ↑ → 신뢰도 ↑</li>
+                                            <li>cycle-time 비중 ↑ → 데이터 부족 → 신뢰도 ↓</li>
+                                            <li>planned 비중 ↑ → 일정 등록 잘 된 팀 (좋음)</li>
+                                            <li>분포 개선 = 팀에 worklog/일정 등록 권장</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </InfoTip>
                         </div>
                         <ul className="space-y-1">
                             {report.sourceMix.map((s) => {

@@ -42,3 +42,10 @@ jira-proxy-config.json
 # v3 휴리스틱 중간본 — v3.6만 유지하고 그 외는 작업 산출물
 scripts/estimate-difficulty-v3.cjs
 scripts/update-sub-assignees.cjs
+
+# v1.0.46: license-checker 임시 산출물 (build:licenses 실행 시 자동 생성)
+licenses-prod.json
+build/THIRD-PARTY-LICENSES.txt
+build/THIRD-PARTY-NOTICES.txt
+# vite dev server background log
+vite-server.log

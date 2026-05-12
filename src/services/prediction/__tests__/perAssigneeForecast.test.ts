@@ -201,4 +201,51 @@ describe('teamForecast', () => {
         const tf = teamForecast(issues, 30, now, { rngSeed: 1 });
         expect(tf.optimistic.confidence).toBe('unreliable');
     });
+
+    it('v1.0.40: bottleneck 선정 — unreliable forecast 제외', () => {
+        // 활동 0인 사람 (강현) — unreliable → bottleneck 후보 X
+        // 활동 있는 사람 (김XX) — bottleneck 후보 O
+        const issues = [
+            // 강현: 활성 5건, 완료 0건 → forecast unreliable
+            ...Array(5).fill(0).map(() => makeIssue({
+                statusCategory: 'indeterminate',
+                assignee: { id: 'b', name: '강현' },
+            })),
+            // 김XX: 활성 2건, 완료 14건 (14일 활동) → forecast medium 이상
+            ...Array(2).fill(0).map(() => makeIssue({
+                statusCategory: 'indeterminate',
+                assignee: { id: 'a', name: '김XX' },
+            })),
+            ...Array(14).fill(0).map((_, i) => makeIssue({
+                statusCategory: 'done',
+                assignee: { id: 'a', name: '김XX' },
+                resolutiondate: `2026-04-${String(i + 1).padStart(2, '0')}`,
+            })),
+        ];
+        const tf = teamForecast(issues, 30, now, { rngSeed: 1 });
+        // 강현은 activeDays=0이지만 bottleneck로 잡히지 않음
+        // 김XX 또는 null이어야 함
+        if (tf.bottleneck) {
+            expect(tf.bottleneck.displayName).not.toBe('강현');
+            expect(tf.bottleneck.forecast?.confidence).not.toBe('unreliable');
+        }
+    });
+
+    it('v1.0.40: 모든 개인이 unreliable → bottleneck = null → realistic = optimistic 기반', () => {
+        // 모두 활동 부족
+        const issues = [
+            makeIssue({ statusCategory: 'indeterminate', assignee: { id: 'a', name: '김XX' } }),
+            makeIssue({ statusCategory: 'indeterminate', assignee: { id: 'b', name: '강현' } }),
+            // 완료는 단 1일에 몰림 (activeDays=1, unreliable)
+            makeIssue({ statusCategory: 'done', assignee: { id: 'a', name: '김XX' }, resolutiondate: '2026-04-14' }),
+        ];
+        const tf = teamForecast(issues, 30, now, { rngSeed: 1 });
+        expect(tf.bottleneck).toBeNull();
+        // v1.0.46 (C3): fallback 메시지 분기 — optimistic 상태에 따라 다른 메시지
+        const hasFallbackWarning = tf.realistic.warnings.some(w =>
+            w.includes('신뢰 가능한 개인 forecast 없음')
+            || w.includes('개인·팀 forecast 모두 측정 불가')
+        );
+        expect(hasFallbackWarning).toBe(true);
+    });
 });

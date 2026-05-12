@@ -1,3 +1,4 @@
+import React from 'react';
 import { useDisplayPreferenceStore } from '@/stores/displayPreferenceStore';
 import { useBacklogForecast } from '@/hooks/useBacklogForecast';
 import { useDefectKpiAggregation } from '@/hooks/useDefectKpiAggregation';
@@ -11,7 +12,6 @@ import {
     CalendarRange,
     AlertTriangle,
     TrendingUp,
-    Clock,
     Users,
     EyeOff,
     Eye,
@@ -38,15 +38,14 @@ import { DailyCompletionChart } from './DailyCompletionChart';
 import { EtaScenarioCard } from './EtaScenarioCard';
 import { ForecastGlossaryTip } from './ForecastGlossaryTip';
 import { DataReadinessCard } from './DataReadinessCard';
+import { ScopeInflowCard } from './ScopeInflowCard';
+import { BacklogProgressCard } from './BacklogProgressCard';
+import { analyzeInflow } from '@/services/prediction/scopeInflowAnalysis';
 import { ForecastFunnelChart } from './ForecastFunnelChart';
 import { ForecastAccuracyCard } from './ForecastAccuracyCard';
 import { SprintForecastCard } from './SprintForecastCard';
 import { PerAssigneeTable } from './PerAssigneeTable';
 import { WorkloadScatter } from './WorkloadScatter';
-import { EffortReportCard } from './EffortReportCard';
-import { PerIssueEffortTable } from './PerIssueEffortTable';
-import { CycleTimeCard } from './CycleTimeCard';
-import { EtaEffortConsistency } from './EtaEffortConsistency';
 import { MethodologyDialog } from './MethodologyDialog';
 import { ExportMenu } from './ExportMenu';
 import { scopeStatusMeta } from '@/services/prediction';
@@ -78,18 +77,27 @@ export function ProgressTrends({ issues, selectedEpicIds, epics }: ProgressTrend
     const anonymizeMode = useDisplayPreferenceStore((s) => s.anonymizeMode);
     const toggleAnonymize = useDisplayPreferenceStore((s) => s.toggleAnonymizeMode);
 
+    // v1.0.33: 공수 카드 자체는 매니저 콘솔로 이전. effort는 ExportMenu에 prop으로만 전달.
+    // v1.0.43: leadTimeForecast 추가 — Throughput MC 보완 ETA + 개별 이슈 ETA용
+    // v1.0.47: backlogProgress 추가 — 정적 모델 감지 + 진척률
     const {
         counts,
         dailySeries,
         team,
         effort,
-        effortConfidence,
-        validation,
-        cycleTimeStats,
+        leadTimeForecast,
+        backlogProgress,
     } = useBacklogForecast(issues, { projectKey });
 
     // 결함 KPI (KPI 성과 탭과 동일 데이터, 회고에 통합) — early return 전에 호출 (Hook 규칙)
     const defectKpi = useDefectKpiAggregation();
+
+    // v1.0.42: 신규 유입 분석 — DataReadinessCard / ScopeInflowCard 공유.
+    // 두 카드가 같은 inflow 결과를 보도록 useMemo로 단일 산정.
+    const inflowAnalysis = React.useMemo(
+        () => (issues ? analyzeInflow(issues, 30) : null),
+        [issues]
+    );
 
     if (selectedEpicIds.length === 0) {
         return (
@@ -207,11 +215,12 @@ export function ProgressTrends({ issues, selectedEpicIds, epics }: ProgressTrend
                 <DailyCompletionChart series={dailySeries} />
             </CategorySection>
 
-            {/* ───── 3. 지연 분석 ───── */}
+            {/* ───── 3. 지연 분석 ─────
+                v1.0.37: 매니저 콘솔의 Risk Board (즉시 액션 6 카드)와 차별 명시 — 여기는 통계, 거기는 액션. */}
             <CategorySection
                 icon={AlertTriangle}
                 title="지연 분석"
-                subtitle="미완료 지연(지금 처리 필요) · 완료 지연(회복 완료) · 마감일 미설정"
+                subtitle="미완료 지연(지금 처리 필요) · 완료 지연(회복 완료) · 마감일 미설정 — 통계 보기. 즉시 액션은 매니저 콘솔의 🔥 리스크 보드"
                 accent="orange"
             >
                 <DelayCards counts={counts} />
@@ -242,9 +251,12 @@ export function ProgressTrends({ issues, selectedEpicIds, epics }: ProgressTrend
                 }
             >
                 {!hasActiveBacklog ? (
-                    <div className="rounded-md border border-border bg-muted/40 p-3 text-xs text-foreground/80">
-                        활성 잔여가 0건이라 미래 ETA 예측은 의미가 없습니다. 정확도 기록은 아래에서 확인.
-                    </div>
+                    <>
+                        <div className="rounded-md border border-border bg-muted/40 p-3 text-xs text-foreground/80">
+                            활성 잔여가 0건이라 미래 ETA 예측은 의미가 없습니다. 정확도 기록은 아래에서 확인.
+                        </div>
+                        <ForecastAccuracyCard projectKey={projectKey} leadTime={leadTimeForecast} />
+                    </>
                 ) : (
                     <>
                         {scopeMeta && team && (scopeMeta.color === 'red' || scopeMeta.color === 'amber') && (
@@ -258,33 +270,39 @@ export function ProgressTrends({ issues, selectedEpicIds, epics }: ProgressTrend
                                 <span className="font-semibold">{scopeMeta.icon} {scopeMeta.label}:</span> {scopeMeta.description}
                             </div>
                         )}
-                        {/* v1.0.16: 데이터 충족 현황 — 다음 등급까지 필요한 조건 */}
-                        <DataReadinessCard stats={team?.realistic.stats ?? null} />
+                        {/* v1.0.16: 데이터 충족 현황 — 다음 등급까지 필요한 조건
+                            v1.0.40: scope + bottleneckName 전달 → "이 stats가 어떤 시나리오 기반인지" 즉시 명시 */}
+                        <DataReadinessCard
+                            stats={team?.realistic.stats ?? null}
+                            scope={team?.bottleneck ? 'bottleneck' : 'team'}
+                            bottleneckName={team?.bottleneck?.displayName}
+                            projectStage={inflowAnalysis?.projectStage}
+                            projectMode={backlogProgress?.projectMode}
+                        />
+                        {/* v1.0.47: 모델별 카드 분기.
+                            정적 모델(초기 일괄 등록 + 처리) → BacklogProgressCard (진척률·예측 완료일)
+                            활발 모델(신규 유입 + 완료 병행) → ScopeInflowCard (scope ratio·마이그레이션 분석)
+                            한 시점에 한 카드만 표시 — 사용자 혼란 방지. */}
+                        {backlogProgress?.projectMode === 'static' ? (
+                            <BacklogProgressCard analysis={backlogProgress} />
+                        ) : (
+                            team && (team.scopeRatio > 1.0 || inflowAnalysis?.projectStage === 'early') && (
+                                <ScopeInflowCard issues={issues} windowDays={30} />
+                            )
+                        )}
                         <SprintForecastCard projectKey={projectKey} team={team} />
+                        {/* v1.0.37: ETA(약속) 옆에 정확도(약속의 신뢰도) 같은 row → "이 ETA를 얼마나 믿어야 하나" 즉시 판단
+                            v1.0.43: leadTimeForecast 전달 — Throughput MC unreliable 시 보완 ETA 시나리오 */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                            <EtaScenarioCard team={team} />
-                            <ForecastFunnelChart team={team} />
+                            <EtaScenarioCard team={team} leadTime={leadTimeForecast} projectMode={backlogProgress?.projectMode} />
+                            <ForecastAccuracyCard projectKey={projectKey} leadTime={leadTimeForecast} />
                         </div>
+                        <ForecastFunnelChart team={team} />
                     </>
                 )}
-                <ForecastAccuracyCard projectKey={projectKey} />
             </CategorySection>
 
-            {/* ───── 5. 공수 분석 (완료 + 활성 모두 활용) ───── */}
-            <CategorySection
-                icon={Clock}
-                title="공수 분석"
-                subtitle="잔여 백로그 추정 공수 + 처리량 ETA와의 정합성 검증 + 이슈별 그루밍 뷰"
-                accent="purple"
-            >
-                <EffortReportCard report={effort} confidence={effortConfidence} />
-                {hasActiveBacklog && <EtaEffortConsistency validation={validation} />}
-                <CycleTimeCard
-                    stats={cycleTimeStats}
-                    sampleNote="첫 50건 sampling — 정밀 분석은 이슈 상세를 한 번 이상 열어 changelog 캐시 후."
-                />
-                {hasActiveBacklog && <PerIssueEffortTable report={effort} />}
-            </CategorySection>
+            {/* v1.0.33: 공수 & 예산 카테고리 전체 매니저 콘솔로 이전. 진행 추이 탭에는 안내 미표시. */}
 
             {/* ───── 6. 팀 분포 (담당자별 — 완료 데이터 기반 활동도 표시) ───── */}
             <CategorySection

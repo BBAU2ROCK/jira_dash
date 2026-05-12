@@ -4,7 +4,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Download, FileSpreadsheet, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { exportToExcel, exportToPdf } from '@/lib/export';
-import { useForecastHistoryStore } from '@/stores/forecastHistoryStore';
+import { useForecastExpectationStore } from '@/stores/forecastExpectationStore';
 import type { BacklogStateCounts, TeamForecast, BacklogEffortReport, DailyPoint } from '@/services/prediction/types';
 
 interface Props {
@@ -18,12 +18,12 @@ interface Props {
 export function ExportMenu({ projectKey, counts, team, effort, dailySeries }: Props) {
     const [open, setOpen] = React.useState(false);
     const [exporting, setExporting] = React.useState(false);
-    const records = useForecastHistoryStore((s) => s.records);
+    const expectations = useForecastExpectationStore((s) => s.expectations);
 
     const handleExcel = async () => {
         setExporting(true);
         try {
-            await exportToExcel({ projectKey, counts, team, effort, dailySeries, forecastHistory: records });
+            await exportToExcel({ projectKey, counts, team, effort, dailySeries, expectations });
             toast.success('Excel 파일이 다운로드되었습니다');
         } catch (e) {
             toast.error('Excel 출력 실패: ' + (e instanceof Error ? e.message : String(e)));

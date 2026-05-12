@@ -1,5 +1,5 @@
 import { type JiraIssue } from "../api/jiraClient";
-import { getStatusCategoryKey } from "../lib/jira-helpers";
+import { isBusinessDone } from "../lib/jira-helpers";
 import { endOfLocalDay, startOfLocalDay } from "../lib/date-utils";
 import {
     getGradeFromRules,
@@ -144,7 +144,7 @@ export function calculateKPI(issues: JiraIssue[]): KPIMetrics {
     let agreedDelayEarlyCount = 0;
 
     for (const issue of issues) {
-        const isDone = getStatusCategoryKey(issue) === 'done';
+        const isDone = isBusinessDone(issue);
         const statusName = issue.fields.status?.name?.trim() ?? '';
         // v1.0.18: 취소·반려는 KPI 평가에서 완전 제외 (성과 평가 X)
         const isCancelled = statusName === rules.cancelledStatus;

@@ -1,7 +1,7 @@
 {
   "name": "01_jira_dash",
   "private": true,
-  "version": "1.0.31",
+  "version": "1.0.47",
   "description": "Jira Dashboard Application",
   "author": "Okestro",
   "type": "module",
@@ -16,8 +16,9 @@
     "dev:web": "vite --config vite.web.config.ts",
     "build": "npm run build:icons && tsc -b && vite build && electron-builder",
     "build:icons": "node scripts/png-to-ico.cjs",
+    "build:licenses": "node scripts/generate-third-party-licenses.cjs",
     "clean": "node scripts/clean-install-output.cjs",
-    "build:install": "npm run clean && npm run build",
+    "build:install": "npm run clean && npm run build:licenses && npm run build",
     "lint": "eslint .",
     "test": "vitest",
     "test:run": "vitest run",
@@ -103,10 +104,22 @@
       {
         "from": "build/INSTALL-KO.txt",
         "to": "INSTALL-KO.txt"
+      },
+      {
+        "from": "LICENSE",
+        "to": "LICENSE.txt"
+      },
+      {
+        "from": "NOTICE",
+        "to": "NOTICE.txt"
+      },
+      {
+        "from": "build/THIRD-PARTY-LICENSES.txt",
+        "to": "THIRD-PARTY-LICENSES.txt"
       }
     ],
     "releaseInfo": {
-      "releaseNotes": "v1.0.31 — KPI 성과 탭 + 회고 영역 매핑 자동 모드: 매핑 있으면 매핑 dev 에픽 기준(당시 등급 평가 확인), 없으면 사이드바 기준. KPI 탭의 4 카드 + 상세 산출 + 담당자 표 모두 매핑 모드 분기. 두 영역에 모드 안내 배지(🔗 매핑 기반)."
+      "releaseNotes": "v1.0.47 — 정적 백로그 모델 자동 감지 + 시스템 전체 적용. 사용자 워크플로우(초기 일괄 등록 + 정해진 일정 안에 처리)에 맞춰 신규 유입 분석 → 백로그 진척 분석으로 재설계. BacklogProgressCard 신규(초기 백로그/진척률/처리속도/예측 완료일/번다운/마감 비교). EtaScenarioCard 정적 모드 자동 Lead Time 메인. DataReadinessCard 정적 모델 배지. 자동 감지: 최근 30일 신규 5% AND 10건 미만. 9 신규 테스트(410 통과)."
     },
     "win": {
       "target": [

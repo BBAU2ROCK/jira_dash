@@ -1,0 +1,29 @@
+# v1.0.46 (m1): 줄바꿈 통일 — LF 강제.
+# Windows에서 작업해도 git에 commit 시 LF로 정규화.
+# 코드 리뷰 시 "LF will be replaced by CRLF" 경고 제거.
+* text=auto eol=lf
+
+# 바이너리 파일은 변환 X
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+*.pdf binary
+*.zip binary
+*.7z binary
+*.xlsx binary
+*.xls binary
+*.docx binary
+*.doc binary
+*.pptx binary
+*.ppt binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.otf binary

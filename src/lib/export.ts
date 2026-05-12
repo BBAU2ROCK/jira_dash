@@ -5,7 +5,7 @@
  */
 
 import type { BacklogStateCounts, TeamForecast, BacklogEffortReport, DailyPoint } from '@/services/prediction/types';
-import type { ForecastRecord } from '@/stores/forecastHistoryStore';
+import type { IssueExpectation } from '@/stores/forecastExpectationStore';
 import { format } from 'date-fns';
 import { UNASSIGNED_LABEL } from '@/lib/jira-constants';
 
@@ -15,7 +15,8 @@ export interface ExportPayload {
     team: TeamForecast | null;
     effort: BacklogEffortReport | null;
     dailySeries: DailyPoint[] | null;
-    forecastHistory: ForecastRecord[];
+    /** v1.0.36: forecastHistory → expectations (이슈별 추적). */
+    expectations: Record<string, IssueExpectation>;
 }
 
 /** 5개 시트가 있는 Excel 다운로드 */
@@ -99,24 +100,28 @@ export async function exportToExcel(payload: ExportPayload): Promise<void> {
     const effortSheet = xlsx.utils.aoa_to_sheet(effortRows);
     xlsx.utils.book_append_sheet(wb, effortSheet, 'Per-Issue Effort');
 
-    // Sheet 5: Forecast history (정확도 추적)
-    const histRows: (string | number)[][] = [
-        ['Recorded At', 'P50', 'P85', 'P95', 'Remaining', 'Active Days', 'CV', 'Actual Date'],
+    // Sheet 5: Issue Expectations (v1.0.36: 이슈별 정확도 추적)
+    const expRows: (string | number)[][] = [
+        ['Issue Key', 'Project', 'First Seen At', 'P50', 'P85', 'P95', 'CV', 'Completed At', 'Actual Days'],
     ];
-    payload.forecastHistory.forEach((r) => {
-        histRows.push([
-            r.recordedAt,
-            r.p50Days,
-            r.p85Days,
-            r.p95Days,
-            r.remainingAtTime,
-            r.activeDays,
-            r.teamCV,
-            r.actualCompletionDate ?? '',
-        ]);
-    });
-    const histSheet = xlsx.utils.aoa_to_sheet(histRows);
-    xlsx.utils.book_append_sheet(wb, histSheet, 'Forecast History');
+    Object.values(payload.expectations)
+        .filter((e) => e.projectKey === payload.projectKey)
+        .sort((a, b) => new Date(b.firstSeenAt).getTime() - new Date(a.firstSeenAt).getTime())
+        .forEach((e) => {
+            expRows.push([
+                e.issueKey,
+                e.projectKey,
+                e.firstSeenAt,
+                e.p50Days,
+                e.p85Days,
+                e.p95Days,
+                e.teamCV,
+                e.completedAt ?? '',
+                e.actualDays ?? '',
+            ]);
+        });
+    const expSheet = xlsx.utils.aoa_to_sheet(expRows);
+    xlsx.utils.book_append_sheet(wb, expSheet, 'Issue Expectations');
 
     const filename = `jira-progress-${payload.projectKey}-${format(new Date(), 'yyyyMMdd-HHmm')}.xlsx`;
     xlsx.writeFile(wb, filename);

@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { type JiraIssue, jiraApi } from '@/api/jiraClient';
 import { DEFECT_KPI_CONFIG } from '@/config/defectKpiConfig';
 import { EpicMappingEditor } from '@/components/epic-mapping-editor';
-import { filterLeafIssues, getStatusCategoryKey } from '@/lib/jira-helpers';
+import { filterLeafIssues, getStatusCategoryKey, isBusinessDone } from '@/lib/jira-helpers';
 import {
     BarChart3, CheckCircle2, Clock, AlertTriangle,
     Layers, X, ChevronRight, User, Trophy, HelpCircle, Pause, CircleSlash, Link2, TrendingUp,
@@ -143,17 +143,17 @@ export function ProjectStatsDialog({
     const rejected = leafIssues.filter(i => isRejected(i));
     // v1.0.18: 완료 = statusCategory='done' AND NOT(보류·취소·반려)
     const done = leafIssues.filter(i =>
-        getStatusCategoryKey(i) === 'done' && !isOnHold(i) && !isCancelled(i) && !isRejected(i)
+        isBusinessDone(i) && !isOnHold(i) && !isCancelled(i) && !isRejected(i)
     );
     const inProg = leafIssues.filter(i => getStatusCategoryKey(i) === 'indeterminate');
     const todo = leafIssues.filter(i =>
         !isOnHold(i) && !isCancelled(i) && !isRejected(i) &&
-        getStatusCategoryKey(i) !== 'done' &&
+        !isBusinessDone(i) &&
         getStatusCategoryKey(i) !== 'indeterminate'
     );
     const delayed = leafIssues.filter(i =>
         i.fields.duedate && new Date(i.fields.duedate) < today &&
-        getStatusCategoryKey(i) !== 'done'
+        !isBusinessDone(i)
     );
     const earlyDone = done.filter(i =>
         i.fields.duedate && i.fields.resolutiondate &&
@@ -177,7 +177,7 @@ export function ProjectStatsDialog({
     // v1.0.18: 보류는 "처리 끝남"으로 포함, 취소·반려는 done에서 제외 (KPI 정책과 일치).
     //   earlyDone/compliant는 실제 done(statusCategory)만.
     const isDoneForAssignee = (issue: JiraIssue) =>
-        (getStatusCategoryKey(issue) === 'done' && !isCancelled(issue) && !isRejected(issue)) || isOnHold(issue);
+        (isBusinessDone(issue) && !isCancelled(issue) && !isRejected(issue)) || isOnHold(issue);
 
     function newStats(name: string): AssigneeStats {
         return {
