@@ -1,7 +1,7 @@
 {
   "name": "01_jira_dash",
   "private": true,
-  "version": "1.0.55",
+  "version": "1.0.56",
   "description": "Jira Dashboard Application",
   "author": "Okestro",
   "type": "module",
@@ -119,7 +119,7 @@
       }
     ],
     "releaseInfo": {
-      "releaseNotes": "v1.0.55 — 지연 정의 통일 + 반려 의미 재정의. (1) jira-helpers에 isActive/isDelayed/isCancelled/isOnHold/isRejected 헬퍼 추가. (2) 지연 = 'duedate < now AND active' 통일 — 취소·보류는 지연 제외 (작업 폐기/능동적 정지), 반려는 active 포함 (리더 수정 지시 = 재작업 필요). (3) 프로젝트 통계 담당자 분류에서 반려를 inProgress 그룹으로 이동 (이전 cancelled와 동일 처리 폐기). (4) 지연율 분모를 active 모집단으로 정정. (5) 매니저 콘솔 todayDue/dueSoonNext3Days도 active 기준으로 통일 (보류 이슈 노이즈 제거). 412 테스트 통과."
+      "releaseNotes": "v1.0.56 — v1.0.55 지연 정의 통일 누락 2곳 추가 조치. (1) OneOnOnePrep(1:1 미팅 준비)의 recentDelayed: 기존 !completed 만 체크해 취소 이슈가 지연 목록에 표시되던 버그 → isDelayed 헬퍼 적용. (2) project-stats-dialog KPI 탭의 별도 담당자 집계 s.delayed: 동일하게 isDelayed 헬퍼로 통일. 사용자 보고 '매니저 콘솔 지연 대상 목록에 취소가 있다' 해결. 412 테스트 통과."
     },
     "win": {
       "target": [

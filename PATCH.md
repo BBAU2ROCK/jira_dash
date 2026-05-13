@@ -4,6 +4,54 @@
 
 ---
 
+## [1.0.56] v1.0.55 지연 정의 통일 누락 2곳 추가 조치
+
+### 적용 버전
+- 앱 버전: **1.0.56**
+
+### 배경
+사용자 보고:
+> "매니저 콘솔에서 지연 대상 목록에 보면 취소가 있어. 앞서 설명한 내용이 반영이 안되었는지 정밀 분석해줘."
+
+### 진단
+v1.0.55에서 4곳(jira-helpers / issue-list / project-stats-dialog 상단·담당자별 / useManagerBrief)에 `isDelayed` 헬퍼를 적용했으나, **2곳을 누락**:
+
+#### 누락 1 — `OneOnOnePrep.tsx:81` (매니저 콘솔 1:1 미팅 준비)
+```ts
+// 이전 (~v1.0.55)
+if (!completed && due && due.getTime() < today.getTime()) recentDelayed.push(i);
+```
+
+`completed` = `isBusinessDone(i) && status !== '취소' && status !== '반려'`
+→ 취소 이슈: `isBusinessDone=false` (대부분) → `completed=false` → `!completed=true` → **취소 이슈가 마감 지나면 `recentDelayed`에 포함**
+
+#### 누락 2 — `project-stats-dialog.tsx:400` (KPI 탭 별도 담당자 집계)
+```ts
+if (issue.fields.duedate && new Date(issue.fields.duedate) < today && !isDoneAssignee) {
+    s.delayed.push(issue);
+}
+```
+`isDoneAssignee`가 cancelled/rejected 체크를 분기 내부에서 처리하지만, 그 다음 `s.delayed` 분기에서 cancelled는 명시적으로 제외 안 됨 → 동일 버그.
+
+### 해결
+두 위치 모두 **`isDelayed(issue, today)` 공통 헬퍼**로 통일.
+
+```ts
+// v1.0.56
+if (isDelayed(i, today)) recentDelayed.push(i);
+```
+
+### 영향
+- 매니저 콘솔 → 1:1 미팅 준비 → 담당자 선택 → "지연" 카드: 취소 이슈 더 이상 표시 안 됨.
+- 프로젝트 통계 KPI 탭의 담당자별 지연 카운트: 취소 이슈 제외 → 정확한 숫자.
+
+### 검증
+- 인라인 `duedate < now` 패턴 grep으로 잔존 0건 확인
+- vitest 412/412 통과
+- `tsc -b` clean
+
+---
+
 ## [1.0.55] 지연 정의 통일 + 반려 의미 재정의
 
 ### 적용 버전

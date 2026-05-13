@@ -8,7 +8,7 @@ import { User, Sparkles, ThumbsUp, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { JiraIssue } from '@/api/jiraClient';
 import { calculateKPI } from '@/services/kpiService';
-import { filterLeafIssues, getStatusCategoryKey, isBusinessDone } from '@/lib/jira-helpers';
+import { filterLeafIssues, getStatusCategoryKey, isBusinessDone, isDelayed } from '@/lib/jira-helpers';
 import { parseLocalDay } from '@/lib/date-utils';
 import { resolveCancelledStatus, resolveRejectedStatus, resolveOnHoldStatus, resolveFields } from '@/lib/kpi-rules-resolver';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -73,12 +73,13 @@ export function OneOnOnePrep({ issues, onIssueClick, onIssueKeysFocus }: Props) 
             const status = i.fields.status?.name?.trim() ?? '';
             const completed = isCompleted(i);
             const done = parseLocalDay(i.fields.resolutiondate ?? null);
-            const due = parseLocalDay(i.fields.duedate ?? null);
 
             if (completed && done && done.getTime() >= twoWeeksAgo) recentDone.push(i);
             if (getStatusCategoryKey(i) === 'indeterminate' && status !== onHoldName) recentInProgress.push(i);
             if (status === onHoldName) recentOnHold.push(i);
-            if (!completed && due && due.getTime() < today.getTime()) recentDelayed.push(i);
+            // v1.0.56: isDelayed 헬퍼 사용 — 취소·보류는 지연 제외, 반려는 active로 포함 (v1.0.55 정책 통일).
+            //   이전(~v1.0.55): !completed 만 체크해서 취소 이슈도 지연 목록에 표시됨 (사용자 보고).
+            if (isDelayed(i, today)) recentDelayed.push(i);
         }
 
         const kpi = calculateKPI(own);

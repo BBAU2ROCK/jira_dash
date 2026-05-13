@@ -397,7 +397,9 @@ export function ProjectStatsDialog({
             } else {
                 s.todo.push(issue);
             }
-            if (issue.fields.duedate && new Date(issue.fields.duedate) < today && !isDoneAssignee) {
+            // v1.0.56: isDelayed 헬퍼로 통일 — 취소·보류 제외, 반려는 active 포함.
+            //   이전(~v1.0.55): !isDoneAssignee만 체크해서 취소 이슈가 지연에 들어가는 누락 케이스 존재.
+            if (isDelayed(issue, today)) {
                 s.delayed.push(issue);
             }
             const ts = issue.fields.timespent || 0;
