@@ -4,6 +4,255 @@
 
 ---
 
+## [1.0.55] 지연 정의 통일 + 반려 의미 재정의
+
+### 적용 버전
+- 앱 버전: **1.0.55**
+
+### 배경
+사용자 보고:
+> "취소 및 보류 상태의 이슈는 지연처리가 좀 어색한데?"
+
+추가 정보:
+> "'반려'의 경우는 상태값 '개발완료'에서 리더가 검증 후 추가 수정 지시 의미야.
+> '보류'는 현재는 진행 의사가 없지만 향후에 진행할 수 있는 경우의 상태값."
+
+### 진단 — 두 가지 문제 발견
+
+**문제 1: 지연 정의가 5곳에서 제각각**
+
+| 위치 | 보류 | 취소·반려 |
+|---|---|---|
+| 통계 상단 카드 | 포함 ❌ | 포함 ❌ |
+| 통계 담당자별 | 제외 ✓ | 포함 ❌ |
+| 이슈 목록 | 포함 ❌ | 포함 ❌ |
+| 매니저 콘솔 dueSoon | 포함 ❌ | 제외 ✓ |
+
+**문제 2: 반려의 의미 가정 오류 (v1.0.18~v1.0.54)**
+
+기존 코드: "반려 = 취소와 동일 처리" (KPI 분모/통계 제외).
+실제 의미: 리더가 '개발완료' 검증 후 **수정 지시** = 재작업 필요 = active 상태.
+
+→ 반려 이슈는 진행 중 카테고리에 있어야 하고, 마감 지나면 진짜 지연.
+
+### 해결 — 옵션 B (헬퍼 추출) + 반려 의미 반영
+
+#### 1. `jira-helpers.ts`에 공통 헬퍼 추가
+```ts
+export function isCancelled(issue: JiraIssue): boolean;
+export function isRejected(issue: JiraIssue): boolean;
+export function isOnHold(issue: JiraIssue): boolean;
+
+/**
+ * 능동 처리해야 하는 active 이슈.
+ *  - 비즈니스 완료 아님 + 취소 아님 + 보류 아님
+ *  - 반려는 active 포함 (재작업 필요)
+ */
+export function isActive(issue: JiraIssue): boolean;
+
+/** 마감 지연 = duedate < now AND isActive */
+export function isDelayed(issue: JiraIssue, now?: Date): boolean;
+```
+
+#### 2. 정책 의미
+| 상태 | 지연 카운트 | 이유 |
+|---|---|---|
+| 완료 | ❌ | 끝남 |
+| 진행 중 | ✅ | active |
+| 대기 | ✅ | active (시작 못 함은 더 심각) |
+| **반려** | ✅ | **재작업 필요 = active** (정책 변경 ⚠️) |
+| 보류 | ❌ | 능동적 정지, 향후 진행 가능 |
+| 취소 | ❌ | 작업 폐기 |
+
+#### 3. 적용 위치 (4파일)
+
+- **`src/components/issue-list.tsx`** — `isDelayed(issue)` 헬퍼 사용. 필터/JSX 모두 통일.
+- **`src/components/project-stats-dialog.tsx`**
+  - 상단 통계 카드 `delayed`: 공통 헬퍼 사용 (보류·취소 제외, 반려 포함)
+  - 담당자별 분류: **반려는 inProgress 그룹으로 이동** (이전엔 cancelled와 함께 통계 제외)
+  - active 모집단 신규 추가 (`activeIssues`)
+  - 지연율 BarStat 분모를 `activeIssues.length`로 정정 (이전 `total` → KPI compliance와 일관)
+- **`src/hooks/useManagerBrief.ts`** — `todayDue` / `dueSoonNext3Days`를 `isActive(i)` 기준으로 통일 (이전엔 `!isCompleted(i)`만 체크해 보류 이슈가 매니저 신호에 노이즈로 포함됨).
+
+#### 4. 검토 후 변경 안 한 곳 (의도된 보류)
+- **`useRiskAnalysis.ts`** — `active = !isCompleted && !isCancelled` 정책이 이미 사용자 의도와 일치 (반려는 active 포함됨). 추가 변경 불요.
+- **`kpiService.ts`** — KPI 분모/분자 정책 (v1.0.18: cancelled+rejected 분모 제외) 은 별도 검토 사항. 본 패치 범위는 "표시 일관성"으로 한정. 향후 별도 패치에서 반려 KPI 처리 재검토 예정.
+
+### 영향
+- 통계 다이얼로그·이슈 목록·매니저 콘솔에서 **"지연" 숫자가 모두 일치**.
+- 보류 이슈를 매니저 콘솔 dueSoon에서 제외 → 매니저 신호 노이즈↓.
+- 반려 이슈를 진행 중 카테고리에 분류 → 통계에서 누락되던 케이스 정상 표시.
+- 지연율 표시 = `지연 / active` (취소·보류·완료 제외 모수) — KPI compliance와 일관성↑.
+
+### 검증
+- vitest 412/412 통과 (회귀 0건)
+- `tsc -b` clean
+
+### 차후 검토 항목
+- KPI service의 `kpiTotal = total - agreedDelayIssues - cancelledIssues - rejectedIssues` 에서 **rejected 제외 정책**의 의미 재검토 (반려가 active라면 분모 포함이 정확함).
+- 예측 service (perAssigneeForecast, leadTimeForecast 등)의 cancelled+rejected 처리도 일관성 검토.
+
+---
+
+## [1.0.54] 프로젝트 통계 '완료' 카드 분해 — 완료 vs 검증중
+
+### 적용 버전
+- 앱 버전: **1.0.54**
+
+### 배경
+v1.0.53에서 펼침 패널에 "실제완료일 기준" 배지를 추가했으나 **상단 통계 카드와 표 셀은 여전히 두 종류를 한 숫자로 묶어 표시** → 사용자 의문 잔존:
+> "KPI 산정할 때만 실제 완료일을 반영하고 프로젝트 현황에서의 표시는 상태값 기준으로 가져가는건 문제가 있을까?"
+
+분석 결과: KPI와 표시를 분리하면 **숫자 불일치로 더 큰 혼란**. 매니저 콘솔의 "어제 완료" 신호도 검증 단계 긴 환경에서 지연. 예측·공수·이슈목록 일관성 깨짐.
+
+**옵션 X 채택**: 통계 표시 자체를 **두 카테고리로 분해** — 합계는 비즈니스 완료 그대로 유지.
+
+### 변경 — 7분할 → 8분할
+
+#### 1. AssigneeStats 인터페이스에 `verifying` 필드 추가
+```ts
+interface AssigneeStats {
+    done: JiraIssue[];       // statusCategory='done' (모든 검증 끝남)
+    verifying: JiraIssue[];  // 비즈니스 완료지만 status가 done이 아닌 검증 중
+    inProgress: JiraIssue[]; // ACTUAL_DONE 없이 indeterminate
+    // ...
+}
+```
+
+#### 2. 상단 통계 카드 7→8개 (`lg:grid-cols-8`)
+```
+[전체][완료][검증중][진행 중][지연][보류][취소][반려]
+       ↑      ↑ 신규 (emerald-500)
+     status='done'  ACTUAL_DONE 입력 + indeterminate
+```
+
+- "완료" 카드 sub: `${businessDoneAll}/${total}` — 합계는 KPI 분자와 동일
+- "검증중" 카드: 단독 카운트, 클릭 시 펼침 패널에 해당 이슈만
+
+#### 3. Pie chart 7분할 → 8분할
+신규 segment `{ value: verifying.length, color: '#10b981', label: '검증중' }` 추가. 완료(green-500)와 검증중(emerald-500) 인접 색조로 시각적 묶음 + 구분 동시 달성. 범례 클릭 핸들러 매핑 확장.
+
+#### 4. 담당자별 표 16열 (기존 15)
+```
+| 담당자 | 분포 | 전체 | 완료 | 검증중 | 진행 | 대기 | 지연 | 조기완료 | 로그있음 | ... |
+                          ↑ 신규
+```
+- 클릭 시: `김성은 · 검증중 (개발 완료)` 그룹으로 펼침
+- 담당자 분포 pie chart에도 emerald 세그먼트 추가
+- 진척률 / 조기완료율 분모는 비즈니스 완료(done + verifying) 기준 — KPI 일관성
+
+#### 5. BarStat 라벨 명확화
+- "이슈 완료율" sub: `5 / 23개 (완료 3 + 검증중 2)` — 두 종류임을 즉시 인지
+- "조기 완료율" 분모: 비즈니스 완료 합집합
+
+#### 6. 서브 협업자 행 컬럼 정합성
+- 메인이 16열이 됐으므로 서브 행도 검증중 셀(`-`) 추가하여 정렬 유지
+
+### 영향
+- **사용자 직관**: "완료 클릭했는데 진행 이슈가 떠?" 의문 완전 해소. 검증중은 별도 카운트.
+- **정책 일관성**: KPI / 매니저 콘솔 / 공수 / 예측 / 이슈 목록 모두 비즈니스 완료(done+verifying) 정책 유지.
+- **펼침 패널**: v1.0.53 "실제완료일 기준" 배지는 그대로 유지 (검증중 카테고리에서는 모든 행에 표시되어 한층 명확).
+
+### 검증
+- vitest 412/412 통과
+- `tsc -b` clean
+
+---
+
+## [1.0.53] 프로젝트 통계 펼침 패널 — '실제완료일 기준' 시각 구분
+
+### 적용 버전
+- 앱 버전: **1.0.53**
+
+### 배경
+사용자 보고:
+> "프로젝트 통계에서 개발자 김성은 완료 항목을 클릭했는데, 왜 진행과 개발완료 이슈가 함께 뜨는거지?"
+
+펼친 패널에 status badge가 "진행"인 이슈가 완료 그룹에 포함되어 표시됨.
+
+### 진단
+v1.0.39 (`isBusinessDone` 통일 정책)에 따른 의도된 동작:
+- 비즈니스 완료 = `statusCategory === 'done'` **OR** `ACTUAL_DONE` 필드(`customfield_11485`) 입력됨.
+- 배경: 우리 환경에서 status "완료" 이전에 "최종검증요청" / "운영검증" 같은 검증 단계가 존재. 개발자가 코드 완료 후 실제완료일을 입력해도 status는 검증 단계에 머무름. **비즈니스 KPI는 "개발 완료" 시점에 잡혀야 매니저 신호가 빠름**.
+- KPI / 이슈 목록(v1.0.34) / 공수 / 회고 / 통계 모두 같은 룰 적용.
+
+문제: 펼침 패널이 status name만 그대로 표시하므로 사용자는 "진행"으로만 보임 → "왜 완료에 떠?" 오해.
+
+### 해결 (옵션 A — 정책 유지 + 시각 명확화)
+**`project-stats-dialog.tsx`** — 펼침 행 렌더링에 조건부 배지 추가:
+
+```ts
+const isStatusDone = getStatusCategoryKey(issue) === 'done';
+const businessDone = isBusinessDone(issue);
+const hasActualDone = typeof actualDoneValue === 'string' && actualDoneValue.trim().length > 0;
+const isActualDoneOnly = businessDone && !isStatusDone && hasActualDone;
+```
+
+`isActualDoneOnly === true` 인 이슈에만 status badge 옆에 작은 초록 배지:
+```tsx
+<span className="... bg-emerald-50 text-emerald-700 ..." title={tooltip}>
+    <CheckCircle2 className="w-3 h-3" />
+    실제완료일 기준
+</span>
+```
+
+Tooltip 내용:
+> "status는 '[최종검증요청]'이지만 실제완료일(2026-05-08)이 입력되어 비즈니스 완료로 집계됨 (v1.0.39 통일 정책)"
+
+### 영향
+- 펼침 패널에서 "진행" 상태 이슈가 완료 그룹에 있어도 **왜 그런지 한눈에** 파악 가능.
+- KPI / 통계 / 이슈 목록의 산정 일관성은 그대로 유지 (정책 변경 없음).
+- 검증 단계가 긴 환경에서 KPI 신호 지연 방지 효과 유지.
+
+### 검증
+- vitest 412/412 통과
+- `tsc -b` clean
+
+---
+
+## [1.0.52] 이슈 목록 '지연' 컬럼 표시 정정
+
+### 적용 버전
+- 앱 버전: **1.0.52**
+
+### 배경
+사용자 보고:
+> "지연 항목에 체크 되어 있는데 내용을 보면 완료예정일보다 더 일찍 끝났음에도 지연에 체크가 있다. 단순 완료의 의미인가?"
+
+### 진단
+이슈 목록의 "지연" 컬럼이 **두 가지 신호를 같은 셀에 혼합 표시**하고 있었음:
+- 🔴 빨간 ⚠️ (`AlertCircle`) — 진짜 마감 지연 (`duedate < now && !isBusinessDone`)
+- 🟢 초록 ✓ (`CheckCircle`) — 완료 이슈 (`isBusinessDone`) — 일찍/정시/늦게 완료 **무관하게 모두**
+
+결과: 일찍 완료된 이슈(예: 마감 5/29 ↔ 실제완료 5/12)도 "지연" 컬럼에 체크 ✓ 가 떠 사용자 직관과 정반대. "지연 컬럼에 체크 = 지연 이슈"라고 오해 유발.
+
+### 중복 표시
+"완료" 정보는 이미 같은 행의 **"상태" 컬럼**(진행/완료/할 일 배지)에서 명확히 표시됨. 따라서 "지연" 컬럼의 초록 ✓ 는 정보 가치 0 + 오해 유발만 함.
+
+### 해결
+**`issue-list.tsx`** — "지연" 컬럼은 **진짜 마감 지연(빨간 ⚠️)만** 표시. 초록 ✓ 블록과 unused `CheckCircle` import 제거. `aria-label="마감 지연"` 추가로 접근성 보강.
+
+```tsx
+// Before (v1.0.51)
+{isDelayed && <AlertCircle className="w-4 h-4 text-red-500" />}
+{isDone && <CheckCircle className="w-4 h-4 text-green-500" />}   ← 제거
+
+// After (v1.0.52)
+{isDelayed && <AlertCircle className="w-4 h-4 text-red-500" aria-label="마감 지연" />}
+```
+
+### 영향
+- 이슈 목록 "지연" 컬럼: 마감 지연 이슈만 빨간 ⚠️ 표시. 그 외는 빈 셀.
+- 완료 표시 손실 없음 — "상태" 컬럼이 동일 정보 제공.
+- 매니저가 한눈에 "지연 이슈 = 빨간 마크 = 즉시 검토 필요" 정확히 인식.
+
+### 검증
+- vitest 412/412 통과 (회귀 0건)
+- `tsc -b` clean
+- 빌드 산출물 정상 (NSIS Setup + Portable)
+
+---
+
 ## [1.0.51] 정밀 코드 리뷰 후속 — 보안·산식·일관성 64건 일괄 정리
 
 ### 적용 버전

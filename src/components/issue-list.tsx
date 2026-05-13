@@ -1,10 +1,11 @@
 import React from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, CheckCircle, ChevronRight, ChevronDown, ChevronsDown, ChevronsRight, Loader2 } from 'lucide-react';
+// v1.0.52: 지연 컬럼에서 CheckCircle 제거 (완료 표시 중복 해소)
+import { AlertCircle, ChevronRight, ChevronDown, ChevronsDown, ChevronsRight, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { type JiraIssue } from '@/api/jiraClient';
-import { filterLeafIssues, getStatusCategoryKey, isBusinessDone } from '@/lib/jira-helpers';
+import { filterLeafIssues, getStatusCategoryKey, isBusinessDone, isDelayed } from '@/lib/jira-helpers';
 import { resolveFields } from '@/lib/kpi-rules-resolver';
 import { formatDateSafe } from '@/lib/date-utils';
 import { Button } from '@/components/ui/button';
@@ -61,9 +62,9 @@ export function IssueList({ issues, isLoading, focusIssueKeys, onClearFocusIssue
             // 3. Status (Multi-select)
             if (filter.statuses.length > 0 && !filter.statuses.includes(issue.fields.status?.name ?? '')) return false;
 
-            // 4. Delay (In-progress)
-            const isDelayed = issue.fields.duedate && new Date(issue.fields.duedate) < new Date() && !isBusinessDone(issue);
-            if (filter.onlyDelayed && !isDelayed) return false;
+            // 4. Delay (In-progress) — v1.0.55: 공통 헬퍼 사용 (보류·취소 제외, 반려는 active로 포함)
+            const delayedFilter = isDelayed(issue);
+            if (filter.onlyDelayed && !delayedFilter) return false;
 
             // 5. Delayed Done (Completed but late)
             const isDelayedDone = isBusinessDone(issue) &&
@@ -183,7 +184,8 @@ export function IssueList({ issues, isLoading, focusIssueKeys, onClearFocusIssue
     const F = resolveFields();
 
     const renderIssue = (issue: JiraIssue, isSubtask: boolean = false, level: number = 0) => {
-        const isDelayed = issue.fields.duedate && new Date(issue.fields.duedate) < new Date() && !isBusinessDone(issue);
+        // v1.0.55: 공통 헬퍼 — 보류·취소 제외 + 반려 포함 (active 정의 통일)
+        const delayed = isDelayed(issue);
         const isDone = isBusinessDone(issue);
         const hasSubtasks = issue.fields.subtasks && issue.fields.subtasks.length > 0;
         const isExpanded = expandedParents.has(issue.key);
@@ -282,16 +284,17 @@ export function IssueList({ issues, isLoading, focusIssueKeys, onClearFocusIssue
                         {formatDateSafe((issue.fields[F.ACTUAL_DONE] as string | undefined) ?? issue.fields.resolutiondate)}
                     </TableCell>
 
-                    {/* Delay indicator */}
+                    {/*
+                      Delay indicator (v1.0.52)
+                      "지연" 컬럼은 **진짜 마감 지연(빨간 ⚠️)** 만 표시.
+                      이전(~v1.0.51): 완료 이슈에도 초록 ✓를 같이 표시 → 일찍/정시/늦게 완료 모두에
+                      체크가 떠서 "지연 컬럼에 체크 = 지연" 사용자 직관과 반대되는 오해 유발.
+                      완료 정보는 옆 "상태" 컬럼이 이미 명확히 표시하므로 여기서는 중복 제거.
+                    */}
                     <TableCell className="text-center">
-                        {isDelayed && (
+                        {delayed && (
                             <div className="flex items-center justify-center">
-                                <AlertCircle className="w-4 h-4 text-red-500" />
-                            </div>
-                        )}
-                        {isDone && (
-                            <div className="flex items-center justify-center">
-                                <CheckCircle className="w-4 h-4 text-green-500" />
+                                <AlertCircle className="w-4 h-4 text-red-500" aria-label="마감 지연" />
                             </div>
                         )}
                     </TableCell>

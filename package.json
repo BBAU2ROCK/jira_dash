@@ -1,7 +1,7 @@
 {
   "name": "01_jira_dash",
   "private": true,
-  "version": "1.0.51",
+  "version": "1.0.55",
   "description": "Jira Dashboard Application",
   "author": "Okestro",
   "type": "module",
@@ -119,7 +119,7 @@
       }
     ],
     "releaseInfo": {
-      "releaseNotes": "v1.0.51 — 정밀 코드 리뷰 후속 (1.0.49~51 통합): 보안 강화 (IPC 화이트리스트 / sandbox / setWindowOpenHandler / safeStorage 토큰 암호화 / npm audit fix axios 등 16 CVE 해결), 6 store persist 마이그레이션, percentile 알고리즘 단일화 (lib/statistics), customfield 하드코딩 3곳 제거 (resolveFields 통일), DailyBriefCard 오늘/어제 색상 분리 (indigo/cyan), useManagerBrief now 안정화 + weekProgressRate 재정의, MC cappedRate 노출 + worker dispatch 산식 정정, cycleTime status 카테고리 자동 학습, xlsx 안전성 + license generator self-exclude, persist quota guard, axios timeout/retry. 412 테스트 통과."
+      "releaseNotes": "v1.0.55 — 지연 정의 통일 + 반려 의미 재정의. (1) jira-helpers에 isActive/isDelayed/isCancelled/isOnHold/isRejected 헬퍼 추가. (2) 지연 = 'duedate < now AND active' 통일 — 취소·보류는 지연 제외 (작업 폐기/능동적 정지), 반려는 active 포함 (리더 수정 지시 = 재작업 필요). (3) 프로젝트 통계 담당자 분류에서 반려를 inProgress 그룹으로 이동 (이전 cancelled와 동일 처리 폐기). (4) 지연율 분모를 active 모집단으로 정정. (5) 매니저 콘솔 todayDue/dueSoonNext3Days도 active 기준으로 통일 (보류 이슈 노이즈 제거). 412 테스트 통과."
     },
     "win": {
       "target": [

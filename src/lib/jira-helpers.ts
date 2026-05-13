@@ -1,5 +1,5 @@
 import { type JiraIssue } from '../api/jiraClient';
-import { resolveFields } from './kpi-rules-resolver';
+import { resolveFields, resolveCancelledStatus, resolveOnHoldStatus, resolveRejectedStatus } from './kpi-rules-resolver';
 import { parseLocalDay } from './date-utils';
 
 /** 일부 이슈/필드 조합에서 statusCategory가 없을 수 있음 — 옵셔널 체이닝으로 크래시 방지 */
@@ -58,6 +58,65 @@ export function getCompletionDateStr(issue: JiraIssue): string | null {
     const actual = issue.fields[actualField];
     if (typeof actual === 'string' && actual.trim().length > 0) return actual;
     return issue.fields.resolutiondate ?? null;
+}
+
+// ─── 상태 분류 헬퍼 (v1.0.55) ─────────────────────────────────────────────────
+//
+// 워크플로우 의미 (사용자 환경 기준):
+//   - 취소(Cancelled): 작업 폐기. 끝낼 의도 없음.
+//   - 반려(Rejected) : 리더가 '개발완료' 검증 후 추가 수정 지시 → **재작업 필요 = active**.
+//                     ⚠️ v1.0.18~v1.0.54에서 cancelled와 동일 처리하던 부분이 일부 잘못된 가정.
+//                     본 헬퍼는 반려를 active로 분류하여 지연·진행 카운트에 포함.
+//   - 보류(On Hold) : 현재 진행 의사는 없으나 향후 진행 가능. 능동적 정지. **지연 카운트 제외**.
+
+export function isCancelled(issue: JiraIssue): boolean {
+    const sn = issue.fields.status?.name?.trim() ?? '';
+    return sn === resolveCancelledStatus();
+}
+
+export function isRejected(issue: JiraIssue): boolean {
+    const sn = issue.fields.status?.name?.trim() ?? '';
+    return sn === resolveRejectedStatus();
+}
+
+export function isOnHold(issue: JiraIssue): boolean {
+    const sn = issue.fields.status?.name?.trim() ?? '';
+    return sn === resolveOnHoldStatus();
+}
+
+/**
+ * v1.0.55: 능동 처리해야 하는 active 이슈 판정.
+ *
+ * **active 정의** (모두 만족):
+ *   - 비즈니스 완료 아님 (`!isBusinessDone`)
+ *   - 취소 아님
+ *   - 보류 아님
+ *   - **반려는 active 포함** (재작업 필요)
+ *
+ * "지연" / "마감 임박" / "지연율 분모" 등 모집단 정의의 공통 기준.
+ */
+export function isActive(issue: JiraIssue): boolean {
+    if (isBusinessDone(issue)) return false;
+    if (isCancelled(issue)) return false;
+    if (isOnHold(issue)) return false;
+    // 반려는 active로 포함 (재작업 active 상태)
+    return true;
+}
+
+/**
+ * v1.0.55: 마감 지연 판정 — 모든 통계/UI 공통 헬퍼.
+ *
+ * **지연 정의** = `duedate < now` AND `isActive(issue)`.
+ *   - 취소·보류·완료 이슈는 마감 지나도 지연 아님 (능동적 작업 의무 없음).
+ *   - 반려는 재작업이 필요하므로 마감 지나면 진짜 지연.
+ *
+ * @param issue Jira 이슈
+ * @param now   기준 시각 (default new Date())
+ */
+export function isDelayed(issue: JiraIssue, now: Date = new Date()): boolean {
+    if (!issue.fields.duedate) return false;
+    if (!isActive(issue)) return false;
+    return new Date(issue.fields.duedate) < now;
 }
 
 /**

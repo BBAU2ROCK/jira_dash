@@ -11,7 +11,7 @@
  */
 import { useMemo } from 'react';
 import type { JiraIssue } from '@/api/jiraClient';
-import { filterLeafIssues, getStatusCategoryKey, isBusinessDone } from '@/lib/jira-helpers';
+import { filterLeafIssues, getStatusCategoryKey, isBusinessDone, isActive } from '@/lib/jira-helpers';
 import { parseLocalDay } from '@/lib/date-utils';
 import { resolveCancelledStatus, resolveRejectedStatus, resolveFields } from '@/lib/kpi-rules-resolver';
 
@@ -131,14 +131,15 @@ export function useManagerBrief(issues: JiraIssue[] | null | undefined, nowOpt?:
             // 오늘 진행 중
             if (getStatusCategoryKey(i) === 'indeterminate') todayInProgress++;
 
-            // 오늘 마감
-            if (due && sameDay(due, today) && !isCompleted(i)) {
+            // v1.0.55: 오늘 마감 — active 모집단만 (보류·취소 제외, 반려는 재작업 active로 포함).
+            // 이전(~v1.0.54)에는 !isCompleted(i) 조건만 사용해 보류 이슈도 카운트됨 → 매니저 신호 노이즈 유발.
+            if (due && sameDay(due, today) && isActive(i)) {
                 todayDue++;
                 todayDueIssues.push(i);
             }
 
-            // D-1~D-3
-            if (due && !isCompleted(i)) {
+            // v1.0.55: D-1~D-3 마감 임박도 동일 active 기준
+            if (due && isActive(i)) {
                 const days = Math.floor((due.getTime() - today.getTime()) / DAY_MS);
                 if (days >= 1 && days <= 3) dueSoonNext3Days++;
             }

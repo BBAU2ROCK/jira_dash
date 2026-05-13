@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { type JiraIssue, jiraApi } from '@/api/jiraClient';
 import { DEFECT_KPI_CONFIG } from '@/config/defectKpiConfig';
 import { EpicMappingEditor } from '@/components/epic-mapping-editor';
-import { filterLeafIssues, getStatusCategoryKey, isBusinessDone } from '@/lib/jira-helpers';
+import { filterLeafIssues, getStatusCategoryKey, isBusinessDone, isDelayed, isActive } from '@/lib/jira-helpers';
 import {
     BarChart3, CheckCircle2, Clock, AlertTriangle,
     Layers, X, ChevronRight, User, Trophy, HelpCircle, Pause, CircleSlash, Link2, TrendingUp,
@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils';
 import { DifficultyMiniPie } from '@/components/ui/difficulty-mini-pie';
 import { ProgressTrends } from '@/components/progress-trends';
 import { useKpiRulesStore } from '@/stores/kpiRulesStore';
+import { resolveFields } from '@/lib/kpi-rules-resolver';
 import {
     completionTooltip,
     complianceTooltip,
@@ -64,7 +65,19 @@ interface IssueGroup {
 interface AssigneeStats {
     name: string;
     total: JiraIssue[];
+    /**
+     * v1.0.54: status 카테고리가 'done' 인 진짜 완료 이슈만.
+     * 이전(~v1.0.53)에는 ACTUAL_DONE만 입력된 검증 중 이슈도 포함했으나, 사용자 직관과 불일치 → 분리.
+     * KPI 산정은 done + verifying 합집합으로 계속 비즈니스 완료 정책 유지 (v1.0.39 통일).
+     */
     done: JiraIssue[];
+    /**
+     * v1.0.54: 비즈니스 완료지만 status는 done 카테고리가 아닌 이슈 (개발 완료 + 검증 단계 중).
+     *  - isBusinessDone === true (ACTUAL_DONE 필드 입력 또는 status done 중 하나)
+     *  - statusCategory !== 'done'
+     *  - 보류·취소·반려 제외
+     */
+    verifying: JiraIssue[];
     inProgress: JiraIssue[];
     todo: JiraIssue[];
     delayed: JiraIssue[];
@@ -137,52 +150,76 @@ export function ProjectStatsDialog({
     // ── KPI 계산 ─────────────────────────────────────────────────────────────
     const kpiMetrics = calculateKPI(leafIssues);
 
-    // ── 전체 통계 (6분할: 보류·취소·반려·완료·진행·대기, 상호 배타) ────────────
+    // ── 전체 통계 (7분할: 완료·검증중·진행·대기·보류·취소·반려, 상호 배타) ────────────
+    // v1.0.54: 완료를 두 카테고리로 분해 — 사용자 직관 ("진행 상태인데 완료에 떠?") 해소.
+    //   - done: status 카테고리가 진짜 'done' (모든 검증 끝남)
+    //   - verifying: ACTUAL_DONE은 입력됐으나 status는 indeterminate (개발 완료 + 검증 중)
+    //   - 합계 (done + verifying)는 비즈니스 완료 = KPI/매니저콘솔/공수/회고/예측과 동일 (v1.0.39 정책 유지)
     const onHold = leafIssues.filter(i => isOnHold(i));
     const cancelled = leafIssues.filter(i => isCancelled(i));
     const rejected = leafIssues.filter(i => isRejected(i));
-    // v1.0.18: 완료 = statusCategory='done' AND NOT(보류·취소·반려)
     const done = leafIssues.filter(i =>
+        getStatusCategoryKey(i) === 'done' && !isOnHold(i) && !isCancelled(i) && !isRejected(i)
+    );
+    const verifying = leafIssues.filter(i =>
+        isBusinessDone(i) && getStatusCategoryKey(i) !== 'done' &&
+        !isOnHold(i) && !isCancelled(i) && !isRejected(i)
+    );
+    /** 비즈니스 완료 합집합 — KPI 분자·완료율·earlyDone 산정용 (정책 일관성) */
+    const businessDoneAll = leafIssues.filter(i =>
         isBusinessDone(i) && !isOnHold(i) && !isCancelled(i) && !isRejected(i)
     );
-    const inProg = leafIssues.filter(i => getStatusCategoryKey(i) === 'indeterminate');
+    const inProg = leafIssues.filter(i =>
+        getStatusCategoryKey(i) === 'indeterminate' && !isBusinessDone(i) && !isOnHold(i)
+    );
     const todo = leafIssues.filter(i =>
         !isOnHold(i) && !isCancelled(i) && !isRejected(i) &&
         !isBusinessDone(i) &&
         getStatusCategoryKey(i) !== 'indeterminate'
     );
-    const delayed = leafIssues.filter(i =>
-        i.fields.duedate && new Date(i.fields.duedate) < today &&
-        !isBusinessDone(i)
-    );
-    const earlyDone = done.filter(i =>
+    // v1.0.55: 공통 isDelayed 헬퍼로 통일.
+    //   - 보류: 능동적 정지 → 지연 제외
+    //   - 취소: 작업 폐기 → 지연 제외
+    //   - 반려: 리더 수정 지시(재작업) → active 포함 = 마감 지나면 지연
+    const delayed = leafIssues.filter(i => isDelayed(i, today));
+    // v1.0.55: active 모집단 — 지연율 분모로 사용 (취소·보류·완료 제외, 반려 포함)
+    const activeIssues = leafIssues.filter(i => isActive(i));
+    // 조기 완료 — 비즈니스 완료 전체 기준 (KPI 정책과 일관)
+    const earlyDone = businessDoneAll.filter(i =>
         i.fields.duedate && i.fields.resolutiondate &&
         new Date(i.fields.resolutiondate) < new Date(i.fields.duedate)
     );
 
     const total = leafIssues.length;
-    // v1.0.18: 완료율 분모는 취소·반려 제외 (KPI와 일관성)
+    // v1.0.18: 완료율 분모는 취소·반려 제외. v1.0.54: 분자는 비즈니스 완료 합집합 (KPI 일관성).
     const completionDenom = total - cancelled.length - rejected.length;
-    const completionRate = completionDenom > 0 ? Math.round((done.length / completionDenom) * 100) : 0;
+    const completionRate = completionDenom > 0
+        ? Math.round((businessDoneAll.length / completionDenom) * 100)
+        : 0;
 
     // v1.0.10 S5: store에서 필드 ID 참조 (커스텀 필드 변경 시 즉시 반영)
+    // v1.0.54: SP 완료율은 비즈니스 완료(검증 중 포함) 기준으로 KPI와 일관 유지
     const spField = kpiRules.fields?.storyPoint ?? JIRA_CONFIG.FIELDS.STORY_POINT;
     const totalSP = leafIssues.reduce((s, i) => s + ((i.fields[spField] as number | undefined) || 0), 0);
-    const doneSP = done.reduce((s, i) => s + ((i.fields[spField] as number | undefined) || 0), 0);
+    const doneSP = businessDoneAll.reduce((s, i) => s + ((i.fields[spField] as number | undefined) || 0), 0);
 
     // ── 담당자별 통계 ─────────────────────────────────────────────────────────
     const assigneeMap = new Map<string, AssigneeStats>();
 
     // 리프만 담당자별 건수·업무로그 집계.
-    // v1.0.18: 보류는 "처리 끝남"으로 포함, 취소·반려는 done에서 제외 (KPI 정책과 일치).
-    //   earlyDone/compliant는 실제 done(statusCategory)만.
-    const isDoneForAssignee = (issue: JiraIssue) =>
-        (isBusinessDone(issue) && !isCancelled(issue) && !isRejected(issue)) || isOnHold(issue);
+    // v1.0.54: 분기 재구성 — done / verifying / inProgress / todo / (onHold→done 통합 유지).
+    //   - done:        statusCategory==='done' (모든 검증 끝남)
+    //   - verifying:   ACTUAL_DONE 입력 + statusCategory==='indeterminate' (개발 완료 + 검증 중)
+    //   - inProgress:  statusCategory==='indeterminate' AND NOT verifying AND NOT onHold
+    //   - todo:        그 외 미완료
+    //   - 보류:        처리 끝난 것으로 보아 done에 포함 (v1.0.18 정책 유지)
+    //   - 취소·반려:   모든 분류 제외
+    //   earlyDone·compliant·delayed는 비즈니스 완료(done+verifying) 합집합 기준 — KPI 일관성.
 
     function newStats(name: string): AssigneeStats {
         return {
             name,
-            total: [], done: [], inProgress: [], todo: [], delayed: [],
+            total: [], done: [], verifying: [], inProgress: [], todo: [], delayed: [],
             earlyDone: [], compliant: [], withWorklog: [], withoutWorklog: [],
             totalTimeSpent: 0,
             collaborations: [],
@@ -197,32 +234,52 @@ export function ProjectStatsDialog({
         const s = assigneeMap.get(name)!;
         s.total.push(issue);
         const cat = getStatusCategoryKey(issue);
-        if (isDoneForAssignee(issue)) {
+        // v1.0.55: 취소·반려·보류 정책 분리
+        //   - 취소: 통계 그룹 전부 제외 (작업 폐기)
+        //   - 반려: '재작업 필요' = active. inProgress로 분류 (이전 v1.0.18~v1.0.54의 cancelled 동일 처리는 잘못된 가정이었음)
+        //   - 보류: done 그룹에 포함 (v1.0.18 유지 — 사용자 의도가 done 대비 흐름 분리)
+        const cancelled = isCancelled(issue);
+        const rejected = isRejected(issue);
+        const onHold = isOnHold(issue);
+        const businessDone = isBusinessDone(issue);
+
+        // 분류
+        if (cancelled) {
+            // 취소는 통계 그룹 전부 제외 (KPI 정책 동일)
+        } else if (onHold) {
             s.done.push(issue);
-            // 조기완료·준수는 실제 완료(statusCategory done)인 경우만
-            if (cat === 'done') {
-                if (issue.fields.duedate && issue.fields.resolutiondate &&
-                    new Date(issue.fields.resolutiondate) < new Date(issue.fields.duedate)) {
-                    s.earlyDone.push(issue);
-                }
-                const isVerificationDelay = issue.fields.labels?.includes(JIRA_CONFIG.LABELS.VERIFICATION_DELAY);
-                if (issue.fields.duedate && issue.fields.resolutiondate) {
-                    // K10: endOfLocalDay 헬퍼 — kpiService와 동일 규칙
-                    const due = endOfLocalDay(issue.fields.duedate);
-                    const resolved = new Date(issue.fields.resolutiondate);
-                    if ((due && resolved <= due) || isVerificationDelay) {
-                        s.compliant.push(issue);
-                    }
-                } else {
-                    s.compliant.push(issue);
-                }
-            }
-        } else if (cat === 'indeterminate') {
+        } else if (cat === 'done') {
+            s.done.push(issue);
+        } else if (businessDone) {
+            // statusCategory != 'done' + 비즈니스 완료 = 검증 중
+            s.verifying.push(issue);
+        } else if (rejected || cat === 'indeterminate') {
+            // 반려는 indeterminate와 함께 inProgress (재작업 active)
             s.inProgress.push(issue);
         } else {
             s.todo.push(issue);
         }
-        if (issue.fields.duedate && new Date(issue.fields.duedate) < today && !isDoneForAssignee(issue)) {
+
+        // 비즈니스 완료(done + verifying) 기준 earlyDone·compliant
+        if (businessDone && !cancelled && !onHold) {
+            const resolved = issue.fields.resolutiondate;
+            if (issue.fields.duedate && resolved &&
+                new Date(resolved) < new Date(issue.fields.duedate)) {
+                s.earlyDone.push(issue);
+            }
+            const isVerificationDelay = issue.fields.labels?.includes(JIRA_CONFIG.LABELS.VERIFICATION_DELAY);
+            if (issue.fields.duedate && resolved) {
+                const due = endOfLocalDay(issue.fields.duedate);
+                const resolvedDate = new Date(resolved);
+                if ((due && resolvedDate <= due) || isVerificationDelay) {
+                    s.compliant.push(issue);
+                }
+            } else {
+                s.compliant.push(issue);
+            }
+        }
+        // v1.0.55: 지연 — 공통 isDelayed 헬퍼 (반려는 active로 포함)
+        if (isDelayed(issue, today)) {
             s.delayed.push(issue);
         }
 
@@ -304,7 +361,7 @@ export function ProjectStatsDialog({
             if (!map.has(name)) {
                 map.set(name, {
                     name,
-                    total: [], done: [], inProgress: [], todo: [], delayed: [],
+                    total: [], done: [], verifying: [], inProgress: [], todo: [], delayed: [],
                     earlyDone: [], compliant: [], withWorklog: [], withoutWorklog: [],
                     totalTimeSpent: 0,
                     collaborations: [],
@@ -360,7 +417,7 @@ export function ProjectStatsDialog({
             if (!map.has(name)) {
                 map.set(name, {
                     name,
-                    total: [], done: [], inProgress: [], todo: [], delayed: [],
+                    total: [], done: [], verifying: [], inProgress: [], todo: [], delayed: [],
                     earlyDone: [], compliant: [], withWorklog: [], withoutWorklog: [],
                     totalTimeSpent: 0,
                     collaborations: [],
@@ -480,9 +537,12 @@ export function ProjectStatsDialog({
         return `${hours}h ${minutes}m`;
     };
 
-    // ── 파이차트 세그먼트 (v1.0.18: 6분할 — 완료·진행·대기·보류·취소·반려) ────
+    // ── 파이차트 세그먼트 (v1.0.54: 7분할 — 완료·검증중·진행·대기·보류·취소·반려) ────
+    //   검증중(emerald-cyan 600): 비즈니스 완료지만 status는 done이 아닌 검증 단계 이슈.
+    //   완료(green-500)와 인접 색조로 시각적 묶음 + 구분 동시 달성.
     const overallSegments = [
         { value: done.length, color: '#22c55e', label: '완료' },
+        { value: verifying.length, color: '#10b981', label: '검증중' },
         { value: inProg.length, color: '#3b82f6', label: '진행' },
         { value: todo.length, color: '#cbd5e1', label: '대기' },
         { value: onHold.length, color: '#94a3b8', label: '보류' },
@@ -579,14 +639,20 @@ export function ProjectStatsDialog({
                             <section className="space-y-4">
                                 <SectionTitle>전체 현황</SectionTitle>
 
-                                {/* v1.0.24: 7개 카드 한 줄 (전체·완료·진행·지연·보류·취소·반려) — grid-cols-7 */}
-                                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7">
+                                {/* v1.0.54: 8개 카드 한 줄 (전체·완료·검증중·진행·지연·보류·취소·반려) — lg:grid-cols-8.
+                                    완료 카드의 sub는 비즈니스 완료 합집합(KPI 분자) 그대로 유지.
+                                    검증중은 별도 카드로 시각 분리 — 사용자가 즉시 "completed-but-still-verifying" 인식. */}
+                                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8">
                                     <StatCard icon={<Layers className="w-4 h-4 text-blue-500 dark:text-blue-400" />}
                                         label="전체 이슈" value={total} sub="개" color="blue"
                                         onClick={() => openGroup('전체 이슈', leafIssues, '#3b82f6')} />
                                     <StatCard icon={<CheckCircle2 className="w-4 h-4 text-green-500 dark:text-green-400" />}
-                                        label="완료" value={`${completionRate}%`} sub={`${done.length}/${total}`} color="green"
-                                        onClick={() => openGroup('완료 이슈', done, '#22c55e')} />
+                                        label="완료" value={`${completionRate}%`} sub={`${businessDoneAll.length}/${total}`} color="green"
+                                        onClick={() => openGroup('완료 이슈 (status 완료)', done, '#22c55e')} />
+                                    {/* v1.0.54: 검증중 카드 — 개발 완료 + status indeterminate (ACTUAL_DONE 입력) */}
+                                    <StatCard icon={<CheckCircle2 className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />}
+                                        label="검증중" value={verifying.length} sub="개" color="green"
+                                        onClick={() => openGroup('검증중 이슈 (개발 완료, status는 진행)', verifying, '#10b981')} />
                                     <StatCard icon={<Clock className="w-4 h-4 text-amber-500 dark:text-amber-400" />}
                                         label="진행 중" value={inProg.length} sub="개" color="amber"
                                         onClick={() => openGroup('진행 중 이슈', inProg, '#f59e0b')} />
@@ -612,37 +678,51 @@ export function ProjectStatsDialog({
                                         <p className="text-xs font-semibold text-foreground/80">이슈 분포</p>
                                         <PieChart segments={overallSegments} size={160} centerLabel={`${completionRate}%`} />
                                         <div className="flex flex-wrap justify-center gap-2 mt-3">
-                                            {overallSegments.map(seg => (
+                                            {overallSegments.map(seg => {
+                                                // v1.0.54: 검증중 라벨 매핑 추가
+                                                const groupIssues =
+                                                    seg.label === '완료'   ? done :
+                                                    seg.label === '검증중' ? verifying :
+                                                    seg.label === '진행'   ? inProg :
+                                                    seg.label === '대기'   ? todo :
+                                                    seg.label === '보류'   ? onHold :
+                                                    seg.label === '취소'   ? cancelled :
+                                                                             rejected;
+                                                return (
                                                 <button key={seg.label}
-                                                    onClick={() => openGroup(seg.label, seg.label === '완료' ? done : seg.label === '진행' ? inProg : seg.label === '대기' ? todo : seg.label === '보류' ? onHold : seg.label === '취소' ? cancelled : rejected, seg.color)}
+                                                    onClick={() => openGroup(seg.label, groupIssues, seg.color)}
                                                     className="flex items-center gap-1.5 text-[11px] rounded-full px-2 py-0.5 bg-muted/40 border border-border hover:bg-accent hover:border-accent-foreground/20 cursor-pointer transition-colors"
                                                 >
                                                     <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: seg.color }} />
                                                     <span className="text-foreground/80">{seg.label}</span>
                                                     <span className="text-foreground font-bold ml-0.5 tabular-nums">{seg.value}</span>
                                                 </button>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     </div>
 
                                     {/* 이슈 진행 바 */}
                                     <div className="col-span-2 space-y-3">
+                                        {/* v1.0.54: 완료율 분자를 비즈니스 완료 합집합으로 통일 (KPI와 동일) */}
                                         <BarStat label="이슈 완료율" pct={completionRate} color="#22c55e"
-                                            sub={`${done.length} / ${total}개`} />
+                                            sub={`${businessDoneAll.length} / ${total}개 (완료 ${done.length} + 검증중 ${verifying.length})`} />
                                         {totalSP > 0 && (
                                             <BarStat label="SP 완료율"
                                                 pct={totalSP > 0 ? Math.round((doneSP / totalSP) * 100) : 0}
                                                 color="#a855f7"
                                                 sub={`${doneSP} / ${totalSP} SP`} />
                                         )}
+                                        {/* v1.0.55: 지연율 분모를 active 모집단(취소·완료·보류 제외)으로 정정.
+                                            반려는 재작업 필요 → active 포함. KPI compliance와 일관성 ↑ */}
                                         <BarStat label="지연율"
-                                            pct={total > 0 ? Math.round((delayed.length / total) * 100) : 0}
+                                            pct={activeIssues.length > 0 ? Math.round((delayed.length / activeIssues.length) * 100) : 0}
                                             color="#ef4444"
-                                            sub={`${delayed.length} / ${total}개`} />
+                                            sub={`${delayed.length} / ${activeIssues.length}개 (active 기준)`} />
                                         <BarStat label="조기 완료율"
-                                            pct={done.length > 0 ? Math.round((earlyDone.length / done.length) * 100) : 0}
+                                            pct={businessDoneAll.length > 0 ? Math.round((earlyDone.length / businessDoneAll.length) * 100) : 0}
                                             color="#06b6d4"
-                                            sub={`${earlyDone.length} / ${done.length}개 (완료 대비)`} />
+                                            sub={`${earlyDone.length} / ${businessDoneAll.length}개 (완료 대비)`} />
                                         <BarStat label="보류율"
                                             pct={total > 0 ? Math.round((onHold.length / total) * 100) : 0}
                                             color="#94a3b8"
@@ -672,6 +752,8 @@ export function ProjectStatsDialog({
                                                 <th className="px-3 py-3 text-center w-28">분포</th>
                                                 <th className="px-3 py-3 text-center">전체</th>
                                                 <th className="px-3 py-3 text-center text-green-700 dark:text-green-400">완료</th>
+                                                {/* v1.0.54: 검증중 컬럼 — 개발 완료 + status는 검증 단계 */}
+                                                <th className="px-3 py-3 text-center text-emerald-700 dark:text-emerald-400" title="개발 완료(실제완료일 입력)지만 status는 검증 단계인 이슈. KPI 합계는 완료+검증중.">검증중</th>
                                                 <th className="px-3 py-3 text-center text-blue-700 dark:text-blue-400">진행</th>
                                                 <th className="px-3 py-3 text-center text-foreground/80">대기</th>
                                                 <th className="px-3 py-3 text-center text-red-700 dark:text-red-400">지연</th>
@@ -688,16 +770,19 @@ export function ProjectStatsDialog({
                                         <tbody>
                                             {assignees.map(a => {
                                                 const t = a.total.length;
-                                                const d = a.done.length;
-                                                const progressRate = t > 0 ? Math.round((d / t) * 100) : 0;
+                                                // v1.0.54: 진척률·earlyRate 분모는 비즈니스 완료(done + verifying) 기준 — KPI 일관성
+                                                const businessDoneCount = a.done.length + a.verifying.length;
+                                                const progressRate = t > 0 ? Math.round((businessDoneCount / t) * 100) : 0;
                                                 // 메인 담당자 KPI는 본인 메인 task만 기준 (sub-row가 별도 표시이므로 가중 X)
                                                 const mainKpi = calculateKPI(a.total);
                                                 const complianceRate = mainKpi.complianceRate;
                                                 const delayRate = t > 0 ? Math.round((a.delayed.length / t) * 100) : 0;
-                                                const earlyRate = d > 0 ? Math.round((a.earlyDone.length / d) * 100) : 0;
+                                                const earlyRate = businessDoneCount > 0 ? Math.round((a.earlyDone.length / businessDoneCount) * 100) : 0;
 
+                                                // v1.0.54: 분포 pie chart에 검증중 세그먼트 추가 (emerald-500)
                                                 const segs = [
                                                     { value: a.done.length, color: '#22c55e', label: '완료' },
+                                                    { value: a.verifying.length, color: '#10b981', label: '검증중' },
                                                     { value: a.inProgress.length, color: '#3b82f6', label: '진행' },
                                                     { value: a.todo.length, color: '#cbd5e1', label: '대기' },
                                                 ];
@@ -721,7 +806,10 @@ export function ProjectStatsDialog({
                                                         <ClickCell value={t} color="#64748b"
                                                             onClick={() => openGroup(`${a.name} · 전체`, a.total, '#64748b')} />
                                                         <ClickCell value={a.done.length} color="#22c55e"
-                                                            onClick={() => openGroup(`${a.name} · 완료`, a.done, '#22c55e')} />
+                                                            onClick={() => openGroup(`${a.name} · 완료 (status 완료)`, a.done, '#22c55e')} />
+                                                        {/* v1.0.54: 검증중 — 개발 완료, status는 검증 단계 */}
+                                                        <ClickCell value={a.verifying.length} color="#10b981"
+                                                            onClick={() => openGroup(`${a.name} · 검증중 (개발 완료)`, a.verifying, '#10b981')} />
                                                         <ClickCell value={a.inProgress.length} color="#3b82f6"
                                                             onClick={() => openGroup(`${a.name} · 진행 중`, a.inProgress, '#3b82f6')} />
                                                         <ClickCell value={a.todo.length} color="#94a3b8"
@@ -798,6 +886,8 @@ export function ProjectStatsDialog({
                                                                     </button>
                                                                 </td>
                                                                 <td className="px-3 py-2 text-center text-xs text-green-700 dark:text-green-300 tabular-nums">{collabKpi.completedIssues || '-'}</td>
+                                                                {/* v1.0.54: 검증중 컬럼 — 협업 시점에 별도 분해 없으므로 '-' (메인 행 검증중에 이미 카운트됨) */}
+                                                                <td className="px-3 py-2 text-center text-xs text-muted-foreground">-</td>
                                                                 <td className="px-3 py-2 text-center text-xs text-blue-700 dark:text-blue-300 tabular-nums">{collabKpi.delayedIssues > 0 ? '-' : (sharedN - (collabKpi.completedIssues + collabKpi.delayedIssues) || '-')}</td>
                                                                 <td className="px-3 py-2 text-center text-xs text-muted-foreground">-</td>
                                                                 <td className="px-3 py-2 text-center text-xs text-red-600 tabular-nums">{collabKpi.delayedIssues || '-'}</td>
@@ -874,47 +964,72 @@ export function ProjectStatsDialog({
                                     </div>
                                 )}
                                 <div className="flex flex-col gap-1.5">
-                                    {selectedGroup.issues.map(issue => {
-                                        const handleIssueClick = () => {
-                                            if (onShowIssuesInList) {
-                                                onShowIssuesInList([issue.key]);
-                                                onClose();
-                                            }
-                                        };
-                                        return (
-                                        <div
-                                            key={issue.key}
-                                            role={onShowIssuesInList ? 'button' : undefined}
-                                            tabIndex={onShowIssuesInList ? 0 : undefined}
-                                            onClick={onShowIssuesInList ? handleIssueClick : undefined}
-                                            onKeyDown={onShowIssuesInList ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleIssueClick(); } } : undefined}
-                                            className={cn(
-                                                'flex items-center gap-3 rounded-md border border-border bg-card px-3 py-2 text-[13px]',
-                                                onShowIssuesInList ? 'cursor-pointer hover:bg-accent/40 hover:border-accent-foreground/20 transition-colors' : 'cursor-default'
-                                            )}
-                                        >
-                                            <span className="font-mono text-[11px] font-bold whitespace-nowrap tabular-nums" style={{ color: selectedGroup.color }}>
-                                                {issue.key}
-                                            </span>
-                                            <span className="text-foreground/90 truncate flex-1">
-                                                {issue.fields.summary}
-                                            </span>
-                                            <span className="inline-block border border-border rounded px-1.5 py-px text-[11px] text-foreground/80 bg-muted/40 whitespace-nowrap">
-                                                {issue.fields.status?.name ?? '—'}
-                                            </span>
-                                            {issue.fields.assignee && (
-                                                <span className="text-[11px] text-muted-foreground whitespace-nowrap">
-                                                    {issue.fields.assignee.displayName}
+                                    {/* v1.0.53 (옵션 A): 펼침 행에 "실제완료일 기준" 시각 구분.
+                                        v1.0.39 통일 정책 — isBusinessDone은 (statusCategory='done') OR (ACTUAL_DONE 필드 입력) 둘 다 인정.
+                                        따라서 "최종검증요청"·"운영검증" 같은 indeterminate 단계라도 실제완료일을 채우면 KPI/통계에 완료로 잡힘.
+                                        이전(~v1.0.52): 이런 이슈도 status badge가 "진행"으로만 표시 → "완료 클릭했는데 진행이 떠?" 오해 유발.
+                                        v1.0.53: 비즈니스 완료지만 status 카테고리가 done이 아닌 경우 작은 ✓ 배지로 시각 구분. */}
+                                    {(() => {
+                                        const actualDoneField = resolveFields().ACTUAL_DONE;
+                                        return selectedGroup.issues.map(issue => {
+                                            const handleIssueClick = () => {
+                                                if (onShowIssuesInList) {
+                                                    onShowIssuesInList([issue.key]);
+                                                    onClose();
+                                                }
+                                            };
+                                            // 비즈니스 완료지만 status는 done 카테고리가 아닌 케이스 (검증 단계 중)
+                                            const isStatusDone = getStatusCategoryKey(issue) === 'done';
+                                            const businessDone = isBusinessDone(issue);
+                                            const actualDoneValue = issue.fields[actualDoneField];
+                                            const hasActualDone =
+                                                typeof actualDoneValue === 'string' && actualDoneValue.trim().length > 0;
+                                            const isActualDoneOnly = businessDone && !isStatusDone && hasActualDone;
+                                            return (
+                                            <div
+                                                key={issue.key}
+                                                role={onShowIssuesInList ? 'button' : undefined}
+                                                tabIndex={onShowIssuesInList ? 0 : undefined}
+                                                onClick={onShowIssuesInList ? handleIssueClick : undefined}
+                                                onKeyDown={onShowIssuesInList ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleIssueClick(); } } : undefined}
+                                                className={cn(
+                                                    'flex items-center gap-3 rounded-md border border-border bg-card px-3 py-2 text-[13px]',
+                                                    onShowIssuesInList ? 'cursor-pointer hover:bg-accent/40 hover:border-accent-foreground/20 transition-colors' : 'cursor-default'
+                                                )}
+                                            >
+                                                <span className="font-mono text-[11px] font-bold whitespace-nowrap tabular-nums" style={{ color: selectedGroup.color }}>
+                                                    {issue.key}
                                                 </span>
-                                            )}
-                                            {issue.fields.duedate && (
-                                                <span className="text-[11px] text-muted-foreground whitespace-nowrap tabular-nums">
-                                                    ~{issue.fields.duedate.slice(0, 10).replace(/-/g, '.')}
+                                                <span className="text-foreground/90 truncate flex-1">
+                                                    {issue.fields.summary}
                                                 </span>
-                                            )}
-                                        </div>
-                                        );
-                                    })}
+                                                <span className="inline-block border border-border rounded px-1.5 py-px text-[11px] text-foreground/80 bg-muted/40 whitespace-nowrap">
+                                                    {issue.fields.status?.name ?? '—'}
+                                                </span>
+                                                {/* v1.0.53: 실제완료일 입력으로 완료 인정된 케이스 표시 */}
+                                                {isActualDoneOnly && (
+                                                    <span
+                                                        className="inline-flex items-center gap-1 rounded-full border border-emerald-300 dark:border-emerald-700/60 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 px-1.5 py-px text-[10px] font-medium whitespace-nowrap"
+                                                        title={`status는 '${issue.fields.status?.name ?? '—'}'이지만 실제완료일(${typeof actualDoneValue === 'string' ? actualDoneValue.slice(0, 10) : ''})이 입력되어 비즈니스 완료로 집계됨 (v1.0.39 통일 정책)`}
+                                                    >
+                                                        <CheckCircle2 className="w-3 h-3" />
+                                                        실제완료일 기준
+                                                    </span>
+                                                )}
+                                                {issue.fields.assignee && (
+                                                    <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                                                        {issue.fields.assignee.displayName}
+                                                    </span>
+                                                )}
+                                                {issue.fields.duedate && (
+                                                    <span className="text-[11px] text-muted-foreground whitespace-nowrap tabular-nums">
+                                                        ~{issue.fields.duedate.slice(0, 10).replace(/-/g, '.')}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            );
+                                        });
+                                    })()}
                                 </div>
                             </div>
                         )}
